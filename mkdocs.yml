@@ -1,0 +1,86 @@
+site_name: src_method
+repo_url: https://github.com/Algorithmiq/src-method
+
+watch:
+  - src/src_method
+nav:
+  - Home: index.md
+  - 'Developer Guide':
+    - 'Versioning Scheme': developer-guide/versioning.md
+    - 'Managing Dependencies': developer-guide/dependencies.md
+    - 'Writing Tests': developer-guide/testing.md
+  - Code Reference: reference/
+
+plugins:
+  - search
+  - mkdocs-jupyter:
+      include: ["docs/tutorials/*.ipynb"]
+      execute: true
+      allow_errors: false
+      include_requirejs: true
+      include_source: true
+      remove_tag_config:
+        remove_input_tags:
+          - remove_cell
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_section_style: spacy
+            show_submodules: false
+            heading_level: 3
+            merge_init_into_class: true
+            show_category_heading: true
+            separate_signature: true
+            show_signature_annotations: true
+            inherited_members: true
+          import:
+            - https://qiskit.org/documentation/objects.inv
+            - https://numpy.org/doc/stable/objects.inv
+            - https://docs.python.org/3/objects.inv
+            - https://docs.scipy.org/doc/scipy/reference/objects.inv
+theme:
+  name: material
+  font:
+    text: Open Sans
+  palette:
+    # Palette toggle for light mode
+    - scheme: algorithmiq
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/algo_symbol.png
+  favicon: assets/algo_symbol.png
+extra_css:
+  - stylesheets/extra.css
+  - stylesheets/code_select.css
+markdown_extensions:
+  - smarty
+  - def_list
+  - admonition
+  - pymdownx.details
+  - toc:
+      permalink: "#"
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences
+  - pymdownx.magiclink
+  - footnotes
+extra_javascript:
+  - javascripts/config.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

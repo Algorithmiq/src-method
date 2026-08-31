@@ -1,0 +1,120 @@
+NODE: lrdn4451
+CPUS: 112
+srun: defined options
+srun: -------------------- --------------------
+srun: (null)              : lrdn4451
+srun: cpus-per-task       : 112
+srun: jobid               : 19685741
+srun: job-name            : src_bench
+srun: label               : set
+srun: mem                 : 440G
+srun: nodes               : 1
+srun: ntasks              : 1
+srun: ntasks-per-node     : 1
+srun: tres-per-task       : cpu:112
+srun: verbose             : 1
+srun: -------------------- --------------------
+srun: end of defined options
+srun: jobid 19685741: nodes(1):`lrdn4451', cpu counts: 112(x1)
+srun: Implicitly setting --exact, because -c/--cpus-per-task given.
+srun: CpuBindType=none
+srun: launching StepId=19685741.0 on host lrdn4451, 1 tasks: 0
+srun: topology/tree: init: topology tree plugin loaded
+srun: Node lrdn4451, 1 tasks started
+0: 2025-09-05 13:28:20 [info     ] benchmark_start                chi_out=1000 compare=no dtype=complex128 n_sites=50 phys_dim=2 run=src
+0: 2025-09-05 13:28:20 [info     ] Generating MPOs...
+0: 2025-09-05 13:28:29 [info     ] Computing SRC's MPO-MPO contraction (with compression)...
+0: 2025-09-05 13:28:29 [info     ] Starting SRC MPO-MPO           n_sites=50 phys_down=2 phys_up=2
+0: 2025-09-05 13:28:29 [info     ] Left-to-right sweep: Computing C tensors...
+0: 2025-09-05 13:28:29 [debug    ] Contraction path for C tensors: path=([(0, 2), (0, 1), (0, 1)],   Complete contraction:  abc,ade,bfdh,cghe->afg
+0:          Naive scaling:  8
+0:      Optimized scaling:  6
+0:       Naive FLOP count:  5.120e+11
+0:   Optimized FLOP count:  3.213e+10
+0:    Theoretical speedup:  1.594e+1
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bfdh,abc->fdhac                   ade,cghe,fdhac->afg
+0:    6           GEMM        cghe,ade->cghad                      fdhac,cghad->afg
+0:    6              0       cghad,fdhac->afg                              afg->afg)
+0: 2025-09-05 13:29:11 [debug    ]  - Step took 42.040742876 s
+0: 2025-09-05 13:29:11 [info     ] Right-to-left sweep: Constructing η tensors...
+0: 2025-09-05 13:29:11 [debug    ] Contraction path for η tensors: path=([(0, 1), (0, 2), (0, 1)],   Complete contraction:  abc,bdfg,cegh,ide->ifha
+0:          Naive scaling:  9
+0:      Optimized scaling:  7
+0:       Naive FLOP count:  5.120e+14
+0:   Optimized FLOP count:  6.426e+10
+0:    Theoretical speedup:  7.968e+3
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bdfg,abc->dfgac                  cegh,ide,dfgac->ifha
+0:    7           TDOT      dfgac,cegh->dfaeh                       ide,dfaeh->ifha
+0:    6           TDOT        dfaeh,ide->ifha                            ifha->ifha)
+0: 2025-09-05 13:30:59 [debug    ] Contraction path for S tensors: path=([(0, 3), (1, 2), (0, 1)],   Complete contraction:  abcd,hecg,ifgd,bef->ahi
+0:          Naive scaling:  9
+0:      Optimized scaling:  7
+0:       Naive FLOP count:  5.120e+14
+0:   Optimized FLOP count:  6.426e+10
+0:    Theoretical speedup:  7.968e+3
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bef,abcd->efacd                  hecg,ifgd,efacd->ahi
+0:    7           TDOT      efacd,ifgd->eacig                       hecg,eacig->ahi
+0:    6           TDOT        eacig,hecg->ahi                              ahi->ahi)
+0: 2025-09-05 13:30:59 [debug    ]  - Step took 108.07037480800001 s
+0: 2025-09-05 13:30:59 [info     ] SRC MPO-MPO complete.
+0: 2025-09-05 13:30:59 [info     ]  SRC's contraction-compression took 150.115254443 s
+0: 2025-09-05 13:30:59 [info     ] benchmark_end
+srun: Received task exit notification for 1 task of StepId=19685741.0 (status=0x0000).
+srun: lrdn4451: task 0: Completed
+
+
+#------------------------#
+Task and CPU usage stats:
+JobID           JobName      NCPUS   NNodes   NTasks     AveCPU     MinCPU MinCPUNode MinCPUTask    Elapsed ExitCode 
+------------ ---------- ---------- -------- -------- ---------- ---------- ---------- ---------- ---------- -------- 
+19685741      src_bench        112        1                                                        00:03:21      0:0 
+19685741.ba+      batch        112        1        1                                               00:03:21      0:0 
+19685741.ex+     extern        112        1        1                                               00:03:21      0:0 
+19685741.0       python        112        1        1   01:54:37   01:54:37   lrdn4451          0   00:03:19      0:0 
+Memory usage stats:
+JobID           JobName AveRSS                                             MaxRSS                                             MaxRSSNode MaxRSSTask   AvePages MaxPages MaxPagesNode   MaxPagesTask 
+------------ ---------- -------------------------------------------------- -------------------------------------------------- ---------- ---------- ---------- -------- ------------ -------------- 
+19685741      src_bench                                                                                                                                                                             
+19685741.ba+      batch                                                                                                                                                                             
+19685741.ex+     extern                                                                                                                                                                             
+19685741.0       python 7.01G                                              7.01G                                                lrdn4451          0      0.00G    0.00G     lrdn4451              0 
+Disk usage stats:
+JobID           JobName    AveDiskRead  MaxDiskRead MaxDiskReadNode MaxDiskReadTask   AveDiskWrite MaxDiskWrite MaxDiskWriteNode MaxDiskWriteTask 
+------------ ---------- -------------- ------------ --------------- --------------- -------------- ------------ ---------------- ---------------- 
+19685741      src_bench                                                                                                                           
+19685741.ba+      batch                                                                                                                           
+19685741.ex+     extern                                                                                                                           
+19685741.0       python          0.03G        0.03G        lrdn4451               0          0.00M        0.00M         lrdn4451                0 
+Trackable resources usage stats:
+JobID           JobName AllocNodes  AllocCPUS AllocTRES                                                                                            
+------------ ---------- ---------- ---------- ---------------------------------------------------------------------------------------------------- 
+19685741      src_bench          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19685741.ba+      batch          1        112 cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                                     
+19685741.ex+     extern          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19685741.0       python          1        112 cpu=112,gres/tmpfs=10737418240,mem=440G,node=1                                                       
+Trackable resources (ingress) usage stats:
+JobID           JobName TRESUsageInTot                                                         TRESUsageInAve                                                         TRESUsageInMax                                                         TRESUsageInMaxNode                                                     TRESUsageInMaxTask                                                     
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19685741      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19685741.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19685741.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19685741.0       python cpu=01:54:37,energy=0,fs/disk=0.03G,mem=7.01G,pages=0.00G,vmem=7.20G   cpu=01:54:37,energy=0,fs/disk=0.03G,mem=7.01G,pages=0.00G,vmem=7.20G   cpu=01:54:37,energy=0,fs/disk=0.03G,mem=7.01G,pages=0.00G,vmem=7.20G   cpu=lrdn4451,energy=lrdn4451,fs/disk=lrdn4451,mem=lrdn4451,pages=lrdn+ cpu=0,fs/disk=0,mem=0,pages=0,vmem=0                                   
+Trackable resources (egress) usage stats:
+JobID           JobName TRESUsageOutTot                                                        TRESUsageOutAve                                                        TRESUsageOutMax                                                        TRESUsageOutMaxNode                                                    TRESUsageOutMaxTask                                                    
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19685741      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19685741.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19685741.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19685741.0       python energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=lrdn4451,fs/disk=lrdn4451                                       fs/disk=0                                                              

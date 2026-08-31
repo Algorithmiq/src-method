@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+title: "src_method: Successive Randomized Compression for tensor networks"
+message: "If you use this software, please cite both this software and the paper that introduced the SRC algorithm."
+type: software
+authors:
+  - family-names: "Panadés-Barrueta"
+    given-names: "Ramón L."
+    affiliation: "Algorithmiq Ltd."
+  - family-names: "Botelho"
+    given-names: "Ludmila"
+    affiliation: "Algorithmiq Ltd."
+repository-code: "https://github.com/Algorithmiq/src-method"
+url: "https://docs.algorithmiq.fi/src-method"
+abstract: >-
+  An implementation of the Successive Randomized Compression (SRC) algorithm
+  for matrix product states and matrix product operators, covering MPO-MPS and
+  MPO-MPO contraction-compression as well as standalone MPS and MPO
+  compression, with CPU (NumPy) and GPU (CuPy) backends.
+keywords:
+  - tensor networks
+  - matrix product states
+  - matrix product operators
+  - randomized linear algebra
+  - quantum simulation
+license: Apache-2.0
+preferred-citation:
+  type: article
+  title: "Successive randomized compression: A randomized algorithm for the compressed MPO-MPS product"
+  authors:
+    - family-names: "Camaño"
+      given-names: "Chris"
+    - family-names: "Epperly"
+      given-names: "Ethan N."
+    - family-names: "Tropp"
+      given-names: "Joel A."
+  journal: "Quantum"
+  volume: 10
+  start: 2022
+  year: 2026
+  doi: "10.22331/q-2026-03-10-2022"
+  url: "https://doi.org/10.22331/q-2026-03-10-2022"

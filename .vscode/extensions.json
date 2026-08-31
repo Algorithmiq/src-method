@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "MS-vsliveshare.vsliveshare",
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "ms-toolsai.jupyter",
+    "mutantdino.resourcemonitor",
+    "njpwerner.autodocstring",
+    "streetsidesoftware.code-spell-checker",
+    "streetsidesoftware.code-spell-checker-scientific-terms",
+    "tamasfe.even-better-toml",
+    "vivaxy.vscode-conventional-commits"
+  ]
+}

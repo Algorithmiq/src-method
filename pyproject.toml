@@ -1,0 +1,290 @@
+[build-system]
+requires = ["hatchling>=1.29.0", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "src_method"
+authors = [
+  { name = "Algorithmiq Development Team", email = "aurora@algorithmiq.fi" },
+]
+description = "Successive Randomized Compression."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11,<3.14"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dynamic = ["version"]
+dependencies = [
+  "cmaes>=0.12.0",
+  "cyclopts>=3.20",
+  "llvmlite>=0.44",
+  "numba>=0.65.0",
+  "numpy>=2.4.4,<3",
+  "opt_einsum>=3.4.0",
+  "structlog>=25.5.0",
+  "quimb>=1.14.0,<2",
+]
+
+
+[project.optional-dependencies]
+gpu-nvidia = [
+  "cupy-cuda12x>=13",
+  "nvidia-cuda-nvrtc-cu12",
+  "nvidia-cuda-runtime-cu12",
+  "nvidia-cublas-cu12",
+  "nvidia-cusolver-cu12",
+  "nvidia-curand-cu12",
+  "nvidia-cusparse-cu12",
+  "nvidia-nvjitlink-cu12",
+]
+gpu-rocm = ["cupy>=14.1.1"]
+
+
+[project.urls]
+Homepage = "https://algorithmiq.fi"
+Documentation = "https://docs.algorithmiq.fi"
+Repository = "https://github.com/Algorithmiq/src-method"
+Changelog = "https://github.com/Algorithmiq/src-method/releases"
+"Bug Tracker" = "https://github.com/Algorithmiq/src-method/issues"
+Discussions = "https://github.com/Algorithmiq/src-method/discussions"
+
+
+[dependency-groups]
+test = ["pytest-cov>=4.0", "pytest>=9.1.0,<10.0", "pytest-benchmark>=5.2.3"]
+dev = ["scalene", "pre-commit>=3", "ruff==0.15.12", { include-group = "test" }]
+interactive = [
+  "ipykernel>=7.2.0",
+  "matplotlib>=3.11.0",
+  "pydot>=1.4",
+  "tqdm>=4.65.0",
+  "pylatexenc",
+]
+docs = [
+  "black[jupyter]>=26.5.1",          # format extracted function signatures
+  "mkdocs-gen-files>=0.5.0",
+  "mkdocs-jupyter>=0.24.2",
+  "mkdocs-literate-nav>=0.6.0",
+  "mkdocs-material>=9",
+  "mkdocs-section-index>=0.3.5",
+  "mkdocs>=1.5.1",
+  "mkdocstrings-python>=1.2.1",
+  { include-group = "interactive" },
+]
+
+
+[tool.uv]
+python-preference = "only-managed"
+
+
+[tool.hatch]
+version = { source = "vcs" }
+metadata = { allow-direct-references = true }
+build.hooks.vcs = { version-file = "src/src_method/_version.py" }
+
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(message)s"
+addopts = [
+  "--import-mode=importlib",
+  "-ra",
+  "--showlocals",
+  "--strict-markers",
+  "--strict-config",
+]
+pythonpath = ["."]
+filterwarnings = ["error"]
+markers = [
+  "slow: mark test as slow (>=1 minute runtime)",
+  "perf: mark test as benchmark",
+]
+testpaths = ["tests"]
+required_plugins = ["pytest-cov"]
+
+
+[tool.coverage]
+run.source = ["src/src_method"]
+relative_files = true
+omit = ["src/src_method/_version.py"]
+
+[tool.coverage.report]
+exclude_also = [
+  '\.\.\.',
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG:",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+  "if (typing\\.)?TYPE_CHECKING:",
+  "@jit\\(",
+  "@njit\\(",
+  '^\s*\.\.\.',
+  "logger =",
+  "logger\\.",
+  "return NotImplemented",
+  "@overload",
+]
+
+
+[tool.ruff]
+# for the default settings, see: https://docs.astral.sh/ruff/configuration/#configuring-ruff
+
+exclude = ["docs", "src/src_method/_version.py"]
+
+target-version = "py311"
+
+[tool.ruff.format]
+# enable auto-formatting of code examples in docstrings
+docstring-code-format = true
+
+# set the line length limit used when formatting code snippets in
+# docstrings
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+extend-select = [
+  "A",      # flake8-builtins
+  "ANN",    # flake8-annotations
+  "ARG",    # flake8-unused-arguments
+  "BLE",    # flake8-blind-except
+  "C4",     # flake8-comprehensions
+  "C90",    # mccabe
+  "D",      # pydocstyle
+  "E",
+  "W",      # pycodestyle
+  "EM",     # flake8-errmsg
+  "ERA",    # eradicate
+  "EXE",    # flake8-executable
+  "FBT",    # flake8-boolean-trap
+  "FLY",    # flynt
+  "FURB",   # refurb
+  "G",      # flake8-logging-format
+  "I",      # isort
+  "ICN",    # flake8-import-conventions
+  "INP",    # flake8-no-pep420
+  "ISC003", # flake8-implicit-str-concat: explicit-string-concatenation (other rules conflict with the formatter)
+  "N",      # pep8-naming
+  "NPY",    # NumPy-specific rules
+  "PD",     # pandas-vet
+  "PERF",   # perflint
+  "PGH",    # pygrep-hooks
+  "PIE",    # flake8-pie
+  "PL",     # pylint
+  "PLC",    # pylint convention
+  "PLE",    # pylint error
+  "PLR",    # pylint refactor
+  "PLW",    # pylint warning
+  "PT",     # flake8-pytest-style
+  "PTH",    # flake8-use-pathlib
+  "PYI",    # flake8-pyi
+  "RET",    # flake8-return
+  "RSE",    # flake8-raise
+  "RUF",    # Ruff-specific rules
+  "S",      # flake8-bandit
+  "SIM",    # flake8-simplify
+  "SLOT",   # flake8-slot
+  "T20",    # flake8-print
+  "TCH",    # flake8-type-checking
+  "TID",    # flake8-tidy-imports
+  "UP",     # pyupgrade
+  "YTT",    # flake8-2020
+  "TRY",    # tryceratops
+]
+
+ignore = [
+  "D206",    # indent-with-spaces: enforced by the formatter
+  "E111",    # indentation-with-invalid-multiple: enforced by the formatter
+  "E114",    # indentation-with-invalid-multiple-ment: enforced by the formatter
+  "E117",    # over-indented: enforced by the formatter
+  "N803",    # pep8-naming: "argument name should be lowercase"
+  "N806",    # pep8-naming: "variable in function should be lowercase"
+  "PLR0913", # pylint refactor: "too many arguments to function call"
+  "PLR0915", # pylint refactor: "too many statements"
+  "PLR2004", # pylint refactor: "magic value used in comparison"
+  "W191",    # tab-indentation: enforced by the formatter
+]
+
+# do not attempt autofix with `--fix` for the following rules
+unfixable = [
+  "ERA",  # removes commented-out code
+  "F401", # removes unused imports
+  "F841", # removes unused variables
+  "T20",  # removes print statements
+]
+
+# allow unused variadic arguments, like *args and **kwargs.
+flake8-unused-arguments.ignore-variadic-names = true
+flake8-annotations.allow-star-arg-any = true
+
+[tool.ruff.lint.per-file-ignores]
+# ignore for contents of `tests`:
+# - S101 (flake8-bandit `AssertUsed`),
+# - D (pydocstyle)
+# - C901 (mccabe)
+# - INP001 (flake8-no-pep420)
+# - E721 (type-comparison)
+"tests/*" = ["S101", "D", "C901", "INP001", "E721"]
+# ignore for all `test_*.py` files
+# - ANN (flake8-annotations)
+# - I002 (isort required import)
+"tests/**/test_*.py" = ["ANN", "I002"]
+# ignore I002 (isort required import) for all `__init__.py` files
+"src/src_method/**/__init__.py" = ["I002"]
+
+[tool.ruff.lint.pycodestyle]
+# maximum line length to allow for line-length violations within documentation,
+# including standalone comments
+max-doc-length = 140
+max-line-length = 120
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
+
+
+[tool.pyright]
+pythonVersion = "3.11"
+
+include = ["src/src_method/**/*.py"]
+
+exclude = ["test_*.py", "docs/**", "**/__pycache__"]
+
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = true
+
+reportGeneralTypeIssues = "information"
+reportMissingImports = true
+reportMissingTypeStubs = "warning"
+reportImportCycles = "information"
+reportPrivateUsage = "information"
+reportPrivateImportUsage = "information"
+reportUnnecessaryIsInstance = "information"
+reportUnnecessaryCast = "information"
+reportUnnecessaryComparison = "information"
+reportUnnecessaryContains = "information"
+reportUnnecessaryTypeIgnoreComment = "information"
+reportMatchNotExhaustive = "information"

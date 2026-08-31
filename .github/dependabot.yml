@@ -1,0 +1,31 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # maintain dependencies for Python
+  - package-ecosystem: "uv"
+    directory: "/" # Location of package manifests
+    # run on the 1st and 15th day of the month
+    schedule:
+      interval: "cron"
+      cronjob: "0 3 1,15 * *"
+    open-pull-requests-limit: 10
+    ignore:
+      # for all dependencies, ignore all patch updates
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  # maintain dependencies for DevContainer
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "monthly"

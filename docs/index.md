@@ -1,0 +1,96 @@
+# SRC Method
+
+## Successive Randomized Compression
+
+An implementation of the SRC algorithm introduced on [arXiv:2504.06475](https://arxiv.org/abs/2504.06475), but extending the idea to other kinds of tensor networks.
+
+### Features
+
+The following primitives are supported:
+
+1. MPO-MPS randomized contraction-compression.
+2. MPO-MPO randomized contraction-compression.
+3. MPO randomized compression.
+4. MPS randomized compression.
+
+The package is designed to work with [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) tensor network objects, as such, the API loosely follows its naming conventions:
+
+```python
+from src_method import apply, compress
+```
+
+The `apply` function covers cases 1 and 2 above, while the `compress` function covers cases 3 and 4. Both functions are pure, meaning no in-place modification ever happens. The user should
+manage the assignment of the returned objects, possibly overwriting the input variables.
+See the [reference documentation](algorithmiq.github.io/src_method/) for details, and the [tests](../tests/) or [benchmarks](../benches/) folders for usage examples.
+
+**NOTE**: the current implementation targets tensor networks with 3 or more sites. For smaller networks, the corresponding Quimb primitive with randomized SVD is dispatched, with a warning.
+
+### Tensor Indexing Conventions
+
+This library follows the default `quimb` tensor indexing conventions.
+
+- **MPO Tensors:** Bulk tensors have index order `('l', 'r', 'u', 'd')`.
+  Boundary tensors (at the edges) are rank-3, dropping the outer `'l'` or `'r'` index.
+
+- **MPS Tensors:** Bulk tensors have index order `('l', 'r', 'u')`.
+  Boundary tensors are rank-2, dropping the outer bond index.
+
+Where `'l'`/`'r'` are left/right virtual bonds and `'u'`/`'d'` are the upper/lower physical legs.
+Please keep this in mind when constructing or manipulating tensors directly.
+
+## Installation
+
+```bash
+# CPU only (default)
+uv pip install src_method
+
+# With NVIDIA GPU support (CUDA 12.x)
+uv pip install "src_method[gpu-nvidia]"
+
+# With AMD GPU support (ROCm)
+uv pip install "src_method[gpu-rocm]"
+```
+
+Or simply add it to the `dependencies` of your project's `pyproject.toml`.
+
+## Setting up the development environment
+
+The code has a [DevContainer] configuration that will get you up and running
+with all dependencies installed and configured, including sane defaults for the
+editor.
+
+You will need:
+
+1. A working [Docker] installation:
+   - For macOS and Windows, install [Docker Desktop](https://docs.docker.com/get-docker/)
+   - For Linux, install [Docker Engine](https://docs.docker.com/engine/install/#server) following the instructions for your specific distro.
+2. The [Visual Studio Code] editor. A recent version is recommended, _e.g._ >=1.78
+3. The VSCode [DevContainers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+4. (Optional, but **highly recommended**) The [GitHub CLI] tool.
+
+You can clone the repository with:
+
+```
+git clone https://github.com/Algorithmiq/src-method.git
+```
+
+We recommend using a Git credential manager, such as [GitHub CLI], configured to
+use HTTPS as protocol for Git operations.
+
+Once the code is locally available, you can open its containing folder in
+[Visual Studio Code]. The editor will then set up the [DevContainer] for you.
+The first time you open the folder the startup will take a few minutes. Once the
+process is done, you will have _all_ project dependencies installed, including
+`pre-commit` hooks.
+[Visual Studio Code] will be already configured with all the extensions helpful for Python development.
+
+**Note** that the order in which Visual Studio Code loads the extensions in the
+DevContainer is non-deterministic.  You might have to execute the *Reload
+Window* command to get everything to work as expected after a fresh build of the
+container.
+
+[DevContainer]: https://containers.dev/
+[Docker]: https://docs.docker.com/get-docker/
+[Visual Studio Code]: https://code.visualstudio.com/
+[GitHub CLI]: https://cli.github.com/
+[at this link]: https://docs.algorithmiq.fi/src_method

@@ -1,0 +1,230 @@
+name: Test src_method
+
+# specify which events will trigger this workflow
+on:
+  # run on all pushed to main
+  push:
+    branches:
+      - main
+  # PRs trigger for the "opened", "reopened", "synchronize" events (default) and
+  # "ready_for_review"
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize # when new commits are pushed to the PR
+      - ready_for_review # when the PR is un-drafted
+  release:
+    types:
+      - published
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COLUMNS: 120
+  FORCE_COLOR: 3
+
+jobs:
+  test:
+    # in combination with the PR types selection, this top-level if statement
+    # skips running the workflow for Draft PRs
+    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'test-in-draft') }}
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - gpu-runner
+        python-version:
+          - "3.11"
+          - "3.13"
+        test-group:
+          - "not slow and not perf"
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Runner hardware info Linux
+        if: ${{ runner.os == 'linux' }}
+        run: |
+          lscpu | egrep 'Model name|Socket|Thread|NUMA|CPU\(s\)'
+
+          NTHREADS=$(lscpu | egrep 'CPU\(s\):' | head -n 1 | awk '{ print $2 }')
+
+          echo "NTHREADS: $NTHREADS"
+
+          echo "OMP_NUM_THREADS=$NTHREADS" >> $GITHUB_ENV
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          # grab the history of the PR, so setuptools-scm can compute the correct version number
+          fetch-depth: 0
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package
+        run: |
+          if [[ "${{ matrix.runner }}" == "gpu-runner" ]]; then
+            extras="--extra gpu-nvidia"
+          else
+            extras=""
+          fi
+          uv sync --no-progress --no-dev --group test $extras
+
+      - name: Python environment information
+        run: |
+          uv tree
+
+      - name: Get src_method version
+        run: |
+          uv run python -c "import src_method; print(src_method.__version__)"
+
+      - name: CuPy configuration
+        if: ${{ matrix.runner == 'gpu-runner' }}
+        run: |
+          uv run python -c 'import cupy; cupy.show_config()'
+
+      - name: GPU diagnostics
+        if: ${{ matrix.runner == 'gpu-runner' }}
+        run: |
+          nvidia-smi
+
+      - name: Get test group label
+        id: test-group-label
+        run: |
+          runner="${{ matrix.runner }}"
+          pyver="${{ matrix.python-version }}"
+          echo "label=$runner-$pyver" >> $GITHUB_OUTPUT
+
+      - name: Run tests
+        run: >-
+          uv run python -m pytest
+          -r aR
+          --durations=50
+          --durations-min=5.0
+          --junit-xml=pytest-"${{ steps.test-group-label.outputs.label }}".xml
+          --cov=src
+          --cov-branch
+          --cov-report=lcov:lcov.info
+          --cov-report=xml:coverage-"${{ steps.test-group-label.outputs.label }}".xml
+
+      - name: Upload Test Results as artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: test_results_${{ steps.test-group-label.outputs.label }}
+          path: |
+            pytest-*.xml
+            coverage-*.xml
+          retention-days: 1
+
+  benchmark:
+    # Will fail if an slowdown in the median of more than 10% is detected
+    name: 'Run Benchmark Comparison'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: 'Checkout Base Branch (main)'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: 'Install the latest version of uv'
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: 'Install dependencies'
+        run: |
+          uv sync --group test
+
+      - name: 'Run Benchmark on Base'
+        run: |
+          uv run python -m pytest -m "perf" \
+           --log-cli-level=WARNING \
+           --benchmark-save=baseline \
+           --benchmark-storage=file://benchmarks_data
+
+      - name: 'Upload Baseline Artifact'
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-baseline
+          path: benchmarks_data/**/*.json
+
+      - name: 'Checkout PR Branch'
+        uses: actions/checkout@v6
+        with:
+          clean: false
+
+      - name: 'Download Baseline Artifact'
+        uses: actions/download-artifact@v8
+        with:
+          name: benchmark-baseline
+          path: baseline-benchmarks/
+
+      - name: 'Run and Compare Benchmarks'
+        id: comparison
+        run: |
+          uv run python -m pytest -m "perf" \
+           -W ignore::pytest_benchmark.logger.PytestBenchmarkWarning \
+           --log-cli-level=WARNING \
+           --benchmark-storage=file://baseline-benchmarks \
+           --benchmark-compare-fail=median:10% \
+           --benchmark-compare=0001
+
+  publish-test-results:
+    name: "Publish Tests Results"
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+
+      # only needed unless run with comment_mode: off
+      pull-requests: write
+
+      # only needed for private repository
+      contents: read
+
+      # only needed for private repository
+      issues: read
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          # grab the history of the PR, so setuptools-scm can compute the correct version number
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files:
+            pytest-*.xml

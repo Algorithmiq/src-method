@@ -1,0 +1,120 @@
+NODE: lrdn3765
+CPUS: 112
+srun: defined options
+srun: -------------------- --------------------
+srun: (null)              : lrdn3765
+srun: cpus-per-task       : 112
+srun: jobid               : 19685507
+srun: job-name            : src_bench
+srun: label               : set
+srun: mem                 : 440G
+srun: nodes               : 1
+srun: ntasks              : 1
+srun: ntasks-per-node     : 1
+srun: tres-per-task       : cpu:112
+srun: verbose             : 1
+srun: -------------------- --------------------
+srun: end of defined options
+srun: jobid 19685507: nodes(1):`lrdn3765', cpu counts: 112(x1)
+srun: Implicitly setting --exact, because -c/--cpus-per-task given.
+srun: CpuBindType=none
+srun: launching StepId=19685507.0 on host lrdn3765, 1 tasks: 0
+srun: topology/tree: init: topology tree plugin loaded
+srun: Node lrdn3765, 1 tasks started
+0: 2025-09-05 13:16:24 [info     ] benchmark_start                chi_out=1000 compare=no dtype=complex128 n_sites=25 phys_dim=2 run=src
+0: 2025-09-05 13:16:24 [info     ] Generating MPOs...
+0: 2025-09-05 13:16:28 [info     ] Computing SRC's MPO-MPO contraction (with compression)...
+0: 2025-09-05 13:16:28 [info     ] Starting SRC MPO-MPO           n_sites=25 phys_down=2 phys_up=2
+0: 2025-09-05 13:16:28 [info     ] Left-to-right sweep: Computing C tensors...
+0: 2025-09-05 13:16:28 [debug    ] Contraction path for C tensors: path=([(0, 2), (0, 1), (0, 1)],   Complete contraction:  abc,ade,bfdh,cghe->afg
+0:          Naive scaling:  8
+0:      Optimized scaling:  6
+0:       Naive FLOP count:  5.120e+11
+0:   Optimized FLOP count:  3.213e+10
+0:    Theoretical speedup:  1.594e+1
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bfdh,abc->fdhac                   ade,cghe,fdhac->afg
+0:    6           GEMM        cghe,ade->cghad                      fdhac,cghad->afg
+0:    6              0       cghad,fdhac->afg                              afg->afg)
+0: 2025-09-05 13:16:48 [debug    ]  - Step took 20.147758949 s
+0: 2025-09-05 13:16:48 [info     ] Right-to-left sweep: Constructing η tensors...
+0: 2025-09-05 13:16:48 [debug    ] Contraction path for η tensors: path=([(0, 1), (0, 2), (0, 1)],   Complete contraction:  abc,bdfg,cegh,ide->ifha
+0:          Naive scaling:  9
+0:      Optimized scaling:  7
+0:       Naive FLOP count:  5.120e+14
+0:   Optimized FLOP count:  6.426e+10
+0:    Theoretical speedup:  7.968e+3
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bdfg,abc->dfgac                  cegh,ide,dfgac->ifha
+0:    7           TDOT      dfgac,cegh->dfaeh                       ide,dfaeh->ifha
+0:    6           TDOT        dfaeh,ide->ifha                            ifha->ifha)
+0: 2025-09-05 13:17:39 [debug    ] Contraction path for S tensors: path=([(0, 3), (1, 2), (0, 1)],   Complete contraction:  abcd,hecg,ifgd,bef->ahi
+0:          Naive scaling:  9
+0:      Optimized scaling:  7
+0:       Naive FLOP count:  5.120e+14
+0:   Optimized FLOP count:  6.426e+10
+0:    Theoretical speedup:  7.968e+3
+0:   Largest intermediate:  1.600e+7 elements
+0: --------------------------------------------------------------------------------
+0: scaling        BLAS                current                             remaining
+0: --------------------------------------------------------------------------------
+0:    6           TDOT        bef,abcd->efacd                  hecg,ifgd,efacd->ahi
+0:    7           TDOT      efacd,ifgd->eacig                       hecg,eacig->ahi
+0:    6           TDOT        eacig,hecg->ahi                              ahi->ahi)
+0: 2025-09-05 13:17:39 [debug    ]  - Step took 50.950710502 s
+0: 2025-09-05 13:17:39 [info     ] SRC MPO-MPO complete.
+0: 2025-09-05 13:17:39 [info     ]  SRC's contraction-compression took 71.102247426 s
+0: 2025-09-05 13:17:39 [info     ] benchmark_end
+srun: Received task exit notification for 1 task of StepId=19685507.0 (status=0x0000).
+srun: lrdn3765: task 0: Completed
+
+
+#------------------------#
+Task and CPU usage stats:
+JobID           JobName      NCPUS   NNodes   NTasks     AveCPU     MinCPU MinCPUNode MinCPUTask    Elapsed ExitCode 
+------------ ---------- ---------- -------- -------- ---------- ---------- ---------- ---------- ---------- -------- 
+19685507      src_bench        112        1                                                        00:02:01      0:0 
+19685507.ba+      batch        112        1        1                                               00:02:01      0:0 
+19685507.ex+     extern        112        1        1                                               00:02:01      0:0 
+19685507.0       python        112        1        1   00:54:17   00:54:17   lrdn3765          0   00:01:56      0:0 
+Memory usage stats:
+JobID           JobName AveRSS                                             MaxRSS                                             MaxRSSNode MaxRSSTask   AvePages MaxPages MaxPagesNode   MaxPagesTask 
+------------ ---------- -------------------------------------------------- -------------------------------------------------- ---------- ---------- ---------- -------- ------------ -------------- 
+19685507      src_bench                                                                                                                                                                             
+19685507.ba+      batch                                                                                                                                                                             
+19685507.ex+     extern                                                                                                                                                                             
+19685507.0       python 3.66G                                              3.66G                                                lrdn3765          0      0.00G    0.00G     lrdn3765              0 
+Disk usage stats:
+JobID           JobName    AveDiskRead  MaxDiskRead MaxDiskReadNode MaxDiskReadTask   AveDiskWrite MaxDiskWrite MaxDiskWriteNode MaxDiskWriteTask 
+------------ ---------- -------------- ------------ --------------- --------------- -------------- ------------ ---------------- ---------------- 
+19685507      src_bench                                                                                                                           
+19685507.ba+      batch                                                                                                                           
+19685507.ex+     extern                                                                                                                           
+19685507.0       python          0.03G        0.03G        lrdn3765               0          0.00M        0.00M         lrdn3765                0 
+Trackable resources usage stats:
+JobID           JobName AllocNodes  AllocCPUS AllocTRES                                                                                            
+------------ ---------- ---------- ---------- ---------------------------------------------------------------------------------------------------- 
+19685507      src_bench          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19685507.ba+      batch          1        112 cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                                     
+19685507.ex+     extern          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19685507.0       python          1        112 cpu=112,gres/tmpfs=10737418240,mem=440G,node=1                                                       
+Trackable resources (ingress) usage stats:
+JobID           JobName TRESUsageInTot                                                         TRESUsageInAve                                                         TRESUsageInMax                                                         TRESUsageInMaxNode                                                     TRESUsageInMaxTask                                                     
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19685507      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19685507.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19685507.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19685507.0       python cpu=00:54:17,energy=0,fs/disk=0.03G,mem=3.66G,pages=0.00G,vmem=3.84G   cpu=00:54:17,energy=0,fs/disk=0.03G,mem=3.66G,pages=0.00G,vmem=3.84G   cpu=00:54:17,energy=0,fs/disk=0.03G,mem=3.66G,pages=0.00G,vmem=3.84G   cpu=lrdn3765,energy=lrdn3765,fs/disk=lrdn3765,mem=lrdn3765,pages=lrdn+ cpu=0,fs/disk=0,mem=0,pages=0,vmem=0                                   
+Trackable resources (egress) usage stats:
+JobID           JobName TRESUsageOutTot                                                        TRESUsageOutAve                                                        TRESUsageOutMax                                                        TRESUsageOutMaxNode                                                    TRESUsageOutMaxTask                                                    
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19685507      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19685507.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19685507.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19685507.0       python energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=lrdn3765,fs/disk=lrdn3765                                       fs/disk=0                                                              

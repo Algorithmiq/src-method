@@ -1,0 +1,86 @@
+name: Publish src_method Python sdist and  wheels to Algorithmiq PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      force-upload:
+        description: 'Upload artifacts without a corresponding release'
+        required: false
+        default: false
+        type: boolean
+  release:
+    types:
+      - published
+  pull_request:
+    # PRs trigger for the "opened", "reopened", "synchronize" events (default) and
+    # "ready_for_review"
+    paths:
+      - .github/workflows/deploy.yml
+    types:
+      - opened
+      - reopened
+      - synchronize # when new commits are pushed to the PR
+      - ready_for_review # when the PR is un-drafted
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COLUMNS: 120
+  FORCE_COLOR: 3
+
+jobs:
+  build-sdist-wheel:
+    name: Build source distribution and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # such that setuptools_scm can do its job correctly
+
+      - name: Build SDist and Wheel
+        run: |
+          pipx install uv
+
+          pipx run build --verbose --sdist --wheel --installer=uv
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cibw-dist
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
+
+
+  upload_codeartifact:
+    name: Upload to AWS CodeArtifact
+    needs:
+      - build-sdist-wheel
+    if: (github.event_name == 'release' && github.event.action == 'published') || github.event.inputs.force-upload
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          # unpacks all CIBW artifacts into dist/
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::406960181794:role/github-actions-codeartifact-write-access
+          aws-region: eu-west-1
+
+      - name: Publish
+        run: |
+          export TWINE_USERNAME=aws
+          export TWINE_PASSWORD="$(aws codeartifact get-authorization-token --domain algorithmiq --domain-owner 406960181794 --region eu-west-1 --query authorizationToken --output text)"
+          export TWINE_REPOSITORY_URL="$(aws codeartifact get-repository-endpoint --domain algorithmiq --domain-owner 406960181794 --repository pypi --region eu-west-1 --format pypi --query repositoryEndpoint --output text)"
+          pipx run twine upload dist/*

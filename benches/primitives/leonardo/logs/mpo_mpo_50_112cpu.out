@@ -1,0 +1,115 @@
+NODE: lrdn4380
+CPUS: 112
+srun: defined options
+srun: -------------------- --------------------
+srun: (null)              : lrdn4380
+srun: cpus-per-task       : 112
+srun: jobid               : 19656379
+srun: job-name            : src_bench
+srun: label               : set
+srun: mem                 : 440G
+srun: nodes               : 1
+srun: ntasks              : 1
+srun: ntasks-per-node     : 1
+srun: tres-per-task       : cpu:112
+srun: verbose             : 1
+srun: -------------------- --------------------
+srun: end of defined options
+srun: jobid 19656379: nodes(1):`lrdn4380', cpu counts: 112(x1)
+srun: Implicitly setting --exact, because -c/--cpus-per-task given.
+srun: CpuBindType=none
+srun: launching StepId=19656379.0 on host lrdn4380, 1 tasks: 0
+srun: topology/tree: init: topology tree plugin loaded
+srun: Node lrdn4380, 1 tasks started
+0: 2025-09-04 13:19:06 [info     ] benchmark_start                chi_out=50 dtype=complex128 n_sites=50 phys_dim=2 run=quimb
+0: 2025-09-04 13:19:06 [info     ] Generating MPOs...
+0: 2025-09-04 13:19:06 [info     ] Computing reference contraction (no compression)...
+0: 2025-09-04 13:19:26 [info     ] Reference contraction took 19.310993082 s
+0: 2025-09-04 13:19:26 [info     ] Computing Quimb's MPO-MPO contraction (with compression)...
+0: 2025-09-04 13:23:24 [info     ]  Quimb's contraction-compression took 238.66965269500002 s
+0: 2025-09-04 13:24:06 [info     ]  - Distance to reference: 2.9802322387695312e-08
+0: 2025-09-04 13:24:06 [info     ] benchmark_end
+srun: Received task exit notification for 1 task of StepId=19656379.0 (status=0x0000).
+srun: lrdn4380: task 0: Completed
+srun: defined options
+srun: -------------------- --------------------
+srun: (null)              : lrdn4380
+srun: cpus-per-task       : 112
+srun: jobid               : 19656379
+srun: job-name            : src_bench
+srun: label               : set
+srun: mem                 : 440G
+srun: nodes               : 1
+srun: ntasks              : 1
+srun: ntasks-per-node     : 1
+srun: tres-per-task       : cpu:112
+srun: verbose             : 1
+srun: -------------------- --------------------
+srun: end of defined options
+srun: jobid 19656379: nodes(1):`lrdn4380', cpu counts: 112(x1)
+srun: Implicitly setting --exact, because -c/--cpus-per-task given.
+srun: CpuBindType=none
+srun: launching StepId=19656379.1 on host lrdn4380, 1 tasks: 0
+srun: topology/tree: init: topology tree plugin loaded
+srun: Node lrdn4380, 1 tasks started
+0: 2025-09-04 13:24:09 [info     ] benchmark_start                chi_out=50 dtype=complex128 n_sites=50 phys_dim=2 run=src
+0: 2025-09-04 13:24:09 [info     ] Generating MPOs...
+0: 2025-09-04 13:24:10 [info     ] Computing reference contraction (no compression)...
+0: 2025-09-04 13:24:28 [info     ] Reference contraction took 18.876444300000003 s
+0: 2025-09-04 13:24:28 [info     ] Computing SRC's MPO-MPO contraction (with compression)...
+0: 2025-09-04 13:24:38 [info     ]  SRC's contraction-compression took 9.959594947000001 s
+0: 2025-09-04 13:25:19 [info     ]  - Distance to reference: 2.9802322387695312e-08
+0: 2025-09-04 13:25:19 [info     ] benchmark_end
+srun: Received task exit notification for 1 task of StepId=19656379.1 (status=0x0000).
+srun: lrdn4380: task 0: Completed
+
+
+#------------------------#
+Task and CPU usage stats:
+JobID           JobName      NCPUS   NNodes   NTasks     AveCPU     MinCPU MinCPUNode MinCPUTask    Elapsed ExitCode 
+------------ ---------- ---------- -------- -------- ---------- ---------- ---------- ---------- ---------- -------- 
+19656379      src_bench        112        1                                                        00:07:04      0:0 
+19656379.ba+      batch        112        1        1                                               00:07:04      0:0 
+19656379.ex+     extern        112        1        1                                               00:07:04      0:0 
+19656379.0       python        112        1        1   04:04:41   04:04:41   lrdn4380          0   00:05:48      0:0 
+19656379.1       python        112        1        1   00:33:47   00:33:47   lrdn4380          0   00:01:13      0:0 
+Memory usage stats:
+JobID           JobName AveRSS                                             MaxRSS                                             MaxRSSNode MaxRSSTask   AvePages MaxPages MaxPagesNode   MaxPagesTask 
+------------ ---------- -------------------------------------------------- -------------------------------------------------- ---------- ---------- ---------- -------- ------------ -------------- 
+19656379      src_bench                                                                                                                                                                             
+19656379.ba+      batch                                                                                                                                                                             
+19656379.ex+     extern                                                                                                                                                                             
+19656379.0       python 38.87G                                             38.87G                                               lrdn4380          0      0.00G    0.00G     lrdn4380              0 
+19656379.1       python 38.33G                                             38.33G                                               lrdn4380          0      0.00G    0.00G     lrdn4380              0 
+Disk usage stats:
+JobID           JobName    AveDiskRead  MaxDiskRead MaxDiskReadNode MaxDiskReadTask   AveDiskWrite MaxDiskWrite MaxDiskWriteNode MaxDiskWriteTask 
+------------ ---------- -------------- ------------ --------------- --------------- -------------- ------------ ---------------- ---------------- 
+19656379      src_bench                                                                                                                           
+19656379.ba+      batch                                                                                                                           
+19656379.ex+     extern                                                                                                                           
+19656379.0       python          0.03G        0.03G        lrdn4380               0          0.00G        0.00G         lrdn4380                0 
+19656379.1       python          0.03G        0.03G        lrdn4380               0          0.00M        0.00M         lrdn4380                0 
+Trackable resources usage stats:
+JobID           JobName AllocNodes  AllocCPUS AllocTRES                                                                                            
+------------ ---------- ---------- ---------- ---------------------------------------------------------------------------------------------------- 
+19656379      src_bench          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19656379.ba+      batch          1        112 cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                                     
+19656379.ex+     extern          1        112 billing=112,cpu=112,gres/tmpfs=3298534883328,mem=440G,node=1                                         
+19656379.0       python          1        112 cpu=112,gres/tmpfs=10737418240,mem=440G,node=1                                                       
+19656379.1       python          1        112 cpu=112,gres/tmpfs=10737418240,mem=440G,node=1                                                       
+Trackable resources (ingress) usage stats:
+JobID           JobName TRESUsageInTot                                                         TRESUsageInAve                                                         TRESUsageInMax                                                         TRESUsageInMaxNode                                                     TRESUsageInMaxTask                                                     
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19656379      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19656379.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19656379.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19656379.0       python cpu=04:04:41,energy=0,fs/disk=0.03G,mem=38.87G,pages=0.00G,vmem=39.06G cpu=04:04:41,energy=0,fs/disk=0.03G,mem=38.87G,pages=0.00G,vmem=39.06G cpu=04:04:41,energy=0,fs/disk=0.03G,mem=38.87G,pages=0.00G,vmem=39.06G cpu=lrdn4380,energy=lrdn4380,fs/disk=lrdn4380,mem=lrdn4380,pages=lrdn+ cpu=0,fs/disk=0,mem=0,pages=0,vmem=0                                   
+19656379.1       python cpu=00:33:47,energy=0,fs/disk=0.03G,mem=38.33G,pages=0.00G,vmem=38.33G cpu=00:33:47,energy=0,fs/disk=0.03G,mem=38.33G,pages=0.00G,vmem=38.33G cpu=00:33:47,energy=0,fs/disk=0.03G,mem=38.33G,pages=0.00G,vmem=38.33G cpu=lrdn4380,energy=lrdn4380,fs/disk=lrdn4380,mem=lrdn4380,pages=lrdn+ cpu=0,fs/disk=0,mem=0,pages=0,vmem=0                                   
+Trackable resources (egress) usage stats:
+JobID           JobName TRESUsageOutTot                                                        TRESUsageOutAve                                                        TRESUsageOutMax                                                        TRESUsageOutMaxNode                                                    TRESUsageOutMaxTask                                                    
+------------ ---------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- ---------------------------------------------------------------------- 
+19656379      src_bench                                                                                                                                                                                                                                                                                                                                                                    
+19656379.ba+      batch                                                                                                                                                                                                                                                                                                                                                                    
+19656379.ex+     extern                                                                                                                                                                                                                                                                                                                                                                    
+19656379.0       python energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=lrdn4380,fs/disk=lrdn4380                                       fs/disk=0                                                              
+19656379.1       python energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=0,fs/disk=0.00G                                                 energy=lrdn4380,fs/disk=lrdn4380                                       fs/disk=0                                                              

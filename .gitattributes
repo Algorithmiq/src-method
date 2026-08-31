@@ -1,0 +1,18 @@
+# Keep GitHub's language statistics meaningful for a pure-Python project.
+*.py linguist-language=Python
+docs/* linguist-documentation
+benches/* linguist-documentation
+*.md linguist-documentation
+*.js linguist-detectable=false
+*.css linguist-detectable=false
+
+# Mark generated files.
+**/generated/* linguist-generated=true
+
+# Binary assets.
+*.png binary
+
+# Substituted at `git archive` time so hatch-vcs can derive a version from a
+# tarball that has no .git directory.
+.git_archival.txt  export-subst
+.gitignore         export-ignore
