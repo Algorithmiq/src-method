@@ -192,6 +192,11 @@ jobs:
     name: "Publish Tests Results"
     needs: test
     runs-on: ubuntu-latest
+
+    # exposed at job level so the scan step can test for its presence in `if`
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
     permissions:
       checks: write
 
@@ -218,10 +223,11 @@ jobs:
           merge-multiple: true
 
       - name: SonarQube Scan
+        # forks and unconfigured checkouts have no token; skip rather than fail
+        if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
