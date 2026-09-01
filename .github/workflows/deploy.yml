@@ -19,8 +19,8 @@ on:
     types:
       - opened
       - reopened
-      - synchronize # when new commits are pushed to the PR
-      - ready_for_review # when the PR is un-drafted
+      - synchronize
+      - ready_for_review
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,11 +39,15 @@ jobs:
         with:
           fetch-depth: 0  # such that setuptools_scm can do its job correctly
 
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
       - name: Build SDist and Wheel
         run: |
-          pipx install uv
-
-          pipx run build --verbose --sdist --wheel --installer=uv
+          # the `build` package's console script is `pyproject-build`, not `build`
+          uvx --from build pyproject-build --verbose --sdist --wheel --installer=uv
 
       - uses: actions/upload-artifact@v7
         with:
