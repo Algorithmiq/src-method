@@ -148,7 +148,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          python-version: "3.14"
+          # This job builds both the base and the PR checkout, so the version
+          # must satisfy `requires-python` on both sides of the comparison.
+          python-version: "3.13"
 
       - name: 'Install dependencies'
         run: |
