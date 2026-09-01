@@ -62,11 +62,6 @@ Discussions = "https://github.com/Algorithmiq/src-method/discussions"
 
 
 [dependency-groups]
-# quimb is *not* a runtime dependency: it is only used to build reference
-# tensor networks and to measure distances in the tests and benchmarks.
-# cmaes is pulled in by quimb's path optimizer (cotengra), which warns when no
-# hyper-optimization backend is installed; `filterwarnings = ["error"]` would
-# otherwise turn that warning into a test failure.
 test = [
   "pytest-cov>=4.0",
   "pytest>=9.1.0,<10.0",
