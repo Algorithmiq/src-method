@@ -238,4 +238,9 @@ Thumbs.db
 *~
 *.swp
 
+### Nix ###
+result
+result-*
+.direnv/
+
 sandbox/**
