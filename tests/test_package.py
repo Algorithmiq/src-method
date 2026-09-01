@@ -24,7 +24,7 @@ def random_mpo(
     *,
     phys: int = 2,
     dtype: type = np.complex128,
-    rng: np.random.Generator = np.random.default_rng(),
+    rng: np.random.Generator | None = None,
 ) -> qtn.MatrixProductOperator:
     """Generate a random MPO with given bond dimensions and physical dimension.
 
@@ -34,11 +34,16 @@ def random_mpo(
         bonds: List of bond dimensions for the MPO. The last site is implicit.
         phys: Physical dimension. Defaults to 2.
         dtype: Data type of the tensors. Defaults to np.complex128.
-        rng: Random number generator. Defaults to np.random.default_rng().
+        rng: Random number generator. Defaults to a fresh unseeded generator.
 
     Returns:
         qtn.MatrixProductOperator: The generated random MPO.
     """
+    # A default generator built here rather than in the signature: a default
+    # argument is evaluated once, so callers would share generator state.
+    if rng is None:
+        rng = np.random.default_rng()
+
     # First site
     tensors = [rng.normal(size=(bonds[0], phys, phys)).astype(dtype)]
 
