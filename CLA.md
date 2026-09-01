@@ -1,10 +1,5 @@
 # Contributor License Agreement
 
-> **Status: draft — must be reviewed and approved by Algorithmiq's legal
-> counsel before the repository is made public.** The text below follows the
-> structure of the Apache Software Foundation Individual CLA v2.2 and is
-> provided as a starting point, not as legal advice.
-
 Thank you for your interest in contributing to `src_method` ("the Project"),
 maintained by Algorithmiq Ltd. ("Algorithmiq"). This Contributor License
 Agreement ("Agreement") documents the rights granted by contributors to
