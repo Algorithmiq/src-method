@@ -68,7 +68,7 @@ Discussions = "https://github.com/Algorithmiq/src-method/discussions"
 
 [dependency-groups]
 test = ["pytest-cov>=4.0", "pytest>=9.1.0,<10.0", "pytest-benchmark>=5.2.3"]
-dev = ["scalene", "pre-commit>=3", "ruff==0.15.12", { include-group = "test" }]
+dev = ["scalene", "pre-commit>=3", "ruff==0.16.5", { include-group = "test" }]
 interactive = [
   "ipykernel>=7.2.0",
   "matplotlib>=3.11.0",
