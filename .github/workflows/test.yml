@@ -42,8 +42,8 @@ jobs:
           - ubuntu-latest
           - gpu-runner
         python-version:
-          - "3.11"
-          - "3.13"
+          - "3.12"
+          - "3.14"
         test-group:
           - "not slow and not perf"
 
@@ -148,7 +148,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: 'Install dependencies'
         run: |
