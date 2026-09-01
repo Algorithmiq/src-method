@@ -121,10 +121,10 @@ With [flakes enabled](https://nixos.wiki/wiki/Flakes#Enable_flakes_temporarily),
 nix develop
 ```
 
-Entering the shell runs `uv sync --all-groups` and activates `.venv`, so you land
+Entering the shell runs `uv sync --all-groups` and activates the uv project
+environment (`$UV_PROJECT_ENVIRONMENT` if set, otherwise `.venv`), so you land
 in a ready-to-use environment. GPU extras are not installed by the flake: add them
-explicitly with `uv sync --extra gpu-nvidia` (or `--extra gpu-rocm`) on a machine
-with the matching drivers.
+explicitly with `uv sync --all-groups --extra gpu-nvidia` (or `--all-groups --extra gpu-rocm`) on a machine with the matching drivers.
 
 If you use [direnv], the provided `.envrc` enters the shell automatically:
 
