@@ -126,5 +126,6 @@
         "sparray",
         "spsolve",
         "todense",
-        "triu",
-    }
+        "triu"
+    ]
+}
