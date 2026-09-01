@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # grab the history of the PR, so we can run pre-commit on a commit range
           fetch-depth: 0

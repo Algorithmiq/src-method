@@ -62,7 +62,7 @@ jobs:
           echo "OMP_NUM_THREADS=$NTHREADS" >> $GITHUB_ENV
 
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # grab the history of the PR, so setuptools-scm can compute the correct version number
           fetch-depth: 0
@@ -140,7 +140,7 @@ jobs:
 
     steps:
       - name: 'Checkout Base Branch (main)'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
 
@@ -168,7 +168,7 @@ jobs:
           path: benchmarks_data/**/*.json
 
       - name: 'Checkout PR Branch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: false
 
@@ -212,7 +212,7 @@ jobs:
     steps:
 
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # grab the history of the PR, so setuptools-scm can compute the correct version number
           fetch-depth: 0
