@@ -18,6 +18,20 @@ from src_method import apply, compress
 # --- Utils ---
 # -------------
 
+# ``src_method`` operates on plain lists of site arrays.  quimb is used here only
+# to build reference networks and to measure distances, so every call unwraps its
+# inputs with ``.arrays`` and re-wraps the result with one of the helpers below.
+
+
+def as_mps(arrays: list[np.ndarray]) -> qtn.MatrixProductState:
+    """Wrap a list of site arrays returned by src_method into a quimb MPS."""
+    return qtn.MatrixProductState(arrays)
+
+
+def as_mpo(arrays: list[np.ndarray]) -> qtn.MatrixProductOperator:
+    """Wrap a list of site arrays returned by src_method into a quimb MPO."""
+    return qtn.MatrixProductOperator(arrays)
+
 
 def random_mpo(
     bonds: list[int],
@@ -64,7 +78,7 @@ def n_sites():
 
 
 @pytest.fixture
-def n_sites_quimb():
+def n_sites_small():
     return 2
 
 
@@ -108,7 +122,9 @@ def test_src_mpo_mps(n_sites, phys_dim, chi_out, array_type):
     )
 
     # SRC MPS should be identical to the original
-    psi_compress = apply(H, psi, chi_out=chi_out, dtype=array_type)
+    psi_compress = as_mps(
+        apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=array_type)
+    )
 
     np.testing.assert_allclose(psi.distance(psi_compress), 0.0, atol=1e-6)
 
@@ -121,10 +137,10 @@ def test_src_mpo_mps_trims_terminal_bond() -> None:
         n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128, seed=3
     )
 
-    psi_src = apply(H, psi, chi_out=chi_out, dtype=np.complex128, seed=0)
+    psi_src = apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=np.complex128, seed=0)
 
-    assert psi_src.arrays[-1].shape[0] < chi_out
-    assert psi_src.arrays[-1].shape[0] <= phys_dim
+    assert psi_src[-1].shape[0] < chi_out
+    assert psi_src[-1].shape[0] <= phys_dim
 
 
 # --------------------------------------------
@@ -140,7 +156,7 @@ def test_src_mpo_mpo_identity(n_sites, phys_dim, chi_out, array_type):
     H2 = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
 
     # The compressed product should be identical to the original MPO
-    H_compress = apply(H1, H2, chi_out=chi_out, dtype=array_type)
+    H_compress = as_mpo(apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(H1.distance(H_compress), 0.0, atol=1e-6)
 
@@ -160,7 +176,7 @@ def test_src_mpo_mpo(n_sites, phys_dim, chi_out, array_type):
     H_ref = H1.apply(H2, compress=False)
 
     # The compressed product should be identical to the original MPO
-    H_src = apply(H1, H2, chi_out=chi_out, dtype=array_type)
+    H_src = as_mpo(apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(H_ref.distance(H_src), 0.0, atol=1e-6)
 
@@ -183,7 +199,7 @@ def test_src_mpo_mpo_long_phys(n_sites, phys_dim, chi_out, array_type):
     H_ref = H1.apply(H2, compress=False)
 
     # The compressed product should be identical to the original MPO
-    H_src = apply(H1, H2, chi_out=chi_out, dtype=array_type)
+    H_src = as_mpo(apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(H_ref.distance(H_src), 0.0, atol=1e-6)
 
@@ -194,7 +210,14 @@ def test_src_mpo_mpo_jagged(mpo_jagged_left, mpo_jagged_right, array_type):
     H_ref = mpo_jagged_left.apply(mpo_jagged_right, compress=False)
 
     # The compressed product should be identical to the original MPO
-    H_src = apply(mpo_jagged_left, mpo_jagged_right, chi_out=100, dtype=array_type)
+    H_src = as_mpo(
+        apply(
+            mpo_jagged_left.arrays,
+            mpo_jagged_right.arrays,
+            chi_out=100,
+            dtype=array_type,
+        )
+    )
 
     np.testing.assert_allclose(H_ref.distance(H_src), 0.0, atol=1e-6)
 
@@ -211,10 +234,10 @@ def test_src_mpo_mpo_trims_terminal_bond() -> None:
         n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128, seed=2
     )
 
-    H_src = apply(H1, H2, chi_out=chi_out, dtype=np.complex128, seed=0)
+    H_src = apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=np.complex128, seed=0)
 
-    assert H_src.arrays[-1].shape[0] < chi_out
-    assert H_src.arrays[-1].shape[0] <= phys_dim**2
+    assert H_src[-1].shape[0] < chi_out
+    assert H_src[-1].shape[0] <= phys_dim**2
 
 
 # --------------------------------
@@ -231,7 +254,7 @@ def test_src_mpo_compression(n_sites, phys_dim, chi_out, array_type):
     C = A + B
 
     # SRC MPO. It should be trivially compressed.
-    D = compress(C, chi_out=chi_out, dtype=array_type)
+    D = as_mpo(compress(C.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
 
@@ -250,10 +273,10 @@ def test_src_mpo_compression_trims_terminal_bond() -> None:
     )
     C = A + B
 
-    D = compress(C, chi_out=chi_out, dtype=np.complex128, seed=0)
+    D = compress(C.arrays, chi_out=chi_out, dtype=np.complex128, seed=0)
 
-    assert D.arrays[-1].shape[0] < chi_out
-    assert D.arrays[-1].shape[0] <= phys_dim**2
+    assert D[-1].shape[0] < chi_out
+    assert D[-1].shape[0] <= phys_dim**2
 
 
 # --------------------------------
@@ -275,7 +298,7 @@ def test_src_mps(n_sites, phys_dim, chi_out, array_type):
     C = A + B
 
     # SRC MPS. It should be trivially compressed.
-    D = compress(C, chi_out=chi_out, dtype=array_type)
+    D = as_mps(compress(C.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
 
@@ -294,10 +317,10 @@ def test_src_mps_compression_trims_terminal_bond() -> None:
     )
     C = A + B
 
-    D = compress(C, chi_out=chi_out, dtype=np.complex128, seed=0)
+    D = compress(C.arrays, chi_out=chi_out, dtype=np.complex128, seed=0)
 
-    assert D.arrays[-1].shape[0] < chi_out
-    assert D.arrays[-1].shape[0] <= phys_dim
+    assert D[-1].shape[0] < chi_out
+    assert D[-1].shape[0] <= phys_dim
 
 
 def test_src_mps_small_chi(n_sites, phys_dim, chi_out, array_type):
@@ -318,50 +341,86 @@ def test_src_mps_small_chi(n_sites, phys_dim, chi_out, array_type):
     C = A + B
 
     # SRC MPS. It should be trivially compressed.
-    D = compress(C, chi_out=chi_small, dtype=array_type)
+    D = as_mps(compress(C.arrays, chi_out=chi_small, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
 
 
-# -----------------------------------------------
-# --- Test default to quimb for small systems ---
-# -----------------------------------------------
+# ---------------------------------------------------
+# --- Test exact fallback for small (<3 site) TNs ---
+# ---------------------------------------------------
 
 
-def test_apply_quimb_dispatch(n_sites_quimb, phys_dim, chi_out, array_type):
-    """Tests that apply dispatches to quimb for small systems."""
+def test_apply_small_system_dispatch(n_sites_small, phys_dim, chi_out, array_type):
+    """Tests that apply falls back to the exact path for small systems."""
 
     # Generate a random MPS and connect it to the identity MPO
-    H = qtn.MPO_identity(n_sites_quimb, phys_dim=phys_dim, dtype=array_type)
+    H = qtn.MPO_identity(n_sites_small, phys_dim=phys_dim, dtype=array_type)
     psi = qtn.MPS_rand_state(
-        n_sites_quimb, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+        n_sites_small, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
     )
 
     # SRC MPS should be identical to the original
-    psi_compress = apply(H, psi, chi_out=chi_out, dtype=array_type)
+    psi_compress = as_mps(
+        apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=array_type)
+    )
 
     np.testing.assert_allclose(psi.distance(psi_compress), 0.0, atol=1e-6)
 
 
-def test_compress_quimb_dispatch(n_sites_quimb, phys_dim, chi_out, array_type):
-    """Tests that compress dispatches to quimb for small systems."""
+def test_apply_small_system_mpo_mpo(n_sites_small, phys_dim, chi_out, array_type):
+    """The exact fallback must also handle two-site MPO-MPO products."""
+    H1 = qtn.MPO_rand(
+        n_sites_small, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+    )
+    H2 = qtn.MPO_identity(n_sites_small, phys_dim=phys_dim, dtype=array_type)
+
+    H_src = as_mpo(apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type))
+
+    np.testing.assert_allclose(H1.distance(H_src), 0.0, atol=1e-6)
+
+
+def test_compress_small_system_dispatch(n_sites_small, phys_dim, chi_out, array_type):
+    """Tests that compress falls back to the exact path for small systems."""
 
     # Add an almost-zero MPS B to a dense MPS A, inflating the bond dimension
     A = qtn.MPS_rand_state(
-        n_sites_quimb, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+        n_sites_small, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
     )
     B = (
         qtn.MPS_rand_state(
-            n_sites_quimb, bond_dim=5, phys_dim=phys_dim, dtype=array_type
+            n_sites_small, bond_dim=5, phys_dim=phys_dim, dtype=array_type
         )
         / 1e8
     )
     C = A + B
 
     # SRC MPS. It should be trivially compressed.
-    D = compress(C, chi_out=chi_out, dtype=array_type)
+    D = as_mps(compress(C.arrays, chi_out=chi_out, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
+
+
+def test_compress_small_system_mpo(n_sites_small, phys_dim, chi_out, array_type):
+    """The exact fallback must also handle two-site MPOs."""
+    A = qtn.MPO_rand(
+        n_sites_small, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+    )
+    B = (
+        qtn.MPO_rand(n_sites_small, bond_dim=2, phys_dim=phys_dim, dtype=array_type)
+        / 1e8
+    )
+    C = A + B
+
+    D = as_mpo(compress(C.arrays, chi_out=chi_out, dtype=array_type))
+
+    np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
+
+
+def test_single_site_train_raises(phys_dim, chi_out, array_type):
+    """A single-site train is degenerate and must be rejected."""
+    with pytest.raises(ValueError, match="two-site tensor train"):
+        compress([np.ones((1, phys_dim), dtype=array_type)], chi_out=chi_out)
 
 
 # -------------------------------------------------
@@ -378,8 +437,14 @@ def test_cutoff_zero_matches_default_mpo_mpo(n_sites, phys_dim, chi_out, array_t
         n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
     )
 
-    H_default = apply(H1, H2, chi_out=chi_out, dtype=array_type, seed=42)
-    H_cutoff0 = apply(H1, H2, chi_out=chi_out, cutoff=0.0, dtype=array_type, seed=42)
+    H_default = as_mpo(
+        apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type, seed=42)
+    )
+    H_cutoff0 = as_mpo(
+        apply(
+            H1.arrays, H2.arrays, chi_out=chi_out, cutoff=0.0, dtype=array_type, seed=42
+        )
+    )
 
     np.testing.assert_allclose(H_default.distance(H_cutoff0), 0.0, atol=1e-6)
 
@@ -390,8 +455,19 @@ def test_cutoff_trims_bonds_mpo_mpo(n_sites, phys_dim, chi_out, array_type):
     H2 = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
 
     # Identity product: effective rank = chi_out, no truncation expected
-    H_no_cut = apply(H1, H2, chi_out=chi_out, dtype=array_type, seed=42)
-    H_cut = apply(H1, H2, chi_out=chi_out, cutoff=1e-10, dtype=array_type, seed=42)
+    H_no_cut = as_mpo(
+        apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type, seed=42)
+    )
+    H_cut = as_mpo(
+        apply(
+            H1.arrays,
+            H2.arrays,
+            chi_out=chi_out,
+            cutoff=1e-10,
+            dtype=array_type,
+            seed=42,
+        )
+    )
 
     # Result should still be accurate
     np.testing.assert_allclose(H1.distance(H_cut), 0.0, atol=1e-5)
@@ -408,7 +484,9 @@ def test_cutoff_preserves_accuracy_mpo_mps(n_sites, phys_dim, chi_out, array_typ
         n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
     )
 
-    psi_cut = apply(H, psi, chi_out=chi_out, cutoff=1e-10, dtype=array_type)
+    psi_cut = as_mps(
+        apply(H.arrays, psi.arrays, chi_out=chi_out, cutoff=1e-10, dtype=array_type)
+    )
 
     np.testing.assert_allclose(psi.distance(psi_cut), 0.0, atol=1e-6)
 
@@ -419,7 +497,7 @@ def test_cutoff_preserves_accuracy_compress_mpo(n_sites, phys_dim, chi_out, arra
     B = qtn.MPO_rand(n_sites, bond_dim=5, phys_dim=phys_dim, dtype=array_type) / 1e8
     C = A + B
 
-    D = compress(C, chi_out=chi_out, cutoff=1e-10, dtype=array_type)
+    D = as_mpo(compress(C.arrays, chi_out=chi_out, cutoff=1e-10, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
 
@@ -435,7 +513,7 @@ def test_cutoff_preserves_accuracy_compress_mps(n_sites, phys_dim, chi_out, arra
     )
     C = A + B
 
-    D = compress(C, chi_out=chi_out, cutoff=1e-10, dtype=array_type)
+    D = as_mps(compress(C.arrays, chi_out=chi_out, cutoff=1e-10, dtype=array_type))
 
     np.testing.assert_allclose(C.distance(D), 0.0, atol=1e-6)
 
@@ -458,18 +536,17 @@ def test_apply_unsupported_types(n_sites, phys_dim, chi_out, array_type):
 
     # Unsupported combination: MPS-MPS
     with pytest.raises(TypeError):
-        apply(psi, phi, chi_out=chi_out, dtype=array_type)
+        apply(psi.arrays, phi.arrays, chi_out=chi_out, dtype=array_type)
 
 
 def test_compress_unsupported_type(n_sites, chi_out, array_type):
-    """Tests that compress raises TypeError for unsupported tensor types."""
+    """Tests that compress raises TypeError for unsupported tensor layouts."""
 
-    # Generate a random PEPS, which is unsupported
-    peps = qtn.PEPS.rand(Lx=n_sites, Ly=n_sites, bond_dim=chi_out)
+    # Rank-4 boundary tensors are neither an MPS nor an MPO (e.g. a PEPS row)
+    peps_like = [np.zeros((2, 2, 2, 2), dtype=array_type)] * n_sites
 
-    # Unsupported type: PEPS
     with pytest.raises(TypeError):
-        compress(peps, chi_out=chi_out, dtype=array_type)
+        compress(peps_like, chi_out=chi_out, dtype=array_type)
 
 
 # -----------------------------------------
@@ -495,7 +572,9 @@ def test_benchmark_src_mpo_mpo(benchmark):
     )
 
     # Benchmark the application
-    result_mpo = benchmark(apply, H1, H2, chi_out=chi_out, dtype=array_type)
+    result_mpo = benchmark(
+        apply, H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type
+    )
 
     # Still has to be correct
-    np.testing.assert_allclose(H1.distance(result_mpo), 0.0, atol=1e-6)
+    np.testing.assert_allclose(H1.distance(as_mpo(result_mpo)), 0.0, atol=1e-6)

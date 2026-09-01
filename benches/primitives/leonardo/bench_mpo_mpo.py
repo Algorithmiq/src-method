@@ -78,7 +78,11 @@ def main(
     if run == "src":
         logger.info("Computing SRC's MPO-MPO contraction (with compression)...")
         tms = perf_counter_ns()
-        H_src = apply(H1, H2, chi_out=chi_out, dtype=array_type)
+        # src_method takes and returns plain lists of site arrays; quimb is only
+        # used here to build the inputs and to measure the distance.
+        H_src = qtn.MatrixProductOperator(
+            apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type)
+        )
         tms = perf_counter_ns() - tms
         logger.info(" SRC's contraction-compression took %s s", tms * 1e-9)
         if compare == "yes":

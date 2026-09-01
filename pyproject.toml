@@ -39,7 +39,6 @@ dependencies = [
   "numpy>=2.4.4,<3",
   "opt_einsum>=3.4.0",
   "structlog>=25.5.0",
-  "quimb>=1.14.0,<2",
 ]
 
 
@@ -67,7 +66,14 @@ Discussions = "https://github.com/Algorithmiq/src-method/discussions"
 
 
 [dependency-groups]
-test = ["pytest-cov>=4.0", "pytest>=9.1.0,<10.0", "pytest-benchmark>=5.2.3"]
+# quimb is *not* a runtime dependency: it is only used to build reference
+# tensor networks and to measure distances in the tests and benchmarks.
+test = [
+  "pytest-cov>=4.0",
+  "pytest>=9.1.0,<10.0",
+  "pytest-benchmark>=5.2.3",
+  "quimb>=1.14.0,<2",
+]
 dev = ["scalene", "pre-commit>=3", "ruff==0.16.5", { include-group = "test" }]
 interactive = [
   "ipykernel>=7.2.0",

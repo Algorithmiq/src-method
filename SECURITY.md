@@ -23,4 +23,4 @@ arrays supplied by the caller and does not parse untrusted input formats,
 open network connections, or execute user-supplied code. The most likely
 security-relevant issues are therefore memory-safety problems surfaced through
 the optional CuPy backend, or dependency vulnerabilities. Reports about the
-behaviour of `numpy`, `quimb` or `cupy` themselves should go to those projects.
+behaviour of `numpy` or `cupy` themselves should go to those projects.

@@ -14,10 +14,10 @@ from time import perf_counter_ns
 from typing import TYPE_CHECKING
 
 import numpy as np
-import quimb.tensor as qtn
 import structlog
 from opt_einsum import contract
 
+from ._tensor_train import MIN_SRC_SITES, exact_apply, infer_kind
 from .utils import (
     default_rng,
     get_xp,
@@ -27,7 +27,10 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from types import ModuleType
+
+    from numpy.typing import NDArray
 
 # Set up logger
 setup_logging()
@@ -39,7 +42,7 @@ LOG_RTL = "Right-to-left sweep: Constructing η tensors..."
 LOG_TIME = " - Elapsed time (s)"
 LOG_WARN_SMALL = (
     "The current SRC implementation targets tensor networks with 3 or more sites. "
-    "Defaulting to the corresponding quimb primitive with SVD."
+    "Defaulting to an exact SVD-based contraction-compression."
 )
 
 # -----------------------------------------------
@@ -48,26 +51,28 @@ LOG_WARN_SMALL = (
 
 
 def apply(
-    left_tensor: qtn.MatrixProductOperator,
-    right_tensor: qtn.MatrixProductOperator | qtn.MatrixProductState,
+    left_tensor: Sequence[NDArray],
+    right_tensor: Sequence[NDArray],
     chi_out: int,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
     seed: int | None = None,
     device: str = "cpu",
-) -> qtn.MatrixProductState | qtn.MatrixProductOperator:
+) -> list[NDArray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
-    Dispatches to the appropriate implementation based on the types of the input tensors.
-    Supported combinations are:
+    Tensor trains are plain lists of per-site arrays following the default
+    `quimb` index ordering; see `src_method._tensor_train` for the layout.
+    The train type is inferred from the rank of the first site tensor, and
+    dispatch follows:
 
       1. MPO-MPS: `left_tensor` is an MPO and `right_tensor` is an MPS. Results in an MPS.
       2. MPO-MPO: both `left_tensor` and `right_tensor` are MPOs. Results in an MPO.
 
     Args:
-        left_tensor: The left tensor network (MPO).
-        right_tensor: The right tensor network (MPO or MPS).
+        left_tensor: The site arrays of the left tensor network (MPO).
+        right_tensor: The site arrays of the right tensor network (MPO or MPS).
         chi_out: The desired maximum bond dimension of the output tensor network.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
             When positive, bonds are trimmed to their effective rank by
@@ -81,7 +86,7 @@ def apply(
             the optional ``cupy`` dependency for GPU execution.
 
     Returns:
-        The resulting compressed tensor network (MPS or MPO).
+        The site arrays of the compressed tensor network (MPS or MPO).
 
     Raises:
         TypeError: If the combination of input tensor types is unsupported.
@@ -91,28 +96,26 @@ def apply(
     xp = get_xp(device)
     prng = default_rng(seed)
 
-    if left_tensor.nsites < 3:
-        logger.warning(LOG_WARN_SMALL)
-        return left_tensor.apply(
-            right_tensor, compress=True, max_bond=chi_out, method="svd"
+    left_kind = infer_kind(left_tensor)
+    right_kind = infer_kind(right_tensor)
+    if left_kind != "mpo" or right_kind is None:
+        msg = (
+            "Unsupported combination of tensor network types: "
+            f"{left_kind or 'unknown'} and {right_kind or 'unknown'}; "
+            "expected an MPO on the left and an MPS or MPO on the right."
         )
-    if isinstance(left_tensor, qtn.MatrixProductOperator) and isinstance(
-        right_tensor, qtn.MatrixProductState
-    ):
+        raise TypeError(msg)
+
+    if len(left_tensor) < MIN_SRC_SITES:
+        logger.warning(LOG_WARN_SMALL)
+        return exact_apply(left_tensor, right_tensor, chi_out, right_kind)
+    if right_kind == "mps":
         return _src_mpo_mps(
             left_tensor, right_tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype
         )
-    if isinstance(left_tensor, qtn.MatrixProductOperator) and isinstance(
-        right_tensor, qtn.MatrixProductOperator
-    ):
-        return _src_mpo_mpo(
-            left_tensor, right_tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype
-        )
-    msg = (
-        "Unsupported combination of tensor network types: "
-        f"{type(left_tensor)} and {type(right_tensor)}"
+    return _src_mpo_mpo(
+        left_tensor, right_tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype
     )
-    raise TypeError(msg)
 
 
 # -----------------------------------------------
@@ -121,20 +124,20 @@ def apply(
 
 
 def _src_mpo_mps(
-    mpo: qtn.MatrixProductOperator,
-    mps: qtn.MatrixProductState,
+    mpo: Sequence[NDArray],
+    mps: Sequence[NDArray],
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
-) -> qtn.MatrixProductState:
+) -> list[NDArray]:
     """Computes the compressed product |η> ≈ H|ψ> using the SRC method.
 
     Args:
-        mpo: The MPO, as quimb object.
-        mps: The MPS, as a quimb object.
+        mpo: The site arrays of the MPO.
+        mps: The site arrays of the MPS.
         chi_out: The desired maximum bond dimension of the output MPS |η>.
         prng: A numpy / cupy random number generator.
         xp: Array module (``numpy`` or ``cupy``).
@@ -142,18 +145,18 @@ def _src_mpo_mps(
         dtype: The data type for the computation.
 
     Returns:
-        The resulting compressed MPS |η> in right-canonical form.
+        The site arrays of the compressed MPS |η> in right-canonical form.
     """
     # Problem dimensions
-    n_sites = mpo.nsites
-    phys_dim = mps[0].ind_size(mps.site_ind(0))
+    n_sites = len(mpo)
+    _, phys_dim = mps[0].shape
     logger.info(
         "Starting SRC MPO-MPS", n_sites=n_sites, phys_dim=phys_dim, device=xp.__name__
     )
 
     # Views of the tensors (transferred to device once, up front)
-    mpo_arrs = [xp.asarray(mpo[i].data) for i in range(n_sites)]
-    mps_arrs = [xp.asarray(mps[i].data) for i in range(n_sites)]
+    mpo_arrs = [xp.asarray(arr) for arr in mpo]
+    mps_arrs = [xp.asarray(arr) for arr in mps]
 
     # ----------------------------------------------
     # --- Left-to-Right Sweep: Compute C tensors ---
@@ -230,24 +233,24 @@ def _src_mpo_mps(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO-MPS complete.")
 
-    return qtn.MatrixProductState([to_numpy(t) for t in eta])
+    return [to_numpy(t) for t in eta]
 
 
 def _src_mpo_mpo(
-    mpo_left: qtn.MatrixProductOperator,
-    mpo_right: qtn.MatrixProductOperator,
+    mpo_left: Sequence[NDArray],
+    mpo_right: Sequence[NDArray],
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
-) -> qtn.MatrixProductOperator:
+) -> list[NDArray]:
     """Computes the compressed product H_new ≈ H1 @ H2 using the SRC method.
 
     Args:
-        mpo_left: The first MPO.
-        mpo_right: The second MPO.
+        mpo_left: The site arrays of the first MPO.
+        mpo_right: The site arrays of the second MPO.
         chi_out: The desired maximum bond dimension of the output MPO.
         prng: A numpy / cupy random number generator.
         xp: Array module (``numpy`` or ``cupy``).
@@ -255,11 +258,11 @@ def _src_mpo_mpo(
         dtype: The data type for the computation.
 
     Returns:
-        The resulting compressed MPO in right-canonical form.
+        The site arrays of the compressed MPO in right-canonical form.
     """
     # Problem dimensions
-    n_sites = mpo_left.nsites
-    phys_up, phys_down = mpo_left.arrays[0].shape[1], mpo_right.arrays[0].shape[2]
+    n_sites = len(mpo_left)
+    phys_up, phys_down = mpo_left[0].shape[1], mpo_right[0].shape[2]
     logger.info(
         "Starting SRC MPO-MPO",
         n_sites=n_sites,
@@ -269,8 +272,8 @@ def _src_mpo_mpo(
     )
 
     # Views of the tensors (transferred to device once, up front)
-    mpo_left_arrs = [xp.asarray(mpo_left[i].data) for i in range(n_sites)]
-    mpo_right_arrs = [xp.asarray(mpo_right[i].data) for i in range(n_sites)]
+    mpo_left_arrs = [xp.asarray(arr) for arr in mpo_left]
+    mpo_right_arrs = [xp.asarray(arr) for arr in mpo_right]
 
     # ----------------------------------------------
     # --- Left-to-Right Sweep: Compute C tensors ---
@@ -351,4 +354,4 @@ def _src_mpo_mpo(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO-MPO complete.")
 
-    return qtn.MatrixProductOperator([to_numpy(t) for t in eta])
+    return [to_numpy(t) for t in eta]
