@@ -32,10 +32,6 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-  "cmaes>=0.12.0",
-  "cyclopts>=3.20",
-  "llvmlite>=0.44",
-  "numba>=0.65.0",
   "numpy>=2.4.4,<3",
   "opt_einsum>=3.4.0",
   "structlog>=25.5.0",
@@ -68,13 +64,23 @@ Discussions = "https://github.com/Algorithmiq/src-method/discussions"
 [dependency-groups]
 # quimb is *not* a runtime dependency: it is only used to build reference
 # tensor networks and to measure distances in the tests and benchmarks.
+# cmaes is pulled in by quimb's path optimizer (cotengra), which warns when no
+# hyper-optimization backend is installed; `filterwarnings = ["error"]` would
+# otherwise turn that warning into a test failure.
 test = [
   "pytest-cov>=4.0",
   "pytest>=9.1.0,<10.0",
   "pytest-benchmark>=5.2.3",
   "quimb>=1.14.0,<2",
+  "cmaes>=0.12.0",
 ]
-dev = ["scalene", "pre-commit>=3", "ruff==0.16.5", { include-group = "test" }]
+dev = [
+  "scalene",
+  "pre-commit>=3",
+  "ruff==0.16.5",
+  "cyclopts>=3.20",
+  { include-group = "test" },
+]
 interactive = [
   "ipykernel>=7.2.0",
   "matplotlib>=3.11.0",
@@ -83,7 +89,7 @@ interactive = [
   "pylatexenc",
 ]
 docs = [
-  "black[jupyter]>=26.5.1",          # format extracted function signatures
+  "black[jupyter]>=26.5.1",
   "mkdocs-gen-files>=0.5.0",
   "mkdocs-jupyter>=0.24.2",
   "mkdocs-literate-nav>=0.6.0",
@@ -144,8 +150,6 @@ exclude_also = [
   "class .*\\bProtocol\\):",
   "@(abc\\.)?abstractmethod",
   "if (typing\\.)?TYPE_CHECKING:",
-  "@jit\\(",
-  "@njit\\(",
   '^\s*\.\.\.',
   "logger =",
   "logger\\.",
