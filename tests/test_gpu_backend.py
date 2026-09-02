@@ -14,6 +14,16 @@ from src_method import apply, compress
 cupy = pytest.importorskip("cupy")
 
 
+def as_mps(arrays: list[np.ndarray]) -> qtn.MatrixProductState:
+    """Wrap a list of site arrays returned by src_method into a quimb MPS."""
+    return qtn.MatrixProductState(arrays)
+
+
+def as_mpo(arrays: list[np.ndarray]) -> qtn.MatrixProductOperator:
+    """Wrap a list of site arrays returned by src_method into a quimb MPO."""
+    return qtn.MatrixProductOperator(arrays)
+
+
 @pytest.fixture(autouse=True)
 def _require_device() -> None:
     """Skip the whole module when no GPU runtime is reachable."""
@@ -32,7 +42,16 @@ def test_apply_mpo_mps_gpu_matches_cpu(device: str) -> None:
         n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128
     )
 
-    out = apply(H, psi, chi_out=chi_out, dtype=np.complex128, seed=0, device=device)
+    out = as_mps(
+        apply(
+            H.arrays,
+            psi.arrays,
+            chi_out=chi_out,
+            dtype=np.complex128,
+            seed=0,
+            device=device,
+        )
+    )
     ref = H.apply(psi, compress=False)
 
     np.testing.assert_allclose(ref.distance(out), 0.0, atol=1e-6)
@@ -49,7 +68,16 @@ def test_apply_mpo_mpo_gpu_matches_cpu(device: str) -> None:
         n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128
     )
 
-    out = apply(H1, H2, chi_out=chi_out, dtype=np.complex128, seed=0, device=device)
+    out = as_mpo(
+        apply(
+            H1.arrays,
+            H2.arrays,
+            chi_out=chi_out,
+            dtype=np.complex128,
+            seed=0,
+            device=device,
+        )
+    )
     ref = H1.apply(H2, compress=False)
 
     np.testing.assert_allclose(ref.distance(out), 0.0, atol=1e-6)
@@ -63,7 +91,9 @@ def test_compress_mpo_gpu_matches_cpu(device: str) -> None:
     B = qtn.MPO_rand(n_sites, bond_dim=5, phys_dim=phys_dim, dtype=np.complex128) / 1e8
     C = A + B
 
-    out = compress(C, chi_out=chi_out, dtype=np.complex128, seed=0, device=device)
+    out = as_mpo(
+        compress(C.arrays, chi_out=chi_out, dtype=np.complex128, seed=0, device=device)
+    )
 
     np.testing.assert_allclose(C.distance(out), 0.0, atol=1e-6)
 
@@ -74,8 +104,26 @@ def test_apply_mpo_mpo_cpu_gpu_equivalent() -> None:
     H1 = qtn.MPO_rand(n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128)
     H2 = qtn.MPO_rand(n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128)
 
-    cpu_out = apply(H1, H2, chi_out=chi_out, dtype=np.complex128, seed=42, device="cpu")
-    gpu_out = apply(H1, H2, chi_out=chi_out, dtype=np.complex128, seed=42, device="gpu")
+    cpu_out = as_mpo(
+        apply(
+            H1.arrays,
+            H2.arrays,
+            chi_out=chi_out,
+            dtype=np.complex128,
+            seed=42,
+            device="cpu",
+        )
+    )
+    gpu_out = as_mpo(
+        apply(
+            H1.arrays,
+            H2.arrays,
+            chi_out=chi_out,
+            dtype=np.complex128,
+            seed=42,
+            device="gpu",
+        )
+    )
 
     # Gauge freedom means individual tensors can differ; compare the contracted MPOs.
     # atol=1e-6 accounts for floating-point accumulation across different execution orders.
@@ -87,8 +135,12 @@ def test_compress_mpo_cpu_gpu_equivalent() -> None:
     n_sites, phys_dim, chi_out = 8, 4, 32
     A = qtn.MPO_rand(n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128)
 
-    cpu_out = compress(A, chi_out=chi_out, dtype=np.complex128, seed=42, device="cpu")
-    gpu_out = compress(A, chi_out=chi_out, dtype=np.complex128, seed=42, device="gpu")
+    cpu_out = as_mpo(
+        compress(A.arrays, chi_out=chi_out, dtype=np.complex128, seed=42, device="cpu")
+    )
+    gpu_out = as_mpo(
+        compress(A.arrays, chi_out=chi_out, dtype=np.complex128, seed=42, device="gpu")
+    )
 
     np.testing.assert_allclose(cpu_out.distance(gpu_out), 0.0, atol=1e-6)
 
@@ -98,4 +150,4 @@ def test_invalid_device_raises() -> None:
     H = qtn.MPO_rand(5, bond_dim=4, phys_dim=2, dtype=np.complex128)
     psi = qtn.MPS_rand_state(5, bond_dim=4, phys_dim=2, dtype=np.complex128)
     with pytest.raises(ValueError, match="Unknown device"):
-        apply(H, psi, chi_out=4, device="tpu")
+        apply(H.arrays, psi.arrays, chi_out=4, device="tpu")
