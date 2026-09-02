@@ -13,7 +13,7 @@ The following primitives are supported:
 3. MPO randomized compression.
 4. MPS randomized compression.
 
-The package is designed to work with [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) tensor network objects, as such, the API loosely follows its naming conventions:
+`src_method` has no tensor-network framework dependency: it takes and returns plain lists of per-site NumPy arrays, one array per site.
 
 ```python
 from src_method import apply, compress
@@ -23,11 +23,19 @@ The `apply` function covers cases 1 and 2 above, while the `compress` function c
 manage the assignment of the returned objects, possibly overwriting the input variables.
 See the [reference documentation](algorithmiq.github.io/src_method/) for details, and the [tests](../tests/) or [benchmarks](../benches/) folders for usage examples.
 
-**NOTE**: the current implementation targets tensor networks with 3 or more sites. For smaller networks, the corresponding Quimb primitive with randomized SVD is dispatched, with a warning.
+Whether a train is an MPS or an MPO is inferred from the rank of its first site tensor, so no wrapper type is needed.
+
+**NOTE**: the current implementation targets tensor networks with 3 or more sites. For smaller networks, an exact SVD-based fallback is dispatched, with a warning.
 
 ### Tensor Indexing Conventions
 
-This library follows the default `quimb` tensor indexing conventions.
+The array layout follows the default `quimb` tensor indexing conventions, so results round-trip through [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) without any permutation:
+
+```python
+import quimb.tensor as qtn
+
+result = qtn.MatrixProductOperator(apply(H1.arrays, H2.arrays, chi_out=64))
+```
 
 - **MPO Tensors:** Bulk tensors have index order `('l', 'r', 'u', 'd')`.
   Boundary tensors (at the edges) are rank-3, dropping the outer `'l'` or `'r'` index.

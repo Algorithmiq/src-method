@@ -14,7 +14,7 @@ comment on that thread and applies to all your future contributions.
 
 Open an issue with:
 
-- the versions of `src_method`, `numpy`, `quimb` and (if relevant) `cupy`,
+- the versions of `src_method`, `numpy` and (if relevant) `cupy`,
 - a minimal reproducer, ideally with a fixed `seed=`,
 - the observed and expected behaviour.
 

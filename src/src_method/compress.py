@@ -14,10 +14,15 @@ from time import perf_counter_ns
 from typing import TYPE_CHECKING
 
 import numpy as np
-import quimb.tensor as qtn
 import structlog
 from opt_einsum import contract
 
+from ._tensor_train import (
+    MIN_SRC_SITES,
+    check_exact_supported,
+    exact_compress,
+    infer_kind,
+)
 from .utils import (
     default_rng,
     get_xp,
@@ -27,7 +32,10 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from types import ModuleType
+
+    from numpy.typing import NDArray
 
 # Set up logger
 setup_logging()
@@ -39,7 +47,7 @@ LOG_RTL = "Right-to-left sweep: Constructing η tensors..."
 LOG_TIME = " - Elapsed time (s)"
 LOG_WARN_SMALL = (
     "The current SRC implementation targets tensor networks with 3 or more sites. "
-    "Defaulting to the corresponding quimb primitive with SVD."
+    "Defaulting to an exact SVD-based compression."
 )
 
 # -----------------------------------------------
@@ -48,24 +56,25 @@ LOG_WARN_SMALL = (
 
 
 def compress(
-    tensor: qtn.MatrixProductState | qtn.MatrixProductOperator,
+    tensor: Sequence[NDArray],
     chi_out: int,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
     seed: int | None = None,
     device: str = "cpu",
-) -> qtn.MatrixProductState | qtn.MatrixProductOperator:
+) -> list[NDArray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
-    Dispatches to the appropriate implementation based on the types of the input tensors.
-    Supported combinations are:
+    Tensor trains are plain lists of per-site arrays following the default
+    `quimb` index ordering; see `src_method._tensor_train` for the layout.
+    The train type is inferred from the rank of the first site tensor:
 
       1. MPS: `tensor` is an MPS. Results in an MPS.
       2. MPO: `tensor` is an MPO. Results in an MPO.
 
     Args:
-        tensor: The tensor network to compress (MPS or MPO).
+        tensor: The site arrays of the tensor network to compress (MPS or MPO).
         chi_out: The desired maximum bond dimension of the output tensor network.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
             When positive, bonds are trimmed to their effective rank by
@@ -79,28 +88,33 @@ def compress(
             the optional ``cupy`` dependency for GPU execution.
 
     Returns:
-        The resulting compressed tensor network (MPS or MPO).
+        The site arrays of the compressed tensor network (MPS or MPO).
 
     Raises:
         TypeError: If the input tensor type is unsupported.
-        ValueError: If ``device`` is not recognised.
+        ValueError: If a sub-three-site train is not exactly two sites, or if
+            ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
 
     """
     xp = get_xp(device)
     prng = default_rng(seed)
 
-    if tensor.nsites < 3:
+    kind = infer_kind(tensor)
+    if kind is None:
+        msg = (
+            "Unsupported tensor network layout: expected an MPS or MPO given as a "
+            "list of per-site arrays."
+        )
+        raise TypeError(msg)
+
+    if len(tensor) < MIN_SRC_SITES:
+        check_exact_supported(len(tensor))
         logger.warning(LOG_WARN_SMALL)
-        compressed_tensor = tensor.copy(deep=True)
-        compressed_tensor.compress(max_bond=chi_out, method="svd")
-        return compressed_tensor
-    if isinstance(tensor, qtn.MatrixProductState):
+        return exact_compress(tensor, chi_out, kind)
+    if kind == "mps":
         return _src_mps(tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype)
-    if isinstance(tensor, qtn.MatrixProductOperator):
-        return _src_mpo(tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype)
-    msg = f"Unsupported tensor network type: {type(tensor)}"
-    raise TypeError(msg)
+    return _src_mpo(tensor, chi_out, prng, xp, cutoff=cutoff, dtype=dtype)
 
 
 # -----------------------------------------------
@@ -109,18 +123,18 @@ def compress(
 
 
 def _src_mpo(
-    mpo: qtn.MatrixProductOperator,
+    mpo: Sequence[NDArray],
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
-) -> qtn.MatrixProductOperator:
+) -> list[NDArray]:
     """Compress an MPO using the SRC method.
 
     Args:
-        mpo: The MPO to compress as a quimb object.
+        mpo: The site arrays of the MPO to compress.
         chi_out: The desired maximum bond dimension of the output MPO.
         prng: A numpy / cupy random number generator instance.
         xp: Array module (``numpy`` or ``cupy``).
@@ -128,11 +142,11 @@ def _src_mpo(
         dtype: The data type for the computation.
 
     Returns:
-        The resulting compressed MPO as quimb object.
+        The site arrays of the compressed MPO.
     """
     # Problem dimensions
-    n_sites = mpo.nsites
-    _, phys_up, phys_down = mpo.arrays[0].shape
+    n_sites = len(mpo)
+    _, phys_up, phys_down = mpo[0].shape
     logger.info(
         "Starting SRC MPO",
         n_sites=n_sites,
@@ -142,7 +156,7 @@ def _src_mpo(
     )
 
     # Views of the tensors (transferred to device once, up front)
-    mpo_arrs = [xp.asarray(mpo[i].data) for i in range(n_sites)]
+    mpo_arrs = [xp.asarray(arr) for arr in mpo]
 
     # ----------------------------------------------
     # --- Left-to-Right Sweep: Compute C tensors ---
@@ -209,22 +223,22 @@ def _src_mpo(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO complete.")
 
-    return qtn.MatrixProductOperator([to_numpy(t) for t in eta])
+    return [to_numpy(t) for t in eta]
 
 
 def _src_mps(
-    mps: qtn.MatrixProductState,
+    mps: Sequence[NDArray],
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
     dtype: type = np.float64,
-) -> qtn.MatrixProductState:
+) -> list[NDArray]:
     """Compress an MPS using the SRC method.
 
     Args:
-        mps: The MPS to compress as a quimb object.
+        mps: The site arrays of the MPS to compress.
         chi_out: The desired maximum bond dimension of the output MPS |η>.
         prng: A numpy / cupy random number generator instance.
         xp: Array module (``numpy`` or ``cupy``).
@@ -232,17 +246,17 @@ def _src_mps(
         dtype: The data type for the computation.
 
     Returns:
-        The resulting compressed MPS as a quimb object.
+        The site arrays of the compressed MPS.
     """
     # Problem dimensions
-    n_sites = mps.nsites
-    _, phys_dim = mps.arrays[0].shape
+    n_sites = len(mps)
+    _, phys_dim = mps[0].shape
     logger.info(
         "Starting SRC MPS", n_sites=n_sites, phys_dim=phys_dim, device=xp.__name__
     )
 
     # View of the tensors (transferred to device once, up front)
-    mps_arrs = [xp.asarray(mps[i].data) for i in range(n_sites)]
+    mps_arrs = [xp.asarray(arr) for arr in mps]
 
     # ----------------------------------------------
     # --- Left-to-Right Sweep: Compute C tensors ---
@@ -303,4 +317,4 @@ def _src_mps(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPS complete.")
 
-    return qtn.MatrixProductState([to_numpy(t) for t in eta])
+    return [to_numpy(t) for t in eta]
