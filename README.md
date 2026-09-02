@@ -4,7 +4,7 @@
 [![Test src_method](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml/badge.svg)](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-An implementation of the SRC algorithm introduced in [Camaño, Epperly and Tropp, *Quantum* **10**, 2022 (2026)](https://doi.org/10.22331/q-2026-03-10-2022) ([arXiv:2504.06475](https://arxiv.org/abs/2504.06475)), extending the idea to other kinds of tensor networks.
+An implementation of the SRC algorithm introduced in [Camaño, Epperly and Tropp, *Quantum* **10**, 2022 (2026)](https://doi.org/10.22331/q-2026-03-10-2022) ([arXiv:2504.06475](https://arxiv.org/abs/2504.06475)).
 
 ### Features
 
@@ -23,7 +23,7 @@ from src_method import apply, compress
 
 The `apply` function covers cases 1 and 2 above, while the `compress` function covers cases 3 and 4. Both functions are pure, meaning no in-place modification ever happens. The user should
 manage the assignment of the returned objects, possibly overwriting the input variables.
-See the [reference documentation](algorithmiq.github.io/src_method/) for details, and the [tests](tests/) or [benchmarks](benches/) folders for usage examples.
+See the [reference documentation](https://docs.algorithmiq.fi/src_method/) for details, and the [tests](tests/) or [benchmarks](benches/) folders for usage examples.
 
 Whether a train is an MPS or an MPO is inferred from the rank of its first site tensor, so no wrapper type is needed.
 
@@ -31,7 +31,7 @@ Whether a train is an MPS or an MPO is inferred from the rank of its first site 
 
 ### Tensor Indexing Conventions
 
-The array layout follows the default `quimb` tensor indexing conventions, so results round-trip through [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) without any permutation:
+The array layout follows the default `quimb` tensor indexing conventions, so results round-trip through [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) without any extra reshaping.
 
 ```python
 import quimb.tensor as qtn
