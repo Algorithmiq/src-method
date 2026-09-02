@@ -22,8 +22,9 @@ repos:
       - id: trailing-whitespace
         exclude: '\.out$'
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.11
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep in sync with the ruff pin in pyproject.toml; update-ruff.yml bumps both.
+    rev: v0.16.5
     hooks:
       - id: ruff
         exclude: '\.out$|^benches/'

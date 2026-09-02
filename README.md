@@ -4,7 +4,7 @@
 [![Test src_method](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml/badge.svg)](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-An implementation of the SRC algorithm introduced in [Camaño, Epperly and Tropp, *Quantum* **10**, 2022 (2026)](https://doi.org/10.22331/q-2026-03-10-2022) ([arXiv:2504.06475](https://arxiv.org/abs/2504.06475)), extending the idea to other kinds of tensor networks.
+An implementation of the SRC algorithm introduced in [Camaño, Epperly and Tropp, *Quantum* **10**, 2022 (2026)](https://doi.org/10.22331/q-2026-03-10-2022), extending the idea to other kinds of tensor networks.
 
 ### Features
 
@@ -116,6 +116,33 @@ process is done, you will have _all_ project dependencies installed, including
 > DevContainer is non-deterministic.  You might have to execute the *Reload Window*
 > command to get everything to work as expected after a fresh build of the container.
 
+### Alternative: Nix flake
+
+If you prefer [Nix] over Docker, the repository ships a `flake.nix` that provides
+a development shell with [uv], [Git] and the [GitHub CLI], plus the native
+libraries the binary wheels need at runtime. Python itself and all project
+dependencies remain managed by `uv`.
+
+With [flakes enabled](https://nixos.wiki/wiki/Flakes#Enable_flakes_temporarily), run:
+
+```bash
+nix develop
+```
+
+Entering the shell runs `uv sync --all-groups` and activates the uv project
+environment (`$UV_PROJECT_ENVIRONMENT` if set, otherwise `.venv`), so you land
+in a ready-to-use environment. GPU extras are not installed by the flake: add them
+explicitly with `uv sync --all-groups --extra gpu-nvidia` (or `--all-groups --extra gpu-rocm`) on a machine with the matching drivers.
+
+If you use [direnv], the provided `.envrc` enters the shell automatically:
+
+```bash
+direnv allow
+```
+
+Unlike the DevContainer, the Nix shell does not install the `pre-commit` hooks for
+you. Run `pre-commit install --install-hooks` once after the first `nix develop`.
+
 ## Documentation
 
 We use [MkDocs] to generate our documentation pages. You can find the latest version [at this link].
@@ -135,5 +162,9 @@ the editor will prompt you to open a new page in your browser, where you can see
 [Docker]: https://docs.docker.com/get-docker/
 [Visual Studio Code]: https://code.visualstudio.com/
 [GitHub CLI]: https://cli.github.com/
+[Git]: https://git-scm.com/
+[Nix]: https://nixos.org/download/
+[direnv]: https://direnv.net/
+[uv]: https://docs.astral.sh/uv/
 [MkDocs]: https://www.mkdocs.org/
 [at this link]: https://docs.algorithmiq.fi/src_method

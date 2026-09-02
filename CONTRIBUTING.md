@@ -59,7 +59,7 @@ accuracy, not just the shapes.
 
 ## Code style
 
-The project targets Python 3.11+ and is checked with `ruff` under a strict rule
+The project targets Python 3.12+ and is checked with `ruff` under a strict rule
 set. Public functions carry type hints and Google-style docstrings without type
 annotations in the argument list. Keep lines within the configured limit and
 prefer clear code over clever code.

@@ -42,8 +42,8 @@ jobs:
           - ubuntu-latest
           - gpu-runner
         python-version:
-          - "3.11"
-          - "3.13"
+          - "3.12"
+          - "3.14"
         test-group:
           - "not slow and not perf"
 
@@ -129,7 +129,9 @@ jobs:
           retention-days: 1
 
   benchmark:
-    # Will fail if an slowdown in the median of more than 10% is detected
+    # Fails on a median slowdown of more than 25%. The threshold is wide
+    # because this runs on a shared runner, where no-op PRs have drifted by
+    # up to 20%; anything tighter reports noise as a regression.
     name: 'Run Benchmark Comparison'
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -148,6 +150,8 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # This job builds both the base and the PR checkout, so the version
+          # must satisfy `requires-python` on both sides of the comparison.
           python-version: "3.13"
 
       - name: 'Install dependencies'
@@ -185,7 +189,7 @@ jobs:
            -W ignore::pytest_benchmark.logger.PytestBenchmarkWarning \
            --log-cli-level=WARNING \
            --benchmark-storage=file://baseline-benchmarks \
-           --benchmark-compare-fail=median:10% \
+           --benchmark-compare-fail=median:25% \
            --benchmark-compare=0001
 
   publish-test-results:

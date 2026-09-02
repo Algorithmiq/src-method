@@ -17,7 +17,7 @@
 
 ### Python Instructions
 
-- Write code to support Python 3.11, 3.12, 3.13.
+- Write code to support Python 3.12, 3.13, 3.14.
 - Write clear and concise comments for each function.
 - Ensure functions have descriptive names and include type hints.
 - Provide docstrings following PEP 257 conventions.
@@ -54,7 +54,8 @@ def calculate_area(radius: float) -> float:
         The area of the circle, calculated as π * radius^2.
     """
     import math
-    return math.pi * radius ** 2
+
+    return math.pi * radius**2
 ```
 
 ## Development Commands
