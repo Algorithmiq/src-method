@@ -423,6 +423,28 @@ def test_single_site_train_raises(phys_dim, chi_out, array_type):
         compress([np.ones((1, phys_dim), dtype=array_type)], chi_out=chi_out)
 
 
+def test_single_site_train_raises_without_warning(
+    phys_dim, chi_out, array_type, caplog
+):
+    """The degenerate train must raise before the fallback is announced."""
+    mpo = [np.ones((1, phys_dim, phys_dim), dtype=array_type)]
+    mps = [np.ones((1, phys_dim), dtype=array_type)]
+
+    with pytest.raises(ValueError, match="two-site tensor train"):
+        apply(mpo, mps, chi_out=chi_out)
+
+    assert "Defaulting" not in caplog.text
+
+
+def test_mismatched_site_counts_raise(phys_dim, chi_out, array_type):
+    """A shorter left train must not silently truncate the right one."""
+    H = qtn.MPO_identity(4, phys_dim=phys_dim, dtype=array_type)
+    psi = qtn.MPS_rand_state(6, bond_dim=4, phys_dim=phys_dim, dtype=array_type)
+
+    with pytest.raises(ValueError, match="same number of sites"):
+        apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=array_type)
+
+
 # -------------------------------------------------
 # --- Test adaptive bond truncation via cutoff  ---
 # -------------------------------------------------

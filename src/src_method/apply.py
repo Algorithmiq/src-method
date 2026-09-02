@@ -17,7 +17,12 @@ import numpy as np
 import structlog
 from opt_einsum import contract
 
-from ._tensor_train import MIN_SRC_SITES, exact_apply, infer_kind
+from ._tensor_train import (
+    MIN_SRC_SITES,
+    check_exact_supported,
+    exact_apply,
+    infer_kind,
+)
 from .utils import (
     default_rng,
     get_xp,
@@ -90,7 +95,8 @@ def apply(
 
     Raises:
         TypeError: If the combination of input tensor types is unsupported.
-        ValueError: If ``device`` is not recognised.
+        ValueError: If the two trains differ in length, if a sub-three-site
+            train is not exactly two sites, or if ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     xp = get_xp(device)
@@ -106,7 +112,16 @@ def apply(
         )
         raise TypeError(msg)
 
+    # Without this the sweep would silently drop the extra sites of the longer train.
+    if len(left_tensor) != len(right_tensor):
+        msg = (
+            "Both tensor trains must have the same number of sites, got "
+            f"{len(left_tensor)} and {len(right_tensor)}."
+        )
+        raise ValueError(msg)
+
     if len(left_tensor) < MIN_SRC_SITES:
+        check_exact_supported(len(left_tensor))
         logger.warning(LOG_WARN_SMALL)
         return exact_apply(left_tensor, right_tensor, chi_out, right_kind)
     if right_kind == "mps":

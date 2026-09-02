@@ -17,7 +17,12 @@ import numpy as np
 import structlog
 from opt_einsum import contract
 
-from ._tensor_train import MIN_SRC_SITES, exact_compress, infer_kind
+from ._tensor_train import (
+    MIN_SRC_SITES,
+    check_exact_supported,
+    exact_compress,
+    infer_kind,
+)
 from .utils import (
     default_rng,
     get_xp,
@@ -87,7 +92,8 @@ def compress(
 
     Raises:
         TypeError: If the input tensor type is unsupported.
-        ValueError: If ``device`` is not recognised.
+        ValueError: If a sub-three-site train is not exactly two sites, or if
+            ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
 
     """
@@ -103,6 +109,7 @@ def compress(
         raise TypeError(msg)
 
     if len(tensor) < MIN_SRC_SITES:
+        check_exact_supported(len(tensor))
         logger.warning(LOG_WARN_SMALL)
         return exact_compress(tensor, chi_out, kind)
     if kind == "mps":

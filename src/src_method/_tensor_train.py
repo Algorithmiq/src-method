@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from opt_einsum import contract
 
+from .utils import to_numpy
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -28,6 +30,9 @@ if TYPE_CHECKING:
 
 # Minimum number of sites for which the randomized SRC sweep is defined.
 MIN_SRC_SITES = 3
+
+# The only sub-``MIN_SRC_SITES`` size the exact path can handle.
+_EXACT_SITES = 2
 
 # Rank of a boundary (first / last) site tensor, which identifies the train type.
 _MPS_BOUNDARY_NDIM = 2
@@ -38,6 +43,7 @@ TrainKind = Literal["mps", "mpo"]
 __all__ = [
     "MIN_SRC_SITES",
     "TrainKind",
+    "check_exact_supported",
     "exact_apply",
     "exact_compress",
     "infer_kind",
@@ -66,10 +72,32 @@ def infer_kind(arrays: Sequence[NDArray]) -> TrainKind | None:
     return None
 
 
+def check_exact_supported(n_sites: int) -> None:
+    """Reject sub-``MIN_SRC_SITES`` trains the exact path cannot handle.
+
+    Called at the public boundary before the fallback is announced, so that a
+    degenerate train raises instead of first logging a misleading warning.
+
+    Args:
+        n_sites: The number of sites in the train.
+
+    Raises:
+        ValueError: If the train does not have exactly two sites.
+    """
+    if n_sites != _EXACT_SITES:
+        msg = (
+            f"Expected a two-site tensor train, got {n_sites} site(s). "
+            "Single-site trains are degenerate; use three or more sites for SRC."
+        )
+        raise ValueError(msg)
+
+
 def exact_compress(
     arrays: Sequence[NDArray], chi_out: int, kind: TrainKind
 ) -> list[NDArray]:
     """Compress a two-site train exactly via a single truncated SVD.
+
+    Site counts are validated by the caller via `check_exact_supported`.
 
     Args:
         arrays: The two site tensors of the train.
@@ -77,12 +105,10 @@ def exact_compress(
         kind: Whether the train is an ``"mps"`` or an ``"mpo"``.
 
     Returns:
-        The compressed train, in right-canonical form.
-
-    Raises:
-        ValueError: If the train does not have exactly two sites.
+        The compressed train, in right-canonical form, as numpy arrays.
     """
-    _check_pair(arrays)
+    # The dense SVD is host-side, so accept device arrays like the sweep does.
+    arrays = [to_numpy(arr) for arr in arrays]
     if kind == "mps":
         # (b, p0) x (b, p1) -> (p0, p1)
         theta = contract("ab,ac->bc", arrays[0], arrays[1])
@@ -110,6 +136,7 @@ def exact_apply(
 
     The MPO on the left is contracted site-wise with the right train, fusing
     the two bond indices, and the result is compressed with a single SVD.
+    Site counts are validated by the caller via `check_exact_supported`.
 
     Args:
         left_tensor: The two site tensors of the left MPO.
@@ -118,13 +145,10 @@ def exact_apply(
         kind: Whether ``right_tensor`` is an ``"mps"`` or an ``"mpo"``.
 
     Returns:
-        The compressed product, in right-canonical form.
-
-    Raises:
-        ValueError: If either train does not have exactly two sites.
+        The compressed product, in right-canonical form, as numpy arrays.
     """
-    _check_pair(left_tensor)
-    _check_pair(right_tensor)
+    left_tensor = [to_numpy(arr) for arr in left_tensor]
+    right_tensor = [to_numpy(arr) for arr in right_tensor]
     if kind == "mps":
         # Contract the MPO lower leg with the MPS physical leg, fusing both bonds.
         product = [
@@ -148,17 +172,3 @@ def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
     U, S, Vh = np.linalg.svd(theta, full_matrices=False)
     rank = min(chi_out, S.size)
     return U[:, :rank] * S[:rank], Vh[:rank]
-
-
-def _check_pair(arrays: Sequence[NDArray]) -> None:
-    """Reject trains that the exact two-site path cannot handle.
-
-    Raises:
-        ValueError: If the train does not have exactly two sites.
-    """
-    if len(arrays) != 2:
-        msg = (
-            f"Expected a two-site tensor train, got {len(arrays)} site(s). "
-            "Single-site trains are degenerate; use three or more sites for SRC."
-        )
-        raise ValueError(msg)
