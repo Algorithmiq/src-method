@@ -42,7 +42,7 @@ jobs:
           - ubuntu-latest
           - gpu-runner
         python-version:
-          - "3.12"
+          - "3.11"
           - "3.14"
         test-group:
           - "not slow and not perf"

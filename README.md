@@ -108,7 +108,7 @@ Once the code is locally available, you can open its containing folder in
 [Visual Studio Code]. The editor will then set up the [DevContainer] for you.
 The first time you open the folder the startup will take a few minutes. Once the
 process is done, you will have _all_ project dependencies installed, including
-`pre-commit` hooks.
+the git hooks.
 [Visual Studio Code] will be already configured with all the extensions helpful for Python development.
 
 > [!TIP]
@@ -140,8 +140,8 @@ If you use [direnv], the provided `.envrc` enters the shell automatically:
 direnv allow
 ```
 
-Unlike the DevContainer, the Nix shell does not install the `pre-commit` hooks for
-you. Run `pre-commit install --install-hooks` once after the first `nix develop`.
+Unlike the DevContainer, the Nix shell does not install the git hooks for
+you. Run `prek install --prepare-hooks` once after the first `nix develop`.
 
 ## Documentation
 

@@ -8,12 +8,13 @@ tensor, so there is no wrapper type.
 
 ## Rules
 
-- Target Python 3.12-3.14. Type hints everywhere, `from __future__ import
+- Target Python 3.11-3.14. Type hints everywhere, `from __future__ import
   annotations` at the top of every module.
 - Google-style docstrings without types (types live in the signature) on every
   public function, class and module.
-- `ruff` is the source of truth for style: 88-column lines, 4-space indent, the
-  rule set in `pyproject.toml`. Do not hand-format around it.
+- `ruff` is the source of truth for style: the formatter wraps at 88 columns
+  (`E501` only fires past 120), 4-space indent, the rule set in
+  `pyproject.toml`. Do not hand-format around it.
 - `snake_case` for functions and variables, `CamelCase` for classes. `N803` and
   `N806` are off so that matrices can keep their mathematical names (`Q`, `R`,
   `A`); that licence does not extend to anything else.
@@ -23,7 +24,7 @@ tensor, so there is no wrapper type.
   importing `numpy` or `cupy` directly in the algorithms, so CPU and GPU paths
   stay in sync.
 - Log with `structlog` via `src_method.utils.logging_config`, never `print`.
-- **Run `uv run pre-commit run --all-files` and the relevant tests before
+- **Run `uv run prek run --all-files` and the relevant tests before
   pushing, and fix every finding.** `lint.yml` runs the same hooks in CI, so a
   skipped lint is a red PR.
 - Changes to the API or to user-facing behavior -- developers included, e.g.
@@ -57,7 +58,7 @@ We use `uv` for environment management.
 
 ```bash
 uv sync --all-groups --all-extras
-uv run pre-commit install --install-hooks
+uv run prek install --prepare-hooks
 uv run pytest -m "not slow"    # fast suite
 uv run pytest                  # everything
 uv run ruff check src/ tests/
