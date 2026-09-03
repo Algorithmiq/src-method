@@ -128,6 +128,24 @@ jobs:
             coverage-*.xml
           retention-days: 1
 
+  test-matrix:
+    # The ruleset requires a check named after this workflow, but the matrix
+    # only ever reports per-combination names. This job publishes that name and
+    # keeps it independent of the matrix dimensions.
+    name: Test src_method
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Report the matrix result
+        run: |
+          echo "test: ${{ needs.test.result }}"
+          case "${{ needs.test.result }}" in
+            success|skipped) ;;
+            *) exit 1 ;;
+          esac
+
   benchmark:
     # Fails on a median slowdown of more than 25%. The threshold is wide
     # because this runs on a shared runner, where no-op PRs have drifted by

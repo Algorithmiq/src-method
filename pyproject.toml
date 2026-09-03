@@ -32,11 +32,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = [
-  "numpy>=2.4.4,<3",
-  "opt_einsum>=3.4.0",
-  "structlog>=25.5.0",
-]
+dependencies = ["numpy>=2.4.4,<3", "opt_einsum>=3.4.0", "structlog>=25.5.0"]
 
 
 [project.optional-dependencies]
