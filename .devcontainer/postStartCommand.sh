@@ -4,5 +4,5 @@
 # install project with all dependencies (no GPU extras in devcontainer)
 uv sync --all-groups
 
-# install pre-commit hooks
-uv run pre-commit install --install-hooks
+# install the git hook shims
+uv run prek install --prepare-hooks

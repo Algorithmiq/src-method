@@ -24,18 +24,21 @@ of sites, the `dtype`, and the error metric you used.
 ## Development setup
 
 The repository ships a [Dev Container](https://containers.dev/) configuration
-that installs every dependency and the `pre-commit` hooks for you. If you would
+that installs every dependency and the git hooks for you. If you would
 rather set things up by hand, you need [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --all-groups --all-extras
-uv run pre-commit install --install-hooks
+uv run prek install --prepare-hooks
 ```
+
+If your clone still carries the old `pre-commit` shims, add `--force` to
+replace them.
 
 ## Quality gates
 
-All of these must pass before a pull request can be merged; `pre-commit` runs
-the first two automatically.
+All of these must pass before a pull request can be merged;
+[`prek`](https://github.com/j178/prek) runs the first two automatically.
 
 ```bash
 uv run ruff check src/ tests/       # lint
@@ -59,7 +62,7 @@ accuracy, not just the shapes.
 
 ## Code style
 
-The project targets Python 3.12+ and is checked with `ruff` under a strict rule
+The project targets Python 3.11+ and is checked with `ruff` under a strict rule
 set. Public functions carry type hints and Google-style docstrings without type
 annotations in the argument list. Keep lines within the configured limit and
 prefer clear code over clever code.

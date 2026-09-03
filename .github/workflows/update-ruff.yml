@@ -48,11 +48,11 @@ jobs:
             sed -i -E "s/ruff==([0-9]+\.[0-9]+\.[0-9]+)/ruff==${{ env.RUFF_VERSION }}/" pyproject.toml
           fi
 
-      - name: Update ruff version in .pre-commit-config.yaml
+      - name: Update ruff version in prek.toml
         if: env.NEEDS_UPDATE == 'true'
         run: |
-          if grep -q "https://github.com/astral-sh/ruff-pre-commit" .pre-commit-config.yaml; then
-            sed -i -E "/repo: https:\/\/github.com\/astral-sh\/ruff-pre-commit/,/rev:/ s/rev: v([0-9]+\.[0-9]+\.[0-9]+)/rev: v${{ env.RUFF_VERSION }}/" .pre-commit-config.yaml
+          if grep -q "https://github.com/astral-sh/ruff-pre-commit" prek.toml; then
+            sed -i -E '/repo = "https:\/\/github.com\/astral-sh\/ruff-pre-commit"/,/^rev = / s/^rev = "v[0-9]+\.[0-9]+\.[0-9]+"/rev = "v${{ env.RUFF_VERSION }}"/' prek.toml
           fi
 
       - name: Install the latest version of uv
@@ -96,7 +96,7 @@ jobs:
 
             Changes:
             - Updated version in `pyproject.toml`
-            - Updated version in `.pre-commit-config.yaml`
+            - Updated version in `prek.toml`
             - Ran `ruff format` on the codebase
             ${{ env.RUFF_CHECK_FAILED == 'true' && '- Attempted to run `ruff check --fix` on the codebase' || '- Ran `ruff check --fix` on the codebase' }}
 
@@ -109,5 +109,5 @@ jobs:
             dependencies
           add-paths: |
             pyproject.toml
-            .pre-commit-config.yaml
+            prek.toml
             **/*.py
