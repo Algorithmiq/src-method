@@ -14,6 +14,9 @@ tensor, so there is no wrapper type.
   public function, class and module.
 - `ruff` is the source of truth for style: 88-column lines, 4-space indent, the
   rule set in `pyproject.toml`. Do not hand-format around it.
+- `snake_case` for functions and variables, `CamelCase` for classes. `N803` and
+  `N806` are off so that matrices can keep their mathematical names (`Q`, `R`,
+  `A`); that licence does not extend to anything else.
 - Comment invariants, contracts and non-obvious numerical choices only. Never
   narrate the code.
 - Backend-agnostic code: go through `src_method.utils._backend` instead of
@@ -21,9 +24,12 @@ tensor, so there is no wrapper type.
   stay in sync.
 - Log with `structlog` via `src_method.utils.logging_config`, never `print`.
 - **Run `uv run pre-commit run --all-files` and the relevant tests before
-  pushing, and fix every finding.** `lint.yml` runs the same hooks in CI.
-- Changes to the API or to user-facing behavior belong in the docs and, when
-  relevant, in `README.md`.
+  pushing, and fix every finding.** `lint.yml` runs the same hooks in CI, so a
+  skipped lint is a red PR.
+- Changes to the API or to user-facing behavior -- developers included, e.g.
+  workflows or test layout -- belong in the docs and, when relevant, in
+  `README.md`. `docs/developer-guide/` covers versioning, dependencies and how
+  to write tests; read it before changing any of those.
 
 ## Git and PRs
 
