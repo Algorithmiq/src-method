@@ -12,7 +12,11 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def truncated_qr(matrix: NDArray, cutoff: float, xp: ModuleType = np) -> NDArray:
+def truncated_qr(
+    matrix: NDArray[np.floating | np.complexfloating],
+    cutoff: float,
+    xp: ModuleType = np,
+) -> NDArray[np.floating | np.complexfloating]:
     """QR with SVD-based rank truncation, returning only the isometry.
 
     Decomposes ``matrix = Q @ R``, then truncates via SVD on R,

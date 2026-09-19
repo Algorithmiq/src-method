@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from types import ModuleType
 
-    from numpy.typing import NDArray
+    from numpy.typing import DTypeLike, NDArray
 
 # Set up logger
 setup_logging()
@@ -60,7 +60,7 @@ def compress(
     chi_out: int,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
     seed: int | None = None,
     device: str = "cpu",
 ) -> list[NDArray]:
@@ -129,7 +129,7 @@ def _src_mpo(
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
 ) -> list[NDArray]:
     """Compress an MPO using the SRC method.
 
@@ -212,7 +212,7 @@ def _src_mpo(
         eta[j] = Q_trunc.reshape(chi_right, phys_up, phys_down, rank).transpose(
             3, 0, 1, 2
         )
-        S = contract("abcd,fecd,eb->fa", eta[j].conj(), mpo_arrs[j], S)
+        S = contract("abcd,fecd,eb->fa", eta[j].conj(), mpo_arrs[j], S)  # ty: ignore[unresolved-attribute]
         C[j - 1] = None
         chi_right = rank
 
@@ -223,7 +223,7 @@ def _src_mpo(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO complete.")
 
-    return [to_numpy(t) for t in eta]
+    return [to_numpy(t) for t in eta]  # ty: ignore[invalid-argument-type]
 
 
 def _src_mps(
@@ -233,7 +233,7 @@ def _src_mps(
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
 ) -> list[NDArray]:
     """Compress an MPS using the SRC method.
 
@@ -306,7 +306,7 @@ def _src_mps(
         Q_trunc = truncated_qr(M, cutoff, xp)
         rank = Q_trunc.shape[1]
         eta[j] = Q_trunc.reshape(phys_dim, chi_right, rank).transpose(2, 1, 0)
-        S = contract("acb,deb,ec->da", eta[j].conj(), mps_arrs[j], S)
+        S = contract("acb,deb,ec->da", eta[j].conj(), mps_arrs[j], S)  # ty: ignore[unresolved-attribute]
         C[j - 1] = None
         chi_right = rank
 
@@ -317,4 +317,4 @@ def _src_mps(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPS complete.")
 
-    return [to_numpy(t) for t in eta]
+    return [to_numpy(t) for t in eta]  # ty: ignore[invalid-argument-type]

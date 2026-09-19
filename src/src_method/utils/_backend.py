@@ -34,7 +34,7 @@ def get_xp(device: str) -> ModuleType:
     if device == "cpu":
         return np
     if device == "gpu":
-        import cupy  # noqa: PLC0415  (lazy: optional dependency)
+        import cupy  # noqa: PLC0415  (lazy: optional dependency) # ty: ignore[unresolved-import]
 
         return cupy
     msg = f"Unknown device {device!r}; expected 'cpu' or 'gpu'."
