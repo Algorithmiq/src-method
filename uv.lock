@@ -3014,7 +3014,7 @@ dev = [
     { name = "quimb", specifier = ">=1.14.0,<2" },
     { name = "ruff", specifier = "==0.16.5" },
     { name = "scalene" },
-    { name = "ty", specifier = ">=0.0.82" },
+    { name = "ty", specifier = "==0.0.82" },
 ]
 docs = [
     { name = "black", extras = ["jupyter"], specifier = ">=26.5.1" },

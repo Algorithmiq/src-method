@@ -71,7 +71,7 @@ dev = [
   "prek>=0.2.6",
   "ruff==0.16.5",
   "cyclopts>=3.20",
-  "ty>=0.0.82",
+  "ty==0.0.82",
   { include-group = "test" },
 ]
 interactive = [
