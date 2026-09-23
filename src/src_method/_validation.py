@@ -49,7 +49,11 @@ def validate_chi_out(chi_out: int) -> None:
     Raises:
         ValueError: If `chi_out` is not a positive integer.
     """
-    if not isinstance(chi_out, numbers.Integral) or chi_out < 1:
+    if (
+        isinstance(chi_out, bool)
+        or not isinstance(chi_out, numbers.Integral)
+        or chi_out < 1
+    ):
         msg = f"chi_out must be a positive integer, got {chi_out!r}."
         raise ValueError(msg)
 
@@ -63,7 +67,7 @@ def validate_cutoff(cutoff: float) -> None:
     Raises:
         ValueError: If `cutoff` is not in `[0.0, 1.0)`.
     """
-    if not 0.0 <= cutoff < 1.0:
+    if not isinstance(cutoff, numbers.Real) or not 0.0 <= cutoff < 1.0:
         msg = f"cutoff must be in [0.0, 1.0), got {cutoff}."
         raise ValueError(msg)
 
