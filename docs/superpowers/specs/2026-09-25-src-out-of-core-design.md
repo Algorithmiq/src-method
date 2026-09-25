@@ -1,6 +1,6 @@
 # Design: out-of-core SRC sweep on one GPU (Phase 1)
 
-- Status: approved in discussion, pending spec review
+- Status: approved; refined while prototyping the implementation plan
 - Follow-ups: Phase 2 (sketch-index split over the GPUs of a node) and Phase 3
   (bond split across nodes) build on this kernel; see
   [Forward compatibility](#forward-compatibility-with-phases-2-and-3).
@@ -47,7 +47,9 @@ every environment on the device, and evaluates each contraction in one piece.
 
 1. Inputs are any `Sequence` of per-site array-likes with `.shape`, `.dtype` and
    `np.asarray` support: NumPy arrays, `np.memmap`, zarr or HDF5 datasets. Each
-   core is read when the sweep needs it, never all at once.
+   core is read when the sweep needs it, never all at once. In a bra stack the MPOs
+   are transposed lazily (`SwappedLegs`), so sites without `swapaxes`, such as zarr
+   and HDF5 datasets, work there too.
 2. The reference problem runs on one A100-40GB with 300 GB of host memory and
    node-local NVMe.
 3. The GPU and host memory budgets are detected automatically, with an explicit
@@ -120,7 +122,7 @@ class Resources:
 
 - `gpu_memory`, `host_memory`: `None` detects the budget; otherwise a byte count or
   a size string. `"36GB"` is `36e9` bytes, `"36GiB"` is `36 * 2**30`. Invalid
-  values raise `ValueError` at construction.
+  values raise `ValueError` at construction, values of another type `TypeError`.
 - `scratch_dir`: `None` uses `tempfile.gettempdir()`, which honours `$TMPDIR`; the
   chosen path is logged whenever the disk tier is used.
 - On the CPU backend `gpu_memory` is ignored and `host_memory` covers both the
@@ -151,8 +153,8 @@ of site `j` over all layers, and `p` the size of the output physical legs:
 - Staging: two batches in and two batches out, so that transfers overlap compute,
   unless the environments of the site stay on the GPU.
 
-Every per-column cost is linear in the batch size, so it is priced once for one
-column.
+Costs are in bytes of the working dtype, `np.result_type(dtype, *core dtypes)`:
+the sketches promoted by the cores, as the contractions promote them.
 
 The prefetch depth is one site. If the fixed memory with a prefetched site leaves
 no room for a batch of one column, the planner sets the depth to zero before
@@ -160,11 +162,13 @@ giving up.
 
 ### Batch sizes
 
-For each kernel, `b = floor((budget - fixed - staging) / per_column)`, clamped to
-`[1, l]` and rounded down to a multiple of 32 when `b >= 32`. The path is planned
-again at the chosen `b`, with the remaining budget as the `opt_einsum` memory limit,
-and `b` is halved until the re-planned peak fits. Batches over the rows of `eta`
-are planned for `l` rows, an upper bound on the rank after truncation.
+For each kernel, a binary search over `[1, l]` finds the largest `b` whose cost,
+fixed memory, staging and the peak walked from the `opt_einsum` path for that `b`,
+fits the budget; `b` is rounded down to a multiple of 32 when `b >= 32` and the
+rounded batch still fits. Every batch returned has had its cost checked, and the
+path walked is the one the kernels run. No memory limit is passed to `opt_einsum`:
+a path that cannot meet it degrades into one large einsum. Batches over the rows of
+`eta` are planned for `l` rows, an upper bound on the rank after truncation.
 
 If `b < 1` for any kernel, planning raises `MemoryError` naming the site, the kernel
 and the missing bytes: the site working set exceeds the GPU budget, which is the
@@ -197,8 +201,9 @@ Explicit `Resources` fields are used as given.
   excluded.
 - Disk: `shutil.disk_usage(scratch_dir).free`, minus 5%.
 
-The plan is logged at `info` (batch sizes, tiers per site, estimated peak), the
-pool high-water mark at `debug`.
+The plan is logged at `info` (batch sizes, tiers per site, estimated peaks), and at
+the end of the sweep the stall time, the seconds spent waiting for input cores and
+for environments. The pool high-water mark is logged at `debug`.
 
 ### Reference plan
 
@@ -216,11 +221,13 @@ padding rules stay in one place.
 
 `SiteSource(layers, kind, xp, depth)`:
 
-- `source[j]` returns the padded device cores of site `j`. If a prefetch is
-  pending, the compute stream waits on its event; the host does not block.
-- `source.prefetch(j)` queues site `j` on one background thread: `np.asarray` of
-  each core (where memmap, zarr and HDF5 read), a copy into a pinned buffer, an
-  asynchronous copy to the device on the copy stream, and an event.
+- `source.prefetch(j)` queues site `j` on one background thread, which only does
+  host work: `np.asarray` of each core (where memmap, zarr and HDF5 read) and a
+  copy into a pinned buffer.
+- `source[j]` waits for that thread if needed, then issues the asynchronous copies
+  of site `j` to the device on the current (compute) stream, and records an event
+  that frees the pinned buffer once the copies are done. On the host backend it
+  returns the padded arrays, with memmaps read in full.
 - The left-to-right pass prefetches `j + 1`, the right-to-left pass `j - 1`.
 - A ring of `depth + 1` pinned buffers sized for the largest site is allocated once.
   The host copies count against the host staging budget.
@@ -239,8 +246,8 @@ store.drop(j)             # release the memory or delete the file
 | Tier | Storage | Write | Read |
 |---|---|---|---|
 | GPU | one device array `(l, A_j)` per site | slice assignment | view |
-| Host | one pageable array per site | device to pinned buffer on the copy stream, then a background thread copies into the array | the reverse |
-| Disk | one raw C-order file per site, `<scratch>/src-<pid>-<uuid>/env-<j>.bin`, sketch index outermost | background thread writes the pinned buffer at offset `lo A_j e` | `readinto` into a pinned buffer, then an asynchronous copy to the device |
+| Host | one pageable array per site | device to pinned buffer on the copy stream, then a background thread copies into the array | a background thread copies into a pinned buffer, then an asynchronous copy to the device on the compute stream |
+| Disk | one raw C-order file per site, `<scratch>/src-<pid>-<uuid>/env-<j>.bin`, sketch index outermost | background thread writes the pinned buffer at offset `lo A_j e` | `preadv` into a pinned buffer on a background thread, then an asynchronous copy to the device on the compute stream |
 
 - Pinning hundreds of GB is too costly, so the host tier uses pageable arrays and a
   pinned staging ring.
@@ -262,13 +269,20 @@ New helpers in `src_method.utils._backend`, so the algorithms stay backend-agnos
   CuPy; synchronous no-ops on NumPy.
 - `pinned_empty(shape, dtype, xp)`: `cupyx.empty_pinned` on CuPy, `np.empty` on
   NumPy.
-- `to_device_async(dst, src, stream)` and `to_host_async(dst, src, stream)`:
-  asynchronous copies on CuPy, `np.copyto` on NumPy.
+- `to_device_async(host, xp, stream)` and `to_host_async(device, out, stream)`:
+  asynchronous copies on CuPy, plain copies on NumPy.
+- `device_memory(xp)`, `device_pool_bytes(xp)`, `device_pool_limit(xp, budget)` and
+  `host_memory_available()` for the budgets, the high-water mark and the pool cap.
 
-All kernels run on one compute stream and all transfers on one copy stream,
-ordered by events: a device-to-host copy waits for the kernel that wrote the batch,
-and a kernel waits for the copy of its input. The host blocks only to reuse a
-staging buffer.
+All kernels run on one compute stream. Device-to-host copies run on a separate
+copy stream, which first waits on an event recorded on the compute stream after the
+kernel that wrote the batch; the batch stays referenced until its copy is done.
+Host-to-device copies run on the compute stream itself: CuPy's pool reuses a block
+freed on a stream for the next allocation on that stream, so a copy issued on
+another stream could overwrite memory that queued kernels still read, while on the
+compute stream the copy is ordered with them. These copies are small against the
+compute; the slow part, reading from disk and staging, overlaps compute on the
+background threads. The host blocks only to reuse a staging buffer.
 
 ## Error handling and cleanup
 
@@ -304,14 +318,17 @@ Unit tests, CPU only and fast:
 
 Integration tests on the CPU: a depth-4 MPO stack with 6 sites and small bonds, run
 with the default `Resources` and with a tiny `host_memory` that forces small
-batches and the disk tier, agrees to `1e-10` for the same seed. `apply` and
-`compress` pass `resources` through. The existing tests pass unchanged, with no
+batches and the disk tier, agrees to `1e-10` for the same seed, in the relative
+Frobenius norm of the dense operators. The cores are not compared: batching changes
+the rounding, and with it the cores of an ill-conditioned sketch, but not the
+operator they represent. `apply` and `compress` pass `resources` through. The existing tests pass unchanged, with no
 stray `ResourceWarning`, since warnings are errors in this suite.
 
 GPU tests in `tests/test_gpu_backend.py`, skipped without CuPy: the same comparison
-with a tiny `gpu_memory`, which exercises the streams, the pinned staging and the
-host and disk tiers; the pool high-water mark stays within the budget; the pool
-limit is restored after the sweep, also after an exception.
+with budgets derived from a plan made with `make_plan`, chosen to reach the device,
+host and disk tiers with small batches, which exercises the streams and the pinned
+staging. The run succeeds under the pool cap set to the budget, so its peak stays
+within it; the pool limit is restored after the sweep, also after an exception.
 
 ## Acceptance on the cluster
 
@@ -358,8 +375,11 @@ Pass criteria:
 - The memory model may underestimate the peak: cuTENSOR and cuBLAS workspaces and
   pool fragmentation are covered only by the margin. The pool limit turns an
   underestimate into an immediate error, and the GPU tests check the model.
-- An `opt_einsum` path chosen under a memory limit can be slower than the
-  unconstrained one. The logged plan exposes the chosen paths.
+- The planner assumes the peak grows with the batch; where a different path at a
+  larger batch has a smaller peak, the binary search may settle on a smaller batch
+  than possible. Any batch it returns fits.
+- `ndarray.get(..., blocking=False)` needs CuPy 13, the floor of the `gpu-nvidia`
+  extra.
 - zarr and HDF5 decompression may hold the GIL and slow the prefetch thread;
   `np.memmap` of raw `.npy` files does not.
 - `set_limit` changes process-wide state of CuPy's default pool; concurrent CuPy
