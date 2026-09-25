@@ -166,6 +166,60 @@ def test_src_truncates_to_chi_out(rng):
     assert max(t.shape[0] for t in out[1:]) <= 5
 
 
+def cut_lower_bound(reference, n_sites, chi):
+    """Largest best-rank-``chi`` tail over all cuts of an MPS-shaped reference.
+
+    No train of bond dimension ``chi`` can have a smaller relative error.
+    """
+    vec = reference.ravel()
+    tails = (
+        np.linalg.svd(vec.reshape(2**cut, -1), compute_uv=False)[chi:]
+        for cut in range(1, n_sites)
+    )
+    return max(np.linalg.norm(tail) for tail in tails) / np.linalg.norm(vec)
+
+
+def test_src_truncation_is_near_optimal():
+    """Under truncation the error stays within a small factor of the optimum.
+
+    Single instances have a heavy tail (up to ~10x the bound over 200 seeds), so
+    the assertion is on the median over fixed instances, which sits near 2x.
+    """
+    chi = 2
+    ratios = []
+    for seed in range(10):
+        stack = make_stack("A B psi", np.random.default_rng(seed))
+        reference = dense_stack(*stack)
+        error = rel_error(src(*stack, chi_out=chi, seed=seed), reference)
+        bound = cut_lower_bound(reference, N_SITES, chi)
+        assert error >= bound * (1 - 1e-10)
+        ratios.append(error / bound)
+
+    assert np.median(ratios) <= 4
+
+
+@pytest.mark.parametrize("spec", ["A B C", "A B psi", "phi A B"])
+def test_src_output_is_right_canonical(spec, rng):
+    out = src(*make_stack(spec, rng), chi_out=3, seed=0)
+
+    for site in out[1:]:
+        flat = site.reshape(site.shape[0], -1)
+        np.testing.assert_allclose(
+            flat @ flat.conj().T, np.eye(site.shape[0]), atol=1e-10
+        )
+
+
+def test_src_does_not_mutate_bra_stack(rng):
+    stack = make_stack("phi A B", rng)
+    before = [[t.copy() for t in train] for train in stack]
+
+    src(*stack, chi_out=3, seed=0)
+
+    for train, saved in zip(stack, before):
+        for t, s in zip(train, saved):
+            np.testing.assert_array_equal(t, s)
+
+
 def test_src_cutoff_depth_three(rng):
     eye = identity_mpo(N_SITES)
     psi = random_mps([2, 4, 4, 2], rng)
@@ -218,26 +272,41 @@ def test_src_validates_the_stack(rng):
 # ----------------
 
 
+def assert_same_trains(first, second):
+    assert len(first) == len(second)
+    for a, b in zip(first, second):
+        np.testing.assert_array_equal(a, b)
+
+
+def assert_cutoff_trims(train, untrimmed):
+    """Guard for the wrapper tests: the cutoff must change the result."""
+    assert [t.shape for t in train] != [t.shape for t in untrimmed]
+
+
+@pytest.mark.parametrize("cutoff", [0.0, 0.5])
 @pytest.mark.parametrize("spec", ["A psi", "A B"])
-def test_apply_matches_src(spec, rng):
+def test_apply_matches_src(spec, cutoff, rng):
     left, right = make_stack(spec, rng)
 
-    via_apply = apply(left, right, 4, dtype=np.complex128, seed=3)
-    via_src = src(left, right, chi_out=4, dtype=np.complex128, seed=3)
+    via_apply = apply(left, right, 4, cutoff=cutoff, dtype=np.complex128, seed=3)
+    via_src = src(left, right, chi_out=4, cutoff=cutoff, dtype=np.complex128, seed=3)
 
-    for a, b in zip(via_apply, via_src):
-        np.testing.assert_array_equal(a, b)
+    assert_same_trains(via_apply, via_src)
+    if cutoff:
+        assert_cutoff_trims(via_src, src(left, right, chi_out=4, seed=3))
 
 
+@pytest.mark.parametrize("cutoff", [0.0, 0.5])
 @pytest.mark.parametrize("spec", ["psi", "A"])
-def test_compress_matches_src(spec, rng):
+def test_compress_matches_src(spec, cutoff, rng):
     (train,) = make_stack(spec, rng)
 
-    via_compress = compress(train, 4, seed=3)
-    via_src = src(train, chi_out=4, seed=3)
+    via_compress = compress(train, 4, cutoff=cutoff, seed=3)
+    via_src = src(train, chi_out=4, cutoff=cutoff, seed=3)
 
-    for a, b in zip(via_compress, via_src):
-        np.testing.assert_array_equal(a, b)
+    assert_same_trains(via_compress, via_src)
+    if cutoff:
+        assert_cutoff_trims(via_src, src(train, chi_out=4, seed=3))
 
 
 def test_apply_rejects_bra(rng):

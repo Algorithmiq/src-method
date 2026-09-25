@@ -61,8 +61,9 @@ def apply(
 
     Raises:
         TypeError: If the combination of input tensor types is unsupported.
-        ValueError: If the two trains differ in length, if a sub-three-site
-            train is not exactly two sites, or if ``device`` is not recognised.
+        ValueError: If the two trains differ in length or in the physical
+            dimensions they join, if a sub-three-site train is not exactly two
+            sites, or if ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     left_kind = infer_kind(left_tensor)

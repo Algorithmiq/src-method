@@ -73,7 +73,8 @@ def src(
             When positive, bonds are trimmed to their effective rank by
             discarding singular values below ``cutoff * sigma_max`` at each
             site during the right-to-left sweep. Set to 0.0 (default) to keep
-            all bonds at ``chi_out``.
+            all bonds at ``chi_out``. Ignored for two-site stacks, which are
+            contracted and truncated to ``chi_out`` exactly.
         dtype: The data type for the computation.
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
@@ -81,7 +82,7 @@ def src(
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), in right-canonical
-        form.
+        form, as numpy arrays (host-side, whatever the ``device``).
 
     Raises:
         TypeError: If a train has an unrecognised layout or an MPS sits anywhere
