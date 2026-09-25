@@ -218,7 +218,7 @@ def normalize_stack(
     if len(trains) == 0:
         msg = "Expected at least one tensor train."
         raise ValueError(msg)
-    kinds = [infer_kind(train) for train in trains]
+    kinds: list[TrainKind | None] = [infer_kind(train) for train in trains]
     _check_roles(kinds)
     sizes = [len(train) for train in trains]
     if len(set(sizes)) > 1:

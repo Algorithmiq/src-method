@@ -17,7 +17,7 @@ from functools import cache
 from itertools import count
 from math import prod
 from time import perf_counter_ns
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 import structlog
@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from types import ModuleType
 
     from numpy.typing import NDArray
+    from opt_einsum.contract import ContractExpression
 
     from ._tensor_train import TrainKind
 
@@ -45,7 +46,9 @@ class _Contractions:
     """
 
     def __init__(self) -> None:
-        self._compiled: dict[tuple[str, tuple[tuple[int, ...], ...]], Any] = {}
+        self._compiled: dict[
+            tuple[str, tuple[tuple[int, ...], ...]], ContractExpression
+        ] = {}
 
     def __call__(self, eq: str, *operands: NDArray) -> NDArray:
         shapes = tuple(op.shape for op in operands)
@@ -138,17 +141,18 @@ def sweep(
     logger.debug("Left-to-right sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
 
     tms = perf_counter_ns()
-    eta: list[NDArray] = [None] * n_sites  # type: ignore[list-item]
+    eta_reversed: list[NDArray] = []
     S = xp.ones((1,) * (depth + 1), dtype=dtype)
     for j in range(n_sites - 1, 0, -1):
-        M = contract(eqs.rtl_m, C[j], *sites[j], S)
+        # C[-1] is C[j] here; popping it frees each environment once used.
+        M = contract(eqs.rtl_m, C.pop(), *sites[j], S)
         rows = M.shape[0] * M.shape[1] * M.shape[2]
         Q = truncated_qr(M.reshape(rows, chi_out), cutoff, xp)
-        eta[j] = Q.reshape(*M.shape[:3], Q.shape[1]).transpose(3, 0, 1, 2)
-        S = contract(eqs.rtl_s, eta[j].conj(), *sites[j], S)
-        C[j] = None  # type: ignore[call-overload]
+        eta_j = Q.reshape(*M.shape[:3], Q.shape[1]).transpose(3, 0, 1, 2)
+        S = contract(eqs.rtl_s, eta_j.conj(), *sites[j], S)
+        eta_reversed.append(eta_j)
     first = contract(eqs.first, *sites[0], S)
-    eta[0] = first.reshape(1, *first.shape[depth:])
+    eta = [first.reshape(1, *first.shape[depth:]), *reversed(eta_reversed)]
     logger.debug("Right-to-left sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
 
     return [to_numpy(site) for site in unpad(eta, kind)]
