@@ -7,3 +7,6 @@ different SRC variants. They are grouped by the kind of workload exercised:
   SRC primitives (MPO–MPO, MPO–MPS, …). Used to assess speedup and accuracy of
   individual primitives versus `quimb` references on a fixed problem size.
   See [`primitives/README.md`](primitives/README.md).
+- [`stack/`](stack/) — One-shot SRC over stacks of trains against sequential
+  pairwise application, by stack depth: accuracy against dense references and
+  wall time. See [`stack/README.md`](stack/README.md).
