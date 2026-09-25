@@ -5,6 +5,7 @@ watch:
   - src/src_method
 nav:
   - Home: index.md
+  - 'Large Problems': large-problems.md
   - 'Developer Guide':
     - 'Versioning Scheme': developer-guide/versioning.md
     - 'Managing Dependencies': developer-guide/dependencies.md
