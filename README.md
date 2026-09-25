@@ -87,6 +87,26 @@ The result then pairs with a ket by plain contraction, with no further conjugati
 
 At runtime, pass `device="gpu"` to use GPU acceleration. The library handles backend dispatch automatically.
 
+### Large Problems
+
+Stacks that do not fit on the GPU, or in host memory, still run: the sweep reads the input cores one site at a time (from NumPy arrays, `np.memmap`, zarr or HDF5 datasets), batches every contraction to a memory budget, and keeps the sketched environments on the GPU, in host memory or on local disk. The budgets are detected, or set explicitly with `Resources`:
+
+```python
+from src_method import Resources, src
+
+out = src(
+    N,
+    V,
+    M,
+    U,
+    chi_out=2000,
+    device="gpu",
+    resources=Resources(gpu_memory="36GB", scratch_dir="/local/scratch"),
+)
+```
+
+See [Large problems](docs/large-problems.md) for the budgets, the scratch directory and how to read the logged plan.
+
 ## Installation
 
 ```bash

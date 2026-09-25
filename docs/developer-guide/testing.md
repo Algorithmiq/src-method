@@ -253,6 +253,19 @@ def test_helper_namespace():
     assert pytest.helpers.foo(True) is True
 ```
 
+### Exercising the out-of-core paths
+
+The batched contractions and the host and disk tiers of the sweep only engage when
+the budgets are tight, so tests force them with tiny budgets: on the CPU,
+`Resources(host_memory="1MB", scratch_dir=tmp_path)` gives small batches and spills
+the environments of a depth-4 stack with bonds of 4 to `tmp_path` (see
+`tests/test_stack.py`). Compare the dense operator of the result with that of a
+default run, not the cores: batching changes the rounding, and with it the cores of
+an ill-conditioned sketch, but not the operator they represent. The planner is a
+pure function, so `tests/test_plan.py` checks batch sizes and tiers from shapes
+alone, and `tests/test_gpu_backend.py` derives GPU budgets from a plan made with
+`make_plan` to reach every tier.
+
 ### How to use logging with tests
 
 Within `aurora`, we adopt a `pytest` configuration that allows to see the output

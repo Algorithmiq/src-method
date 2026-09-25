@@ -1,0 +1,83 @@
+# Large problems
+
+A single SRC sweep keeps, besides the input and output trains, one sketched
+environment per site. For stacks with a large bond, such as `N . V . M . U` with a
+bond of several thousand in `M`, these environments and the intermediates of the
+contractions no longer fit on a GPU, and often not in host memory either.
+`src_method` then plans the sweep to the memory at hand:
+
+- the input cores are read one site at a time, so a train can live on disk;
+- every contraction runs in batches of sketch columns (or rows), sized to the GPU
+  budget;
+- each environment is kept on the GPU, in host memory or in a scratch directory,
+  the most recent ones on the fastest tier.
+
+None of this changes the result beyond floating-point rounding: the random draws
+and the mathematics are those of a sweep that fits in memory.
+
+## Budgets
+
+The budgets are set with `Resources`, passed to `src`, `apply` or `compress`:
+
+```python
+from src_method import Resources, src
+
+out = src(
+    N, V, M, U,
+    chi_out=2000,
+    dtype=np.complex128,
+    device="gpu",
+    resources=Resources(gpu_memory="36GB", scratch_dir="/local/scratch"),
+)
+```
+
+Every field left unset is detected when the call starts:
+
+| Field | Default |
+|---|---|
+| `gpu_memory` | free device memory, plus the free bytes of CuPy's pool, minus `max(10%, 1 GiB)` |
+| `host_memory` | `MemAvailable` from `/proc/meminfo`, minus 10% |
+| `scratch_dir` | `tempfile.gettempdir()`, which honours `$TMPDIR` |
+
+Sizes are byte counts or strings: `"36GB"` is `36 * 10**9` bytes, `"36GiB"` is
+`36 * 2**30`. On the CPU there is a single budget, `host_memory`. Host memory is
+measured when the call starts, so inputs already held in memory are not counted
+twice.
+
+During the sweep, CuPy's default memory pool is capped at the GPU budget, so that
+an estimate that falls short fails at once rather than when some other allocation
+does; the previous limit is restored afterwards. If a single site does not fit the
+budget even with batches of one column, `src` raises `MemoryError` naming the site.
+
+## Inputs on disk
+
+A train is any sequence of per-site array-likes with `shape`, `dtype` and
+`np.asarray` support: NumPy arrays, `np.memmap`, zarr or HDF5 datasets. Each core
+is read when the sweep reaches its site, once per pass, and a background thread
+reads the next site while the current one is computed. Raw `.npy` files opened with
+`np.load(path, mmap_mode="r")` are the fastest option; compressed formats may be
+limited by decompression.
+
+## The scratch directory
+
+Environments that fit in neither budget are written to a per-process directory,
+`<scratch_dir>/src-<pid>-<id>/`, one file per site. Use node-local disk: at the
+reference size of 50 sites, `D_M = 4000` and `chi_out = 2000` in complex128, up to
+410 GB are written and read back once. The directory is removed when the call
+returns, also after an error; a process killed with `SIGKILL` leaves it behind, and
+its name identifies the process.
+
+## Reading the plan
+
+Every sweep logs its plan at `info`:
+
+- `tiers`: where the environment of each site lives (`device`, `host` or `disk`);
+- `batches`: for each site, the batch of the environment, sketch and projection
+  steps;
+- `device_peak_bytes`, `host_peak_bytes`, `disk_bytes`: the planned peaks;
+- `prefetch`: whether the next site is read ahead.
+
+At the end, `SRC stalls` reports the seconds the sweep waited for input cores
+(`site_seconds`) and for environments (`environment_seconds`). If they are a large
+fraction of the run, the disk is too slow for the compute. Set
+`LOG_LEVEL_SRC=DEBUG` to also get the time of each pass.
