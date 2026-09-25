@@ -5,7 +5,9 @@ from functools import reduce
 import numpy as np
 import pytest
 
-from src_method import apply, compress, src
+import src_method._sweep as sweep_module
+from src_method import Resources, apply, compress, src
+from src_method._plan import make_plan
 from src_method._sweep import sweep
 
 # -------------
@@ -346,3 +348,58 @@ def test_benchmark_src_stack_depth3(benchmark):
     np.testing.assert_allclose(
         ref.distance(qtn.MatrixProductState(out)), 0.0, atol=1e-6
     )
+
+
+# ----------------------------
+# --- Budgets and spilling ---
+# ----------------------------
+
+
+@pytest.fixture
+def plans(monkeypatch):
+    """Record the plan of every sweep."""
+    recorded = []
+
+    def spy(*args, **kwargs):
+        recorded.append(make_plan(*args, **kwargs))
+        return recorded[-1]
+
+    monkeypatch.setattr(sweep_module, "make_plan", spy)
+    return recorded
+
+
+def test_tiny_budget_batches_and_spills(rng, tmp_path, plans):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
+    tight = Resources(host_memory="1MB", scratch_dir=tmp_path)
+
+    default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
+    spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)
+
+    assert all(site.tier == "device" for site in plans[0].sites)
+    assert "disk" in {site.tier for site in plans[1].sites}
+    assert min(site.sketch_batch for site in plans[1].sites[1:]) < 16
+    # Rounding differs, and the output cores of an ill-conditioned sketch with it,
+    # but not the operator they represent.
+    assert rel_error(spilled, dense(default)) < 1e-10
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_budget_too_small_raises(rng):
+    stack = make_stack("A B psi", rng)
+
+    with pytest.raises(MemoryError, match="working set exceeds the budget"):
+        src(*stack, chi_out=8, resources=Resources(host_memory="1kB"))
+
+
+def test_apply_passes_resources(rng):
+    A, psi = make_stack("A psi", rng)
+
+    with pytest.raises(MemoryError, match="working set exceeds the budget"):
+        apply(A, psi, chi_out=8, resources=Resources(host_memory="1kB"))
+
+
+def test_compress_passes_resources(rng):
+    (A,) = make_stack("A", rng)
+
+    with pytest.raises(MemoryError, match="working set exceeds the budget"):
+        compress(A, chi_out=8, resources=Resources(host_memory="1kB"))

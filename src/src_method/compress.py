@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
+    from ._plan import Resources
+
 
 def compress(
     tensor: Sequence[NDArray],
@@ -28,6 +30,7 @@ def compress(
     dtype: type = np.float64,
     seed: int | None = None,
     device: str = "cpu",
+    resources: Resources | None = None,
 ) -> list[NDArray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
@@ -51,6 +54,7 @@ def compress(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.
+        resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
         The site arrays of the compressed tensor network (MPS or MPO).
@@ -62,5 +66,11 @@ def compress(
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     return src(
-        tensor, chi_out=chi_out, cutoff=cutoff, dtype=dtype, seed=seed, device=device
+        tensor,
+        chi_out=chi_out,
+        cutoff=cutoff,
+        dtype=dtype,
+        seed=seed,
+        device=device,
+        resources=resources,
     )
