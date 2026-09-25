@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from src_method import src
 from src_method._sites import SiteSource, padded_shapes, site_bytes
 from src_method._tensor_train import pad
 
@@ -72,3 +73,48 @@ def test_sites_are_read_when_requested(depth):
 
     np.testing.assert_array_equal(core, pad(train.sites)[2])
     np.testing.assert_array_equal(last, pad(train.sites)[3])
+
+
+def test_src_reads_each_site_once_per_pass():
+    rng = np.random.default_rng(2)
+    train = CountingTrain(random_mpo(5, 3, rng))
+    other = random_mpo(5, 2, rng)
+
+    lazy = src(CountingTrain(other), train, chi_out=4, seed=0)
+    eager = src(other, train.sites, chi_out=4, seed=0)
+
+    # Left-to-right reads sites 0..3, right-to-left sites 4..0.
+    assert train.reads == [2, 2, 2, 2, 1]
+    for a, b in zip(lazy, eager):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_src_on_memmaps(tmp_path):
+    rng = np.random.default_rng(3)
+    trains = [random_mpo(5, 3, rng), random_mpo(5, 2, rng)]
+    mapped = []
+    for t, train in enumerate(trains):
+        sites = []
+        for j, site in enumerate(train):
+            path = tmp_path / f"train{t}-site{j}.npy"
+            np.save(path, site)
+            sites.append(np.load(path, mmap_mode="r"))
+        mapped.append(sites)
+
+    lazy = src(*mapped, chi_out=4, seed=0)
+    eager = src(*trains, chi_out=4, seed=0)
+
+    for a, b in zip(lazy, eager):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_src_bra_stack_of_lazy_sites():
+    rng = np.random.default_rng(4)
+    phi = [t[..., 0] for t in random_mpo(5, 2, rng)]
+    mpo = random_mpo(5, 3, rng)
+
+    lazy = src(phi, CountingTrain(mpo), chi_out=4, seed=0)
+    eager = src(phi, mpo, chi_out=4, seed=0)
+
+    for a, b in zip(lazy, eager):
+        np.testing.assert_array_equal(a, b)

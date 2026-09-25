@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
+    from ._plan import Resources
+
 setup_logging()
 logger = structlog.get_logger(__name__)
 
@@ -42,6 +44,7 @@ def src(
     dtype: type = np.float64,
     seed: int | None = None,
     device: str = "cpu",
+    resources: Resources | None = None,
 ) -> list[NDArray]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
@@ -79,6 +82,9 @@ def src(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
             the optional ``cupy`` dependency for GPU execution.
+        resources: Memory budgets and scratch space for the sweep (see
+            `Resources`); every budget left unset is detected. Ignored for
+            two-site stacks.
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), in right-canonical
@@ -109,6 +115,15 @@ def src(
         output=kind,
         device=xp.__name__,
     )
-    result = sweep(layers, kind, chi_out, prng, xp, cutoff=cutoff, dtype=dtype)
+    result = sweep(
+        layers,
+        kind,
+        chi_out,
+        prng,
+        xp,
+        cutoff=cutoff,
+        dtype=dtype,
+        resources=resources,
+    )
     logger.info("SRC complete.")
     return result
