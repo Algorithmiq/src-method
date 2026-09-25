@@ -314,3 +314,35 @@ def test_apply_rejects_bra(rng):
 
     with pytest.raises(TypeError, match="expected an MPO on the left"):
         apply(phi, A, 4)
+
+
+# -----------------------------------------
+# --- Check for performance regressions ---
+# -----------------------------------------
+
+
+@pytest.mark.perf
+def test_benchmark_src_stack_depth3(benchmark):
+    """Benchmarks a depth-3 stack: two near-identity MPOs applied to an MPS."""
+    qtn = pytest.importorskip("quimb.tensor")
+    n_sites, phys_dim, chi_out = 10, 2, 32
+    dtype = np.complex128
+    layers = [
+        qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=dtype)
+        + 1e-8
+        * qtn.MPO_rand(n_sites, bond_dim=3, phys_dim=phys_dim, dtype=dtype, seed=seed)
+        for seed in (1, 2)
+    ]
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=dtype, seed=3
+    )
+
+    out = benchmark(
+        src, *(t.arrays for t in layers), psi.arrays, chi_out=chi_out, dtype=dtype
+    )
+
+    # Still has to be correct
+    ref = layers[0].apply(layers[1].apply(psi, compress=False), compress=False)
+    np.testing.assert_allclose(
+        ref.distance(qtn.MatrixProductState(out)), 0.0, atol=1e-6
+    )
