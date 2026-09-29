@@ -1,6 +1,6 @@
 # Design: SRC sweep over the GPUs of a node (Phase 2)
 
-- Status: approved in discussion, pending spec review
+- Status: approved; refined while planning (see the plan's "Refinements of the spec")
 - Builds on: Phase 1, the out-of-core sweep
   ([design](2026-09-25-src-out-of-core-design.md)).
 - Follow-up: Phase 3, the bond split across nodes; see
@@ -98,6 +98,8 @@ Contract of a distributed call:
   `CUDA_VISIBLE_DEVICES`) uses it; a rank that sees several uses device
   `local_rank mod count`.
 - Two-site stacks take the exact path on every rank; the output is handled as above.
+- With more than one rank per node, an in-memory input layer (not a memmap) above
+  1 GiB is logged as a warning: every rank holds a copy.
 
 ## Communicator
 
@@ -112,6 +114,7 @@ class Communicator(Protocol):
     def allgather_objects(self, value: object) -> list[object]: ...
     def bcast_int(self, value: int, root: int = 0) -> int: ...
     def barrier(self) -> None: ...
+    def abort(self, code: int) -> None: ...
 
 def make_communicator(comm: Any | None, xp: ModuleType) -> Communicator: ...
 ```
@@ -156,10 +159,12 @@ In `sweep`:
     out permuted, identically on every rank, which leaves the range and hence `Q_k`
     unchanged;
   - the thin QR runs on every rank; with `cutoff > 0`, the rank is decided on rank 0
-    and broadcast, and `truncated_qr` gains an optional `rank` argument to apply it;
+    and broadcast: `truncated_qr` gains an `agree_rank` callback that receives the
+    local rank and returns the one to apply;
   - rank `g` projects a contiguous block of the rows of the new `S`, in batches, and
     the blocks are all-gathered along the row axis;
-  - only rank 0 keeps the output core, in memory or written to `output_dir`.
+  - only rank 0 keeps the output core, unpadded as it is produced, and hands it to an
+    output sink: in memory, or written to `output_dir`.
 - The first site's output core is computed on rank 0 only.
 
 If the GPU QR is not bitwise reproducible, the blocks of `P_k` (the new `S`) come
@@ -197,8 +202,9 @@ leave the others waiting.
 ## Dependencies
 
 - A new extra `mpi = ["mpi4py>=4"]`, which needs an MPI library: a system Open MPI or
-  MPICH, or an MPI wheel from PyPI. The implementation plan settles which one CI
-  uses.
+  MPICH, the `mpich` or `openmpi` wheels of the mpi4py project, or `impi-rt`. CI
+  installs the system MPICH on its Ubuntu runner, and the Nix dev shell provides
+  MPICH.
 - The `gpu-nvidia` extra gains `nvidia-nccl-cu12`.
 
 ## Expected scaling
