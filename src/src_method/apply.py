@@ -23,6 +23,7 @@ from ._tensor_train import (
     exact_apply,
     infer_kind,
 )
+from ._validation import validate_boundary_rank, validate_chi_out, validate_cutoff
 from .utils import (
     default_rng,
     get_xp,
@@ -95,10 +96,18 @@ def apply(
 
     Raises:
         TypeError: If the combination of input tensor types is unsupported.
-        ValueError: If the two trains differ in length, if a sub-three-site
-            train is not exactly two sites, or if ``device`` is not recognised.
+        ValueError: If ``chi_out`` is not a positive integer, if ``cutoff`` is
+            not in ``[0.0, 1.0)``, if the two trains differ in length, if a
+            train's boundary tensors have inconsistent or periodic-boundary
+            ranks, if a sub-three-site train is not exactly two sites, or if
+            ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
+    validate_chi_out(chi_out)
+    validate_cutoff(cutoff)
+    validate_boundary_rank(left_tensor, label="left_tensor")
+    validate_boundary_rank(right_tensor, label="right_tensor")
+
     xp = get_xp(device)
     prng = default_rng(seed)
 
