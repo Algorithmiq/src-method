@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from types import ModuleType
 
-    from numpy.typing import NDArray
+    from numpy.typing import DTypeLike, NDArray
 
 # Set up logger
 setup_logging()
@@ -61,7 +61,7 @@ def apply(
     chi_out: int,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
     seed: int | None = None,
     device: str = "cpu",
 ) -> list[NDArray]:
@@ -146,7 +146,7 @@ def _src_mpo_mps(
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
 ) -> list[NDArray]:
     """Computes the compressed product |η> ≈ H|ψ> using the SRC method.
 
@@ -233,7 +233,7 @@ def _src_mpo_mps(
         eta[j] = Q_trunc.reshape(phys_dim, chi_right, rank).transpose(2, 1, 0)
         S = contract(
             "acb,debf,ghf,ceh->adg",
-            eta[j].conj(),
+            eta[j].conj(),  # ty: ignore[unresolved-attribute]
             mpo_arrs[j],
             mps_arrs[j],
             S,
@@ -248,7 +248,7 @@ def _src_mpo_mps(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO-MPS complete.")
 
-    return [to_numpy(t) for t in eta]
+    return [to_numpy(t) for t in eta]  # ty: ignore[invalid-argument-type]
 
 
 def _src_mpo_mpo(
@@ -259,7 +259,7 @@ def _src_mpo_mpo(
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike = np.float64,
 ) -> list[NDArray]:
     """Computes the compressed product H_new ≈ H1 @ H2 using the SRC method.
 
@@ -354,7 +354,7 @@ def _src_mpo_mpo(
         )
         S = contract(
             "abcd,hecg,ifgd,bef->ahi",
-            eta[j].conj(),
+            eta[j].conj(),  # ty: ignore[unresolved-attribute]
             mpo_left_arrs[j],
             mpo_right_arrs[j],
             S,
@@ -369,4 +369,4 @@ def _src_mpo_mpo(
     logger.debug(LOG_TIME, t_rtl=tms * 1e-9)
     logger.info("SRC MPO-MPO complete.")
 
-    return [to_numpy(t) for t in eta]
+    return [to_numpy(t) for t in eta]  # ty: ignore[invalid-argument-type]
