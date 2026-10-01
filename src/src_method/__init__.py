@@ -5,10 +5,11 @@ src_method: Successive Randomized Compression.
 
 from __future__ import annotations
 
+from ._plan import Resources
 from ._version import version as __version__
 from ._version import version_tuple as __version_tuple__
 from .apply import apply
 from .compress import compress
 from .stack import src
 
-__all__ = ["__version__", "__version_tuple__", "apply", "compress", "src"]
+__all__ = ["Resources", "__version__", "__version_tuple__", "apply", "compress", "src"]

@@ -16,7 +16,7 @@ exact SVD is both cheaper and more accurate than a randomized sketch.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from opt_einsum import contract
@@ -42,6 +42,7 @@ TrainKind = Literal["mps", "mpo"]
 
 __all__ = [
     "MIN_SRC_SITES",
+    "SwappedLegs",
     "TrainKind",
     "check_exact_supported",
     "exact_compress",
@@ -49,6 +50,8 @@ __all__ = [
     "infer_kind",
     "normalize_stack",
     "pad",
+    "pad_site",
+    "padded_shape",
     "transpose_mpo",
     "unpad",
 ]
@@ -137,6 +140,48 @@ def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
     return U[:, :rank] * S[:rank], Vh[:rank]
 
 
+def padded_shape(
+    shape: tuple[int, ...], kind: TrainKind, i: int, last: int
+) -> tuple[int, int, int, int]:
+    """Return the bulk ``(l, r, u, d)`` shape that `pad_site` gives a site.
+
+    Args:
+        shape: The unpadded shape of site ``i``.
+        kind: The kind of the train the site belongs to.
+        i: The position of the site.
+        last: The position of the last site of the train.
+
+    Returns:
+        The padded shape.
+    """
+    padded = (*shape, 1) if kind == "mps" else tuple(shape)
+    if i == 0:
+        padded = (1, *padded)
+    if i == last:
+        padded = (padded[0], 1, *padded[1:])
+    return padded  # type: ignore[return-value]
+
+
+def pad_site(site: NDArray, kind: TrainKind, i: int, last: int) -> NDArray:
+    """View one site as a bulk MPO tensor ``(l, r, u, d)``; see `pad`.
+
+    Args:
+        site: The site tensor at position ``i``.
+        kind: The kind of the train the site belongs to.
+        i: The position of the site.
+        last: The position of the last site of the train.
+
+    Returns:
+        The rank-4 view.
+    """
+    view = site[..., None] if kind == "mps" else site
+    if i == 0:
+        view = view[None]
+    if i == last:
+        view = view[:, None]
+    return view
+
+
 def pad(train: Sequence[NDArray]) -> list[NDArray]:
     """View every site of a train as a bulk MPO tensor ``(l, r, u, d)``.
 
@@ -152,15 +197,7 @@ def pad(train: Sequence[NDArray]) -> list[NDArray]:
     """
     kind = infer_kind(train)
     last = len(train) - 1
-    padded = []
-    for i, site in enumerate(train):
-        view = site[..., None] if kind == "mps" else site
-        if i == 0:
-            view = view[None]
-        if i == last:
-            view = view[:, None]
-        padded.append(view)
-    return padded
+    return [pad_site(site, kind, i, last) for i, site in enumerate(train)]
 
 
 def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
@@ -185,9 +222,42 @@ def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
     return unpadded
 
 
+class SwappedLegs:
+    """A site read lazily, with its ``u`` and ``d`` legs swapped on reading.
+
+    Stands in for ``site.swapaxes(-2, -1)`` when ``site`` is a lazily loaded
+    array-like (a zarr or HDF5 dataset) that has no ``swapaxes``: the shape is known
+    at once and the data is only read by ``np.asarray``.
+    """
+
+    def __init__(self, site: Any) -> None:  # noqa: ANN401  (any lazy array-like)
+        """Wrap a lazily loaded site.
+
+        Args:
+            site: An array-like with ``shape``, ``dtype`` and ``np.asarray`` support.
+        """
+        self._site = site
+        shape = tuple(site.shape)
+        self.shape = (*shape[:-2], shape[-1], shape[-2])
+        self.dtype = np.dtype(site.dtype)
+        self.ndim = len(shape)
+
+    def __array__(self, dtype: Any = None, copy: bool | None = None) -> np.ndarray:  # noqa: ANN401, FBT001
+        """Read the site and swap its physical legs."""
+        del copy
+        swapped = np.asarray(self._site).swapaxes(-2, -1)
+        return swapped if dtype is None else swapped.astype(dtype)
+
+
 def transpose_mpo(train: Sequence[NDArray]) -> list[NDArray]:
-    """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site (views)."""
-    return [site.swapaxes(-2, -1) for site in train]
+    """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site.
+
+    Arrays give views; lazily loaded sites without ``swapaxes`` give `SwappedLegs`.
+    """
+    return [
+        site.swapaxes(-2, -1) if hasattr(site, "swapaxes") else SwappedLegs(site)
+        for site in train
+    ]
 
 
 def normalize_stack(
