@@ -69,7 +69,7 @@ test = [
 dev = [
   "scalene",
   "prek>=0.2.6",
-  "ruff==0.16.5",
+  "ruff==0.16.9",
   "cyclopts>=3.20",
   { include-group = "test" },
 ]
