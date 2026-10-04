@@ -18,7 +18,7 @@ from functools import cache
 from itertools import count
 from math import prod
 from time import perf_counter_ns
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from opt_einsum import contract_expression, get_symbol
 
@@ -101,7 +101,8 @@ def sweep(
     *,
     cutoff: float = 0.0,
     dtype: DTypeLike,
-) -> list[NDArray]:
+    to_host: bool = True,
+) -> list[Any]:
     """Contract and compress a stack in ket form with one SRC sweep.
 
     Args:
@@ -114,10 +115,12 @@ def sweep(
         xp: Array module (``numpy`` or ``cupy``).
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
         dtype: The data type of the sketches.
+        to_host: If ``True`` (default), the result is copied to the host as numpy
+            arrays. If ``False``, it stays on the device of ``xp``.
 
     Returns:
         The site arrays of the compressed train in right-canonical form, as numpy
-        arrays.
+        arrays if ``to_host`` is ``True``, otherwise as arrays of ``xp``..
     """
     depth = len(layers)
     n_sites = len(layers[0])
@@ -157,4 +160,7 @@ def sweep(
     eta = [first.reshape(1, *first.shape[depth:]), *reversed(eta_reversed)]
     logger.debug("Right-to-left sweep: %.3f s", (perf_counter_ns() - tms) * 1e-9)
 
-    return [to_numpy(site) for site in unpad(eta, kind)]
+    sites_out = unpad(eta, kind)
+    if to_host:
+        return [to_numpy(site) for site in sites_out]
+    return list(sites_out)
