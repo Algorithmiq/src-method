@@ -12,14 +12,16 @@ The following primitives are supported:
 2. MPO-MPO randomized contraction-compression.
 3. MPO randomized compression.
 4. MPS randomized compression.
+5. Randomized contraction-compression of a whole stack of trains in one sweep:
+   `MPO^k`, `MPO^k . MPS` and `MPS . MPO^k`.
 
 `src_method` has no tensor-network framework dependency: it takes and returns plain lists of per-site NumPy arrays, one array per site.
 
 ```python
-from src_method import apply, compress
+from src_method import apply, compress, src
 ```
 
-The `apply` function covers cases 1 and 2 above, while the `compress` function covers cases 3 and 4. Both functions are pure, meaning no in-place modification ever happens. The user should
+The `apply` function covers cases 1 and 2 above, the `compress` function cases 3 and 4, and `src` all five: `apply` and `compress` are its two- and one-train special cases. All three functions are pure, meaning no in-place modification ever happens. The user should
 manage the assignment of the returned objects, possibly overwriting the input variables.
 See the [reference documentation](algorithmiq.github.io/src_method/) for details, and the [tests](../tests/) or [benchmarks](../benches/) folders for usage examples.
 
@@ -45,6 +47,37 @@ result = qtn.MatrixProductOperator(apply(H1.arrays, H2.arrays, chi_out=64))
 
 Where `'l'`/`'r'` are left/right virtual bonds and `'u'`/`'d'` are the upper/lower physical legs.
 Please keep this in mind when constructing or manipulating tensors directly.
+
+### Contraction Conventions
+
+`src` contracts a *stack* of trains and compresses the result in a single sweep:
+
+```python
+from src_method import src
+
+state = src(U3, U2, U1, psi, chi_out=64)  # U3 U2 U1 |psi>, U1 acts first
+```
+
+The stack is written in mathematical order. Each contraction joins the `'d'` leg of a train with the `'u'` leg (or the physical leg of an MPS) of the train to its right:
+
+| Stack | Contraction | Result |
+|---|---|---|
+| `src(A)`, `src(psi)` | none | compressed MPO or MPS |
+| `src(A, B, ...)` | `A.d` with `B.u` | MPO |
+| `src(A, ..., psi)` | `A.d` with `psi` | MPS on the `'u'` leg of `A` (a ket) |
+| `src(phi, A, ...)` | `phi` with `A.u` | MPS on the `'d'` leg of the last MPO (a bra) |
+
+An MPS may appear only first or last, and not both. `apply(A, B)` and `compress(A)` are the two- and one-train cases; `apply` accepts only an MPO on the left.
+
+A leading MPS is a row vector used **without conjugation**: `src(phi, A, B)` computes `phiᵀ A B`, which equals `src(Bᵀ, Aᵀ, phi)` with `ᵀ` swapping the `'u'` and `'d'` legs. For the physical bra `<psi| A B`, conjugate first:
+
+```python
+bra = src([t.conj() for t in psi], A, B, chi_out=64)
+```
+
+The result then pairs with a ket by plain contraction, with no further conjugation.
+
+**Cost.** The per-site cost of the sweep grows with `chi_out**2` times the product of the bond dimensions of the layers. Compressing a whole stack at once pays off for shallow stacks of thin layers, such as two or three Trotter layers; apply anything else pairwise. See [the stack depth benchmarks](https://github.com/Algorithmiq/src-method/tree/main/benches/stack) for measurements.
 
 ## Installation
 
