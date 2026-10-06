@@ -38,11 +38,12 @@ replace them.
 ## Quality gates
 
 All of these must pass before a pull request can be merged;
-[`prek`](https://github.com/j178/prek) runs the first two automatically.
+[`prek`](https://github.com/j178/prek) runs the lint, format and type checks automatically.
 
 ```bash
 uv run ruff check src/ tests/       # lint
 uv run ruff format --check src/ tests/
+uv run ty check src/                # type check
 uv run pytest -m "not slow"         # fast test suite
 uv run pytest                       # full suite, including slow tests
 ```
@@ -63,6 +64,6 @@ accuracy, not just the shapes.
 ## Code style
 
 The project targets Python 3.11+ and is checked with `ruff` under a strict rule
-set. Public functions carry type hints and Google-style docstrings without type
+set and type-checked with [`ty`](https://github.com/astral-sh/ty). Public functions carry type hints and Google-style docstrings without type
 annotations in the argument list. Keep lines within the configured limit and
 prefer clear code over clever code.

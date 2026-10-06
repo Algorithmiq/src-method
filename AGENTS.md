@@ -62,6 +62,7 @@ uv run prek install --prepare-hooks
 uv run pytest -m "not slow"    # fast suite
 uv run pytest                  # everything
 uv run ruff check src/ tests/
+uv run ty check src/
 uv run mkdocs serve
 ```
 
