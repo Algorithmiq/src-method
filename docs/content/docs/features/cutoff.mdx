@@ -1,0 +1,33 @@
+---
+title: Adaptive truncation
+description: Trim bonds below chi_out with a relative singular-value cutoff.
+---
+
+By default every inner bond of the output has dimension `chi_out`, even if the
+product has lower rank across that cut. Set `cutoff` to trim each bond to its
+effective rank:
+
+```python
+import quimb.tensor as qtn
+
+from src_method import apply
+
+H = qtn.MPO_identity(8, phys_dim=2)
+psi = qtn.MPS_rand_state(8, bond_dim=4, seed=0)
+
+fixed = apply(H.arrays, psi.arrays, chi_out=32, seed=1)
+trimmed = apply(H.arrays, psi.arrays, chi_out=32, cutoff=1e-10, seed=1)
+
+print([a.shape[0] for a in fixed[1:]])
+print([a.shape[0] for a in trimmed[1:]])
+```
+
+During the right-to-left sweep, the QR factorisation at each site is followed by
+an SVD of its small `(chi_out, chi_out)` triangular factor, and singular values
+below `cutoff * sigma_max` are discarded. The extra cost is negligible next to the
+contractions.
+
+- `cutoff` must lie in `[0.0, 1.0)`; `0.0` (the default) disables trimming.
+- `chi_out` remains the upper bound: the cutoff only ever lowers a bond.
+- Two-site trains use the exact fallback, which ignores `cutoff` and truncates to
+  `chi_out`.

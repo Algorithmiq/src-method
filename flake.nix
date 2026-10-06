@@ -21,6 +21,8 @@
             pkgs.uv
             pkgs.git
             pkgs.gh
+            # Builds the documentation site under docs/.
+            pkgs.nodejs_22
           ];
 
           env = {
