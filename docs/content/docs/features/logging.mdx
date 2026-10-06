@@ -1,0 +1,20 @@
+---
+title: Logging
+description: Turn on the library's progress and timing messages.
+---
+
+`src_method` logs through the standard library `logging` module, under the
+`src_method` logger, and stays silent by default: it adds only a `NullHandler`
+and never touches the root logger or its handlers.
+
+- Progress and timing of each sweep are logged at `DEBUG`.
+- The exact fallback for networks with fewer than three sites logs a `WARNING`.
+
+To see them, configure logging in your application:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("src_method").setLevel(logging.DEBUG)
+```

@@ -1,4 +1,4 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Build the Fumadocs site under docs/ and deploy it to GitHub Pages
 name: Documentation
 
 # specify which events will trigger this workflow
@@ -19,7 +19,7 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-    # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -37,10 +37,20 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: docs
+
+    env:
+      # The site is served from algorithmiq.github.io/src-method.
+      NEXT_PUBLIC_BASE_PATH: /src-method
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          # grab the history, so hatch-vcs can compute the version number
           fetch-depth: 0
 
       - name: Install the latest version of uv
@@ -49,21 +59,42 @@ jobs:
           enable-cache: true
           python-version: "3.14"
 
-      - name: Install package
-        run: |
-          uv sync --group docs
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
 
-      - name: Python environment information
+      - name: Install dependencies
         run: |
-          uv tree
+          uv sync --no-dev --group docs
+          npm ci
 
       - name: Get src_method version
         run: |
-          uv run python -c "import src_method; print(src_method.__version__)"
+          uv run --no-sync python -c "import src_method; print(src_method.__version__)"
 
-      - name: Build docs
+      - name: Generate the API reference
         run: |
-          uv run mkdocs build
+          uv run --no-sync python scripts/gen_api_dump.py src_method -d .
+          node scripts/generate-api.mjs
+
+      - name: Run the examples in the prose pages
+        working-directory: .
+        run: >-
+          uv run --no-sync python -m pytest --markdown-docs -p no:cacheprovider
+          docs/content/docs
+          --ignore=docs/content/docs/api
+          --ignore=docs/content/docs/tutorials
+
+      - name: Execute the tutorial notebooks
+        run: |
+          uv run --no-sync python scripts/notebooks_to_mdx.py
+
+      - name: Build the static site
+        run: |
+          npm run build
 
       - name: Setup Pages
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -73,8 +104,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: actions/upload-pages-artifact@v5
         with:
-          # Upload entire repository
-          path: site
+          path: docs/out
 
   deploy:
     if: ${{ github.ref == 'refs/heads/main' }}

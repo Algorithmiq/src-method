@@ -86,14 +86,11 @@ interactive = [
   "pylatexenc",
 ]
 docs = [
-  "black[jupyter]>=26.5.1",
-  "mkdocs-gen-files>=0.5.0",
-  "mkdocs-jupyter>=0.24.2",
-  "mkdocs-literate-nav>=0.6.0",
-  "mkdocs-material>=9",
-  "mkdocs-section-index>=0.3.5",
-  "mkdocs>=1.5.1",
-  "mkdocstrings-python>=1.2.1",
+  # Builds the Fumadocs site under docs/; see docs/README.md.
+  "griffelib>=2.2,<3",
+  "nbconvert",
+  "pytest-markdown-docs",
+  { include-group = "test" },
   { include-group = "interactive" },
 ]
 

@@ -1,0 +1,29 @@
+---
+title: GPU execution
+description: Run the sweep on NVIDIA or AMD GPUs through CuPy.
+---
+
+`src_method` runs on CPU (NumPy) by default and can be accelerated on GPUs
+through [CuPy](https://cupy.dev/). Both NVIDIA (CUDA) and AMD (ROCm) GPUs are
+supported through optional extras:
+
+```bash
+uv pip install "src_method[gpu-nvidia]"   # CUDA 12.x
+uv pip install "src_method[gpu-rocm]"     # ROCm
+```
+
+When adding `src_method` to another project's `pyproject.toml`:
+
+```toml
+dependencies = ["src_method[gpu-nvidia]"]
+```
+
+At runtime, pass `device="gpu"`:
+
+```python notest
+result = apply(H, psi, chi_out=256, device="gpu")
+```
+
+The inputs can be NumPy or CuPy arrays; they are moved to the device for the
+sweep, and the result always comes back as NumPy arrays on the host. Without
+CuPy installed, `device="gpu"` raises an `ImportError`.

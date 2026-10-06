@@ -1,0 +1,41 @@
+---
+title: Stacks
+description: Contract and compress several trains in a single sweep.
+---
+
+[`src`](/api/stack#src) accepts any number of trains and compresses their whole
+product in one sweep, instead of compressing after every pairwise product:
+
+```python
+import quimb.tensor as qtn
+
+from src_method import apply, src
+
+layers = [qtn.MPO_rand(10, bond_dim=2, seed=s) for s in range(3)]
+psi = qtn.MPS_rand_state(10, bond_dim=8, seed=3)
+
+# One sweep over U3 U2 U1 |psi>.
+one_shot = src(*(U.arrays for U in layers), psi.arrays, chi_out=32, seed=0)
+
+# The same product, truncating after every layer.
+state = psi.arrays
+for U in reversed(layers):
+    state = apply(U.arrays, state, chi_out=32, seed=0)
+```
+
+The supported stacks are `MPO^k`, `MPO^k . MPS` and `MPS . MPO^k`; see
+[Conventions](/concepts/conventions#contraction-order) for the order and the bra
+form.
+
+## When a single sweep pays off
+
+The per-site cost of the sweep grows with $\chi_{\text{out}}^2$ times the
+*product* of the bond dimensions of all layers, so it grows exponentially with the
+depth of the stack. In exchange, a single sweep truncates once instead of once per
+layer. In practice that buys at most a moderate gain in accuracy: the error of
+the randomized sketch dominates the error compounded across layers.
+
+Compressing a whole stack at once pays off for shallow stacks of thin layers, such
+as two or three Trotter layers; apply anything else pairwise. The [stack
+benchmarks](/benchmarks#stacks) measure both accuracy and time against the
+pairwise approach.
