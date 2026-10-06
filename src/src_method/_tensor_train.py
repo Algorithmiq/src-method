@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from opt_einsum import contract
 
+from ._validation import validate_open_boundary
 from .utils import to_numpy
 
 if TYPE_CHECKING:
@@ -44,9 +45,13 @@ __all__ = [
     "MIN_SRC_SITES",
     "TrainKind",
     "check_exact_supported",
-    "exact_apply",
     "exact_compress",
+    "exact_stack",
     "infer_kind",
+    "normalize_stack",
+    "pad",
+    "transpose_mpo",
+    "unpad",
 ]
 
 
@@ -126,49 +131,174 @@ def exact_compress(
     ]
 
 
-def exact_apply(
-    left_tensor: Sequence[NDArray],
-    right_tensor: Sequence[NDArray],
-    chi_out: int,
-    kind: TrainKind,
-) -> list[NDArray]:
-    """Contract and compress two two-site trains exactly.
-
-    The MPO on the left is contracted site-wise with the right train, fusing
-    the two bond indices, and the result is compressed with a single SVD.
-    Site counts are validated by the caller via `check_exact_supported`.
-
-    Args:
-        left_tensor: The two site tensors of the left MPO.
-        right_tensor: The two site tensors of the right MPS or MPO.
-        chi_out: The maximum bond dimension to keep.
-        kind: Whether ``right_tensor`` is an ``"mps"`` or an ``"mpo"``.
-
-    Returns:
-        The compressed product, in right-canonical form, as numpy arrays.
-    """
-    left_tensor = [to_numpy(arr) for arr in left_tensor]
-    right_tensor = [to_numpy(arr) for arr in right_tensor]
-    if kind == "mps":
-        # Contract the MPO lower leg with the MPS physical leg, fusing both bonds.
-        product = [
-            contract("aij,bj->abi", left_tensor[i], right_tensor[i]).reshape(
-                -1, left_tensor[i].shape[1]
-            )
-            for i in range(2)
-        ]
-    else:
-        product = [
-            contract("aij,bjk->abik", left_tensor[i], right_tensor[i]).reshape(
-                -1, left_tensor[i].shape[1], right_tensor[i].shape[2]
-            )
-            for i in range(2)
-        ]
-    return exact_compress(product, chi_out, kind)
-
-
 def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
     """Split a matrix as ``(U @ diag(S), Vh)``, keeping at most ``chi_out`` values."""
     U, S, Vh = np.linalg.svd(theta, full_matrices=False)
     rank = min(chi_out, S.size)
     return U[:, :rank] * S[:rank], Vh[:rank]
+
+
+def pad(train: Sequence[NDArray]) -> list[NDArray]:
+    """View every site of a train as a bulk MPO tensor ``(l, r, u, d)``.
+
+    Boundary sites gain a size-1 outer bond and MPS sites a size-1 ``d`` leg, so a
+    single contraction pattern covers every site of every train kind. Only views
+    are created: the input arrays are neither copied nor mutated.
+
+    Args:
+        train: The site tensors of an MPS or MPO with at least two sites.
+
+    Returns:
+        The rank-4 views, one per site.
+    """
+    kind = infer_kind(train)
+    last = len(train) - 1
+    padded = []
+    for i, site in enumerate(train):
+        view = site[..., None] if kind == "mps" else site
+        if i == 0:
+            view = view[None]
+        if i == last:
+            view = view[:, None]
+        padded.append(view)
+    return padded
+
+
+def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
+    """Invert `pad`: drop the size-1 outer bonds and, for an MPS, the ``d`` leg.
+
+    Args:
+        train: Rank-4 ``(l, r, u, d)`` site tensors with at least two sites.
+        kind: The layout to restore.
+
+    Returns:
+        The site tensors in the unpadded `quimb` layout, as views.
+    """
+    last = len(train) - 1
+    unpadded = []
+    for i, site in enumerate(train):
+        view = site[..., 0] if kind == "mps" else site
+        if i == last:
+            view = view[:, 0]
+        if i == 0:
+            view = view[0]
+        unpadded.append(view)
+    return unpadded
+
+
+def transpose_mpo(train: Sequence[NDArray]) -> list[NDArray]:
+    """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site (views)."""
+    return [site.swapaxes(-2, -1) for site in train]
+
+
+def normalize_stack(
+    trains: Sequence[Sequence[NDArray]],
+) -> tuple[list[Sequence[NDArray]], TrainKind]:
+    """Validate a stack and rewrite it in ket form.
+
+    A stack ``T_1 . T_2 . ... . T_m`` is contracted along the physical legs, the
+    ``d`` leg of each train joining the ``u`` (or MPS) leg of the next. Every train
+    is an MPO, except that an MPS may come first (a bra) or last (a ket), never
+    both. A leading MPS is a row vector used without conjugation, so the bra stack
+    ``[phi, A_1, ..., A_k]`` equals the ket stack ``[A_k^T, ..., A_1^T, phi]``,
+    which is what this returns.
+
+    Args:
+        trains: The trains of the stack, in mathematical order.
+
+    Returns:
+        The stack in ket form (MPOs, optionally followed by one MPS) and the kind of
+        the contracted train.
+
+    Raises:
+        ValueError: If the stack is empty, if a train is not open-boundary, if the
+            trains differ in length, or if adjacent trains have mismatched physical
+            dimensions.
+        TypeError: If a train has an unrecognised layout or an MPS sits anywhere
+            other than at one end of the stack.
+    """
+    if len(trains) == 0:
+        msg = "Expected at least one tensor train."
+        raise ValueError(msg)
+    kinds: list[TrainKind | None] = [infer_kind(train) for train in trains]
+    _check_roles(kinds)
+    for i, (train, kind) in enumerate(zip(trains, kinds)):
+        validate_open_boundary(
+            train, _MPS_BOUNDARY_NDIM if kind == "mps" else _MPO_BOUNDARY_NDIM, i
+        )
+    sizes = [len(train) for train in trains]
+    if len(set(sizes)) > 1:
+        msg = f"All tensor trains must have the same number of sites, got {sizes}."
+        raise ValueError(msg)
+    _check_physical_dims(trains, kinds)
+
+    if len(trains) > 1 and kinds[0] == "mps":
+        bra, *mpos = trains
+        return [*(transpose_mpo(mpo) for mpo in reversed(mpos)), bra], "mps"
+    return list(trains), "mps" if "mps" in kinds else "mpo"
+
+
+def _check_roles(kinds: Sequence[TrainKind | None]) -> None:
+    """Reject unrecognised layouts and misplaced MPSs."""
+    if None in kinds:
+        msg = (
+            f"Unsupported tensor network layout for train {kinds.index(None)}: "
+            "expected an MPS or MPO given as a list of per-site arrays "
+            "(periodic boundary conditions are not supported)."
+        )
+        raise TypeError(msg)
+    if len(kinds) > 1 and ("mps" in kinds[1:-1] or kinds[0] == kinds[-1] == "mps"):
+        msg = (
+            f"Unsupported stack {kinds}: every train must be an MPO, except that an "
+            "MPS may come first (bra) or last (ket), not both."
+        )
+        raise TypeError(msg)
+
+
+def _check_physical_dims(
+    trains: Sequence[Sequence[NDArray]], kinds: Sequence[TrainKind | None]
+) -> None:
+    """Check that the legs joined between adjacent trains agree at every site."""
+    for i in range(len(trains) - 1):
+        # The outgoing leg is last for an MPO (d) and for a leading MPS alike.
+        incoming = -1 if kinds[i + 1] == "mps" else -2
+        for site, (upper, lower) in enumerate(zip(trains[i], trains[i + 1])):
+            if upper.shape[-1] != lower.shape[incoming]:
+                msg = (
+                    f"Physical dimension mismatch at site {site} between trains "
+                    f"{i} and {i + 1}: {upper.shape[-1]} != {lower.shape[incoming]}."
+                )
+                raise ValueError(msg)
+
+
+def exact_stack(
+    layers: Sequence[Sequence[NDArray]], chi_out: int, kind: TrainKind
+) -> list[NDArray]:
+    """Contract and compress a two-site stack exactly.
+
+    At each site the layers are folded into one, fusing their bonds, and the
+    product is compressed with a single SVD. Site counts are validated by the
+    caller via `check_exact_supported`.
+
+    Args:
+        layers: A stack in ket form, as returned by `normalize_stack`.
+        chi_out: The maximum bond dimension to keep.
+        kind: The kind of the contracted train.
+
+    Returns:
+        The compressed product, in right-canonical form, as numpy arrays.
+    """
+    padded = [pad([to_numpy(site) for site in layer]) for layer in layers]
+    product = padded[-1]
+    for layer in reversed(padded[:-1]):
+        product = [_fuse(upper, lower) for upper, lower in zip(layer, product)]
+    return exact_compress(unpad(product, kind), chi_out, kind)
+
+
+def _fuse(upper: NDArray, lower: NDArray) -> NDArray:
+    """Contract ``(l1, r1, u, x) . (l2, r2, x, d)`` into ``(l1 l2, r1 r2, u, d)``."""
+    l1, r1, up, _ = upper.shape
+    l2, r2, _, down = lower.shape
+    return contract("abux,cdxv->acbduv", upper, lower).reshape(
+        l1 * l2, r1 * r2, up, down
+    )
