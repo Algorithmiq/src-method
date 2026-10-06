@@ -9,5 +9,6 @@ from ._version import version as __version__
 from ._version import version_tuple as __version_tuple__
 from .apply import apply
 from .compress import compress
+from .stack import src
 
-__all__ = ["__version__", "__version_tuple__", "apply", "compress"]
+__all__ = ["__version__", "__version_tuple__", "apply", "compress", "src"]

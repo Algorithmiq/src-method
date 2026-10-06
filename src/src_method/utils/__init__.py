@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from ._backend import default_rng, get_xp, to_numpy
+from ._backend import default_rng, gaussian_sketch, get_xp, sketch_dtype, to_numpy
 from .linalg import truncated_qr
 from .logging_config import setup_logging
 
 __all__ = [
     "default_rng",
+    "gaussian_sketch",
     "get_xp",
     "setup_logging",
+    "sketch_dtype",
     "to_numpy",
     "truncated_qr",
 ]

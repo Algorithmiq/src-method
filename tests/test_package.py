@@ -15,6 +15,8 @@ import pytest
 import quimb.tensor as qtn
 
 from src_method import apply, compress
+from src_method.stack import src
+from src_method.utils import gaussian_sketch
 
 # -------------
 # --- Utils ---
@@ -642,3 +644,29 @@ def test_apply_precision(make_train, dtype) -> None:
         rtol=tolerance,
         atol=tolerance,
     )
+
+
+def test_stack_dtype_follows_inputs() -> None:
+    mpo = qtn.MPO_rand(4, bond_dim=2, dtype=np.complex64, seed=1)
+    result = src(mpo.arrays, mpo.arrays, chi_out=4, seed=0)
+    assert all(arr.dtype == np.complex64 for arr in result)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+def test_gaussian_sketch(dtype) -> None:
+    prng = np.random.default_rng(0)
+    omega = gaussian_sketch(prng, (400, 400), dtype, np)
+
+    assert omega.dtype == dtype
+    assert omega.var() == pytest.approx(1.0, rel=0.05)
+    if np.dtype(dtype).kind == "c":
+        # Circularly symmetric: real and imaginary parts share the variance.
+        assert omega.real.var() == pytest.approx(0.5, rel=0.05)
+        assert omega.imag.var() == pytest.approx(0.5, rel=0.05)
+        assert abs((omega**2).mean()) < 0.02
+
+
+def test_gaussian_sketch_seed_is_precision_independent() -> None:
+    single = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex64, np)
+    double = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex128, np)
+    np.testing.assert_allclose(single, double, rtol=1e-6)
