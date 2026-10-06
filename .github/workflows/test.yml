@@ -46,8 +46,23 @@ jobs:
           - "3.14"
         test-group:
           - "not slow and not perf"
+        resolution:
+          - "highest"
+        include:
+          # The declared dependency floors, so they are tested rather than asserted.
+          - runner: ubuntu-latest
+            python-version: "3.11"
+            test-group: "not slow and not perf"
+            resolution: "lowest-direct"
 
     runs-on: ${{ matrix.runner }}
+
+    env:
+      # Applies to every uv call, so the lockfile is resolved the same way each time.
+      UV_RESOLUTION: ${{ matrix.resolution }}
+      # `uv run` uses the environment `uv sync` built below instead of adding the
+      # `dev` group, which at its lowest versions need not even build.
+      UV_NO_SYNC: "1"
 
     steps:
       - name: Runner hardware info Linux
@@ -105,7 +120,8 @@ jobs:
         run: |
           runner="${{ matrix.runner }}"
           pyver="${{ matrix.python-version }}"
-          echo "label=$runner-$pyver" >> $GITHUB_OUTPUT
+          resolution="${{ matrix.resolution }}"
+          echo "label=$runner-$pyver-$resolution" >> $GITHUB_OUTPUT
 
       - name: Run tests
         run: >-
