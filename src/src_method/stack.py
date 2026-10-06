@@ -88,9 +88,9 @@ def src(
         form, as numpy arrays (host-side, whatever the ``device``).
 
     Raises:
-        TypeError: If a train has an unrecognised layout or an MPS sits anywhere
-            other than at one end of the stack.
-        ValueError: If ``chi_out`` is not a positive integer, if ``cutoff`` is not in
+        TypeError: If ``chi_out`` is not an integer, if a train has an unrecognised
+            layout or an MPS sits anywhere other than at one end of the stack.
+        ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not in
             ``[0.0, 1.0)``, if a train is not open-boundary, if the stack is empty,
             if the trains differ in length or in the physical dimensions they join,
             if a sub-three-site stack is not exactly two sites, or if ``device`` is

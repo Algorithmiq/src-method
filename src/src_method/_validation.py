@@ -28,14 +28,14 @@ def validate_chi_out(chi_out: int) -> None:
         chi_out: The requested output bond dimension.
 
     Raises:
-        ValueError: If `chi_out` is not a positive integer.
+        TypeError: If `chi_out` is not an integer.
+        ValueError: If `chi_out` is not positive.
     """
-    if (
-        isinstance(chi_out, bool)
-        or not isinstance(chi_out, numbers.Integral)
-        or chi_out < 1
-    ):
-        msg = f"chi_out must be a positive integer, got {chi_out!r}."
+    if isinstance(chi_out, bool) or not isinstance(chi_out, numbers.Integral):
+        msg = f"chi_out must be an integer, got {chi_out!r}."
+        raise TypeError(msg)
+    if chi_out < 1:
+        msg = f"chi_out must be positive, got {chi_out!r}."
         raise ValueError(msg)
 
 

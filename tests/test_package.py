@@ -632,15 +632,18 @@ def test_mismatched_boundary_ranks_raise(chi_out, array_type):
 # -----------------------------------------------
 
 
-@pytest.mark.parametrize("chi_out", [0, -3, 2.5])
-def test_invalid_chi_out_raises(n_sites, phys_dim, chi_out, array_type):
-    """chi_out=0, negative, and non-integer chi_out must all raise ValueError."""
+@pytest.mark.parametrize(
+    ("chi_out", "error"),
+    [(0, ValueError), (-3, ValueError), (2.5, TypeError), (True, TypeError)],
+)
+def test_invalid_chi_out_raises(n_sites, phys_dim, chi_out, error, array_type):
+    """Non-positive chi_out raises ValueError, a non-integer one TypeError."""
     H = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
     psi = qtn.MPS_rand_state(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=array_type)
 
-    with pytest.raises(ValueError, match="chi_out"):
+    with pytest.raises(error, match="chi_out"):
         apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=array_type)
-    with pytest.raises(ValueError, match="chi_out"):
+    with pytest.raises(error, match="chi_out"):
         compress(H.arrays, chi_out=chi_out, dtype=array_type)
 
 
