@@ -2911,6 +2911,12 @@ gpu-rocm = [
 ]
 
 [package.dev-dependencies]
+bench = [
+    { name = "cmaes" },
+    { name = "cyclopts" },
+    { name = "quimb" },
+    { name = "scipy" },
+]
 dev = [
     { name = "cmaes" },
     { name = "cyclopts" },
@@ -2921,6 +2927,7 @@ dev = [
     { name = "quimb" },
     { name = "ruff" },
     { name = "scalene" },
+    { name = "scipy" },
     { name = "ty" },
 ]
 docs = [
@@ -2970,6 +2977,12 @@ requires-dist = [
 provides-extras = ["gpu-nvidia", "gpu-rocm"]
 
 [package.metadata.requires-dev]
+bench = [
+    { name = "cmaes", specifier = ">=0.12.0" },
+    { name = "cyclopts", specifier = ">=3.20" },
+    { name = "quimb", specifier = ">=1.14.0,<2" },
+    { name = "scipy" },
+]
 dev = [
     { name = "cmaes", specifier = ">=0.12.0" },
     { name = "cyclopts", specifier = ">=3.20" },
@@ -2980,6 +2993,7 @@ dev = [
     { name = "quimb", specifier = ">=1.14.0,<2" },
     { name = "ruff", specifier = "==0.16.9" },
     { name = "scalene" },
+    { name = "scipy" },
     { name = "ty", specifier = "==0.0.82" },
 ]
 docs = [
