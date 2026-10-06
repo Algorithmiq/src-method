@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import quimb.tensor as qtn
 
-from src_method import apply, compress
+from src_method import apply, compress, src
 
 cupy = pytest.importorskip("cupy")
 
@@ -151,3 +151,33 @@ def test_invalid_device_raises() -> None:
     psi = qtn.MPS_rand_state(5, bond_dim=4, phys_dim=2, dtype=np.complex128)
     with pytest.raises(ValueError, match="Unknown device"):
         apply(H.arrays, psi.arrays, chi_out=4, device="tpu")
+
+
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+def test_src_stack_gpu_matches_reference(device: str) -> None:
+    """A depth-3 ``src`` stack should match the exact product on both devices."""
+    n_sites, phys_dim, chi_out = 5, 2, 16
+    H1 = qtn.MPO_rand(
+        n_sites, bond_dim=2, phys_dim=phys_dim, dtype=np.complex128, seed=1
+    )
+    H2 = qtn.MPO_rand(
+        n_sites, bond_dim=2, phys_dim=phys_dim, dtype=np.complex128, seed=2
+    )
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128, seed=3
+    )
+
+    out = as_mps(
+        src(
+            H1.arrays,
+            H2.arrays,
+            psi.arrays,
+            chi_out=chi_out,
+            dtype=np.complex128,
+            seed=0,
+            device=device,
+        )
+    )
+    ref = H1.apply(H2.apply(psi, compress=False), compress=False)
+
+    np.testing.assert_allclose(ref.distance(out), 0.0, atol=1e-6)

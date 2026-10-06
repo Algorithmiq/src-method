@@ -25,9 +25,8 @@ def setup_logging(default_level: str = "INFO") -> None:
     """
     # Configure Python's standard logging
     level_name = os.environ.get("LOG_LEVEL_SRC", default_level)
-    level = logging.getLevelName(level_name.upper())
     logging.basicConfig(
-        level=level,
+        level=level_name.upper(),
         format="%(message)s",
         stream=sys.stdout,
     )

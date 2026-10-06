@@ -71,6 +71,7 @@ dev = [
   "prek>=0.2.6",
   "ruff==0.16.9",
   "cyclopts>=3.20",
+  "ty==0.0.82",
   { include-group = "test" },
 ]
 interactive = [
@@ -269,25 +270,12 @@ convention = "google"
 required-imports = ["from __future__ import annotations"]
 
 
-[tool.pyright]
-pythonVersion = "3.11"
+[tool.ty.environment]
+python-version = "3.11"
 
-include = ["src/src_method/**/*.py"]
+[tool.ty.analysis]
+# Optional GPU dependency, imported lazily in `get_xp`.
+allowed-unresolved-imports = ["cupy"]
 
-exclude = ["test_*.py", "docs/**", "**/__pycache__"]
-
-typeCheckingMode = "basic"
-useLibraryCodeForTypes = true
-
-reportGeneralTypeIssues = "information"
-reportMissingImports = true
-reportMissingTypeStubs = "warning"
-reportImportCycles = "information"
-reportPrivateUsage = "information"
-reportPrivateImportUsage = "information"
-reportUnnecessaryIsInstance = "information"
-reportUnnecessaryCast = "information"
-reportUnnecessaryComparison = "information"
-reportUnnecessaryContains = "information"
-reportUnnecessaryTypeIgnoreComment = "information"
-reportMatchNotExhaustive = "information"
+[tool.ty.src]
+include = ["src/src_method"]

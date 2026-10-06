@@ -40,3 +40,10 @@ hooks = [
 repo = "https://github.com/astral-sh/uv-pre-commit"
 rev = "0.8.14"
 hooks = [{ id = "uv-lock" }]
+
+
+[[repos]]
+# Keep in sync with the ty pin in pyproject.toml.
+repo = "https://github.com/astral-sh/ty-pre-commit"
+rev = "v0.0.82"
+hooks = [{ id = "ty" }]
