@@ -10,3 +10,9 @@ different SRC variants. They are grouped by the kind of workload exercised:
 - [`stack/`](stack/) — One-shot SRC over stacks of trains against sequential
   pairwise application, by stack depth: accuracy against dense references and
   wall time. See [`stack/README.md`](stack/README.md).
+
+The scripts need the `bench` dependency group (included in `dev`):
+
+```bash
+uv sync --group bench
+```
