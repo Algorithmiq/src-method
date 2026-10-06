@@ -8,11 +8,15 @@
 
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pytest
 import quimb.tensor as qtn
 
 from src_method import apply, compress
+from src_method.stack import src
+from src_method.utils import gaussian_sketch
 
 # -------------
 # --- Utils ---
@@ -605,3 +609,64 @@ def test_benchmark_src_mpo_mpo(benchmark):
 
     # Still has to be correct
     np.testing.assert_allclose(H1.distance(as_mpo(result_mpo)), 0.0, atol=1e-6)
+
+
+@pytest.mark.parametrize("make_train", [qtn.MPS_rand_state, qtn.MPO_rand])
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+def test_compress_precision(make_train, dtype) -> None:
+    tensor = make_train(4, bond_dim=2, dtype=dtype, seed=12)
+
+    result = compress(tensor.arrays, chi_out=2, seed=14)
+
+    assert all(arr.dtype == dtype for arr in result)
+    tolerance = 2e-5 if np.finfo(dtype).bits == 32 else 1e-12
+    np.testing.assert_allclose(
+        type(tensor)(result).to_dense(),
+        tensor.to_dense(),
+        rtol=tolerance,
+        atol=tolerance,
+    )
+
+
+@pytest.mark.parametrize("make_train", [qtn.MPS_rand_state, qtn.MPO_rand])
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+def test_apply_precision(make_train, dtype) -> None:
+    tensor = make_train(4, bond_dim=2, dtype=dtype, seed=12)
+    identity = qtn.MPO_identity(4, phys_dim=2, dtype=dtype)
+
+    result = apply(identity.arrays, tensor.arrays, chi_out=2, seed=14)
+
+    assert all(arr.dtype == dtype for arr in result)
+    tolerance = 2e-5 if np.finfo(dtype).bits == 32 else 1e-12
+    np.testing.assert_allclose(
+        type(tensor)(result).to_dense(),
+        tensor.to_dense(),
+        rtol=tolerance,
+        atol=tolerance,
+    )
+
+
+def test_stack_dtype_follows_inputs() -> None:
+    mpo = qtn.MPO_rand(4, bond_dim=2, dtype=np.complex64, seed=1)
+    result = src(mpo.arrays, mpo.arrays, chi_out=4, seed=0)
+    assert all(arr.dtype == np.complex64 for arr in result)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+def test_gaussian_sketch(dtype) -> None:
+    prng = np.random.default_rng(0)
+    omega = gaussian_sketch(prng, (400, 400), dtype, np)
+
+    assert omega.dtype == dtype
+    assert omega.var() == pytest.approx(1.0, rel=0.05)
+    if np.dtype(dtype).kind == "c":
+        # Circularly symmetric: real and imaginary parts share the variance.
+        assert omega.real.var() == pytest.approx(0.5, rel=0.05)
+        assert omega.imag.var() == pytest.approx(0.5, rel=0.05)
+        assert abs((omega**2).mean()) < 0.02
+
+
+def test_gaussian_sketch_seed_is_precision_independent() -> None:
+    single = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex64, np)
+    double = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex128, np)
+    np.testing.assert_allclose(single, double, rtol=1e-6)
