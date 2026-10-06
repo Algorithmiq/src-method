@@ -14,7 +14,9 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/) and declared in
 - **Dependency groups** (`[dependency-groups]`) are for development only and are
   never installed by users:
   - `test`: `pytest`, its plugins, and `quimb` to build reference networks;
-  - `dev`: the linters, type checker and hooks, plus `test`;
+  - `bench`: what the scripts under `benches/` import (`cyclopts`, `quimb`,
+    `scipy`);
+  - `dev`: the linters, type checker and hooks, plus `test` and `bench`;
   - `interactive`: Jupyter and plotting for notebooks;
   - `docs`: what this site's build needs, plus `test` and `interactive`.
 
