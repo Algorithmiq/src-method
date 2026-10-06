@@ -11,6 +11,7 @@ Each row is logged; ``--output`` also writes the table as Markdown.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import astuple, dataclass, fields
 from functools import reduce
 from pathlib import Path
@@ -18,12 +19,11 @@ from time import perf_counter
 
 import cyclopts
 import numpy as np
-import structlog
 from scipy.linalg import expm
 
 from src_method import apply, src
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 app = cyclopts.App(help="Benchmark one-shot SRC over stacks against pairwise apply.")
 
 X = np.array([[0, 1], [1, 0]], dtype=complex)
@@ -188,7 +188,7 @@ class TimingRow:
 def write_table(rows: list, output: Path | None) -> None:
     """Log every row and, if requested, write them as a Markdown table."""
     for row in rows:
-        logger.info("result", **vars(row))
+        logger.info("result: %s", vars(row))
     if output is None:
         return
     names = [f.name for f in fields(rows[0])]
@@ -323,4 +323,5 @@ def timing(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     app()

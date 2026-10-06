@@ -13,13 +13,13 @@ through `truncated_qr` while carrying the projected environment ``S``.
 
 from __future__ import annotations
 
+import logging
 from functools import cache
 from itertools import count
 from math import prod
 from time import perf_counter_ns
 from typing import TYPE_CHECKING, NamedTuple
 
-import structlog
 from opt_einsum import contract_expression, get_symbol
 
 from ._tensor_train import pad, unpad
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
     from ._tensor_train import TrainKind
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _Contractions:
@@ -125,11 +125,13 @@ def sweep(
     contract = _Contractions()
     # sites[j] holds the padded tensors of every layer at site j.
     sites = list(zip(*(pad([xp.asarray(a) for a in layer]) for layer in layers)))
-    logger.debug(
-        "Largest environment (elements)",
-        size=chi_out
-        * max(prod(t.shape[1] for t in sites[j]) for j in range(n_sites - 1)),
-    )
+    # Guarded: the max walks every site, wasted work unless it is logged.
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "Largest environment: %d elements",
+            chi_out
+            * max(prod(t.shape[1] for t in sites[j]) for j in range(n_sites - 1)),
+        )
 
     tms = perf_counter_ns()
     # C[j] is the sketched environment of sites 0 .. j-1.
@@ -138,7 +140,7 @@ def sweep(
         up, down = sites[j][0].shape[2], sites[j][-1].shape[3]
         omega = gaussian_sketch(prng, (chi_out, up, down), dtype, xp)
         C.append(contract(eqs.ltr, C[j], omega, *sites[j]))
-    logger.debug("Left-to-right sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
+    logger.debug("Left-to-right sweep: %.3f s", (perf_counter_ns() - tms) * 1e-9)
 
     tms = perf_counter_ns()
     eta_reversed: list[NDArray] = []
@@ -153,6 +155,6 @@ def sweep(
         eta_reversed.append(eta_j)
     first = contract(eqs.first, *sites[0], S)
     eta = [first.reshape(1, *first.shape[depth:]), *reversed(eta_reversed)]
-    logger.debug("Right-to-left sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
+    logger.debug("Right-to-left sweep: %.3f s", (perf_counter_ns() - tms) * 1e-9)
 
     return [to_numpy(site) for site in unpad(eta, kind)]

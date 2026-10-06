@@ -23,7 +23,9 @@ tensor, so there is no wrapper type.
 - Backend-agnostic code: go through `src_method.utils._backend` instead of
   importing `numpy` or `cupy` directly in the algorithms, so CPU and GPU paths
   stay in sync.
-- Log with `structlog` via `src_method.utils.logging_config`, never `print`.
+- Log with the standard library: `logger = logging.getLogger(__name__)` per
+  module, lazy `%`-style arguments, never `print`. Never add handlers, levels
+  or `basicConfig` in the package; progress messages go at `DEBUG`.
 - **Run `uv run prek run --all-files` and the relevant tests before
   pushing, and fix every finding.** `lint.yml` runs the same hooks in CI, so a
   skipped lint is a red PR.

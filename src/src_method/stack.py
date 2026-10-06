@@ -7,9 +7,8 @@ along their physical legs and compressed in a single SRC sweep. `apply` and
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
-
-import structlog
 
 from ._sweep import sweep
 from ._tensor_train import (
@@ -19,15 +18,14 @@ from ._tensor_train import (
     normalize_stack,
 )
 from ._validation import validate_chi_out, validate_cutoff
-from .utils import default_rng, get_xp, setup_logging, sketch_dtype
+from .utils import default_rng, get_xp, sketch_dtype
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from numpy.typing import DTypeLike, NDArray
 
-setup_logging()
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 LOG_WARN_SMALL = (
     "The current SRC implementation targets tensor networks with 3 or more sites. "
@@ -109,12 +107,12 @@ def src(
         logger.warning(LOG_WARN_SMALL)
         return exact_stack(layers, chi_out, kind)
 
-    logger.info(
-        "Starting SRC",
-        n_sites=n_sites,
-        depth=len(layers),
-        output=kind,
-        device=xp.__name__,
+    logger.debug(
+        "Starting SRC: n_sites=%d, depth=%d, output=%s, device=%s",
+        n_sites,
+        len(layers),
+        kind,
+        xp.__name__,
     )
     result = sweep(
         layers,
@@ -125,5 +123,5 @@ def src(
         cutoff=cutoff,
         dtype=sketch_dtype(dtype, *layers),
     )
-    logger.info("SRC complete.")
+    logger.debug("SRC complete")
     return result

@@ -10,9 +10,6 @@
 #SBATCH --exclusive
 #SBATCH --output=logs/1000_%j.out
 
-# Python application's loggin level
-export LOG_LEVEL_SRC=DEBUG
-
 # Automatic OpenMP binding
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OMP_PLACES=cores
