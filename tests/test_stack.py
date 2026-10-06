@@ -98,7 +98,7 @@ def test_sweep_is_exact_without_truncation(spec, rng):
     stack = make_stack(spec, rng)
     kind = "mps" if stack[-1][0].ndim == 2 else "mpo"
 
-    out = sweep(stack, kind, CHI_EXACT, np.random.default_rng(0), np)
+    out = sweep(stack, kind, CHI_EXACT, np.random.default_rng(0), np, dtype=np.float64)
 
     assert rel_error(out, dense_stack(*stack)) < 1e-10
 
@@ -108,7 +108,9 @@ def test_sweep_rectangular_physical_legs(rng):
     B = random_mpo([3, 2, 2, 1], rng, up=3, down=2)
     psi = random_mps([2, 2, 3, 2], rng, phys=2)
 
-    out = sweep([A, B, psi], "mps", CHI_EXACT, np.random.default_rng(0), np)
+    out = sweep(
+        [A, B, psi], "mps", CHI_EXACT, np.random.default_rng(0), np, dtype=np.float64
+    )
 
     assert rel_error(out, dense_stack(A, B, psi)) < 1e-10
 
@@ -117,7 +119,7 @@ def test_sweep_does_not_mutate_inputs(rng):
     stack = make_stack("A B psi", rng)
     before = [[t.copy() for t in train] for train in stack]
 
-    sweep(stack, "mps", 4, np.random.default_rng(0), np)
+    sweep(stack, "mps", 4, np.random.default_rng(0), np, dtype=np.float64)
 
     for train, saved in zip(stack, before):
         for t, s in zip(train, saved):
