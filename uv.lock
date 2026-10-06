@@ -2439,7 +2439,7 @@ test = [
 requires-dist = [
     { name = "cupy", marker = "extra == 'gpu-rocm'", specifier = ">=14.1.1" },
     { name = "cupy-cuda12x", marker = "extra == 'gpu-nvidia'", specifier = ">=13" },
-    { name = "numpy", specifier = ">=2.4.4,<3" },
+    { name = "numpy", specifier = ">=2.0,<3" },
     { name = "nvidia-cublas-cu12", marker = "extra == 'gpu-nvidia'" },
     { name = "nvidia-cuda-nvrtc-cu12", marker = "extra == 'gpu-nvidia'" },
     { name = "nvidia-cuda-runtime-cu12", marker = "extra == 'gpu-nvidia'" },
@@ -2455,8 +2455,8 @@ provides-extras = ["gpu-nvidia", "gpu-rocm"]
 bench = [
     { name = "cmaes", specifier = ">=0.12.0" },
     { name = "cyclopts", specifier = ">=3.20" },
-    { name = "quimb", specifier = ">=1.14.0,<2" },
-    { name = "scipy" },
+    { name = "quimb", specifier = ">=1.8.3,<2" },
+    { name = "scipy", specifier = ">=1.13" },
 ]
 dev = [
     { name = "cmaes", specifier = ">=0.12.0" },
@@ -2465,10 +2465,10 @@ dev = [
     { name = "pytest", specifier = ">=9.1.0,<10.0" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "pytest-cov", specifier = ">=4.0" },
-    { name = "quimb", specifier = ">=1.14.0,<2" },
+    { name = "quimb", specifier = ">=1.8.3,<2" },
     { name = "ruff", specifier = "==0.16.9" },
-    { name = "scalene" },
-    { name = "scipy" },
+    { name = "scalene", specifier = ">=1.5" },
+    { name = "scipy", specifier = ">=1.13" },
     { name = "ty", specifier = "==0.0.82" },
 ]
 docs = [
@@ -2476,21 +2476,21 @@ docs = [
     { name = "griffelib", specifier = ">=2.2,<3" },
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "matplotlib", specifier = ">=3.11.0" },
-    { name = "nbconvert" },
+    { name = "nbconvert", specifier = ">=7" },
     { name = "pydot", specifier = ">=1.4" },
-    { name = "pylatexenc" },
+    { name = "pylatexenc", specifier = ">=2.10" },
     { name = "pytest", specifier = ">=9.1.0,<10.0" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "pytest-cov", specifier = ">=4.0" },
-    { name = "pytest-markdown-docs" },
-    { name = "quimb", specifier = ">=1.14.0,<2" },
+    { name = "pytest-markdown-docs", specifier = ">=0.9" },
+    { name = "quimb", specifier = ">=1.8.3,<2" },
     { name = "tqdm", specifier = ">=4.65.0" },
 ]
 interactive = [
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "matplotlib", specifier = ">=3.11.0" },
     { name = "pydot", specifier = ">=1.4" },
-    { name = "pylatexenc" },
+    { name = "pylatexenc", specifier = ">=2.10" },
     { name = "tqdm", specifier = ">=4.65.0" },
 ]
 test = [
@@ -2498,7 +2498,7 @@ test = [
     { name = "pytest", specifier = ">=9.1.0,<10.0" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "pytest-cov", specifier = ">=4.0" },
-    { name = "quimb", specifier = ">=1.14.0,<2" },
+    { name = "quimb", specifier = ">=1.8.3,<2" },
 ]
 
 [[package]]

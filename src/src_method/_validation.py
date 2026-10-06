@@ -19,13 +19,16 @@ if TYPE_CHECKING:
 __all__ = ["validate_chi_out", "validate_cutoff", "validate_open_boundary"]
 
 
-def validate_chi_out(chi_out: int) -> None:
+def validate_chi_out(chi_out: object) -> int:
     """Reject a non-integer or non-positive output bond dimension.
 
     Any `numbers.Integral` is accepted, so NumPy integers pass; `bool` does not.
 
     Args:
         chi_out: The requested output bond dimension.
+
+    Returns:
+        ``chi_out`` as a plain `int`.
 
     Raises:
         TypeError: If `chi_out` is not an integer.
@@ -37,6 +40,7 @@ def validate_chi_out(chi_out: int) -> None:
     if chi_out < 1:
         msg = f"chi_out must be positive, got {chi_out!r}."
         raise ValueError(msg)
+    return int(chi_out)
 
 
 def validate_cutoff(cutoff: float) -> None:

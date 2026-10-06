@@ -23,6 +23,7 @@ from .utils import default_rng, get_xp, sketch_dtype
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    import numpy as np
     from numpy.typing import DTypeLike, NDArray
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ LOG_WARN_SMALL = (
 
 def src(
     *trains: Sequence[NDArray],
-    chi_out: int,
+    chi_out: int | np.integer,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
@@ -95,7 +96,7 @@ def src(
             not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
-    validate_chi_out(chi_out)
+    chi_out = validate_chi_out(chi_out)
     validate_cutoff(cutoff)
     xp = get_xp(device)
     prng = default_rng(seed)
