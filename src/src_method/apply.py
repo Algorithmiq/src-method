@@ -59,10 +59,13 @@ def apply(
         The site arrays of the compressed tensor network (MPS or MPO).
 
     Raises:
-        TypeError: If the combination of input tensor types is unsupported.
-        ValueError: If the two trains differ in length or in the physical
-            dimensions they join, if a sub-three-site train is not exactly two
-            sites, or if ``device`` is not recognised.
+        TypeError: If ``chi_out`` is not an integer or the combination of input
+            tensor types is unsupported.
+        ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
+            in ``[0.0, 1.0)``, if a train is not open-boundary, if the two trains
+            differ in length or in the physical dimensions they join, if a
+            sub-three-site train is not exactly two sites, or if ``device`` is not
+            recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     left_kind = infer_kind(left_tensor)

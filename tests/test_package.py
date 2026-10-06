@@ -573,11 +573,109 @@ def test_apply_unsupported_types(n_sites, phys_dim, chi_out, array_type):
 def test_compress_unsupported_type(n_sites, chi_out, array_type):
     """Tests that compress raises TypeError for unsupported tensor layouts."""
 
-    # Rank-4 boundary tensors are neither an MPS nor an MPO (e.g. a PEPS row)
+    # Rank-4 boundary tensors are neither an MPS nor an MPO (e.g. a PEPS row, or a
+    # periodic MPO); the message points at the periodic case.
     peps_like = [np.zeros((2, 2, 2, 2), dtype=array_type)] * n_sites
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="periodic"):
         compress(peps_like, chi_out=chi_out, dtype=array_type)
+
+
+def test_periodic_boundary_mps_raises(n_sites, chi_out, array_type):
+    """A periodic MPS has rank 3 everywhere, so its first site looks like an MPO
+    boundary; the interior rank gives it away.
+    """
+    periodic_mps = [np.zeros((2, 2, 2), dtype=array_type)] * n_sites
+
+    with pytest.raises(ValueError, match="open boundary"):
+        compress(periodic_mps, chi_out=chi_out, dtype=array_type)
+
+    ok_mpo = qtn.MPO_identity(n_sites, phys_dim=2, dtype=array_type).arrays
+    with pytest.raises(ValueError, match="open boundary"):
+        apply(periodic_mps, ok_mpo, chi_out=chi_out, dtype=array_type)
+
+
+def test_inconsistent_site_ranks_raise(n_sites, chi_out, array_type):
+    """Both ends can be rank 3 and still disagree with an interior site."""
+    mpo = list(qtn.MPO_identity(n_sites, phys_dim=2, dtype=array_type).arrays)
+    mpo[-2] = np.zeros((mpo[-2].shape[0], mpo[-2].shape[1], 2), dtype=array_type)
+
+    with pytest.raises(ValueError, match="open boundary"):
+        compress(mpo, chi_out=chi_out, dtype=array_type)
+
+    ok_mpo = qtn.MPO_identity(n_sites, phys_dim=2, dtype=array_type).arrays
+    with pytest.raises(ValueError, match="open boundary"):
+        apply(ok_mpo, mpo, chi_out=chi_out, dtype=array_type)
+
+
+def test_mismatched_boundary_ranks_raise(chi_out, array_type):
+    """The two ends of a train must have the same rank, also for two sites."""
+    two_site = [
+        np.zeros((2, 2, 2), dtype=array_type),
+        np.zeros((2, 2), dtype=array_type),
+    ]
+    with pytest.raises(ValueError, match="open boundary"):
+        compress(two_site, chi_out=chi_out, dtype=array_type)
+
+    longer = [
+        np.zeros((2, 2, 2), dtype=array_type),
+        np.zeros((2, 2, 2, 2), dtype=array_type),
+        np.zeros((2, 2, 2), dtype=array_type),
+        np.zeros((2, 2, 2, 2), dtype=array_type),
+    ]
+    with pytest.raises(ValueError, match="open boundary"):
+        compress(longer, chi_out=chi_out, dtype=array_type)
+
+
+# -----------------------------------------------
+# --- Test chi_out / cutoff argument validation --
+# -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("chi_out", "error"),
+    [(0, ValueError), (-3, ValueError), (2.5, TypeError), (True, TypeError)],
+)
+def test_invalid_chi_out_raises(n_sites, phys_dim, chi_out, error, array_type):
+    """Non-positive chi_out raises ValueError, a non-integer one TypeError."""
+    H = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
+    psi = qtn.MPS_rand_state(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=array_type)
+
+    with pytest.raises(error, match="chi_out"):
+        apply(H.arrays, psi.arrays, chi_out=chi_out, dtype=array_type)
+    with pytest.raises(error, match="chi_out"):
+        compress(H.arrays, chi_out=chi_out, dtype=array_type)
+
+
+@pytest.mark.parametrize("cutoff", [2.0, -1.0])
+def test_invalid_cutoff_raises(n_sites, phys_dim, chi_out, cutoff, array_type):
+    """cutoff outside [0.0, 1.0) must raise ValueError, not silently misbehave."""
+    H = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+    )
+
+    with pytest.raises(ValueError, match="cutoff"):
+        apply(H.arrays, psi.arrays, chi_out=chi_out, cutoff=cutoff, dtype=array_type)
+    with pytest.raises(ValueError, match="cutoff"):
+        compress(H.arrays, chi_out=chi_out, cutoff=cutoff, dtype=array_type)
+
+
+def test_numpy_integer_chi_out_accepted(n_sites, phys_dim, chi_out, array_type):
+    """chi_out as a numpy integer (np.int64 etc.) must be accepted, not rejected.
+
+    validate_chi_out deliberately checks `numbers.Integral` rather than
+    `isinstance(chi_out, int)` so numpy integer types aren't rejected.
+    """
+    H = qtn.MPO_identity(n_sites, phys_dim=phys_dim, dtype=array_type)
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type
+    )
+
+    psi_compress = as_mps(
+        apply(H.arrays, psi.arrays, chi_out=np.int64(chi_out), dtype=array_type)
+    )
+    np.testing.assert_allclose(psi.distance(psi_compress), 0.0, atol=1e-6)
 
 
 # -----------------------------------------
