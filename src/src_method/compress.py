@@ -55,9 +55,12 @@ def compress(
         The site arrays of the compressed tensor network (MPS or MPO).
 
     Raises:
-        TypeError: If the input tensor type is unsupported.
-        ValueError: If a sub-three-site train is not exactly two sites, or if
-            ``device`` is not recognised.
+        TypeError: If ``chi_out`` is not an integer or the input tensor type is
+            unsupported.
+        ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
+            in ``[0.0, 1.0)``, if the train is not open-boundary, if a
+            sub-three-site train is not exactly two sites, or if ``device`` is not
+            recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     return src(

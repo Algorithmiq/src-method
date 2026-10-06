@@ -1,0 +1,126 @@
+name: Performance issue
+description: Report a performance regression or unexpectedly slow behavior
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a performance issue!
+        Please include benchmark results so we can reproduce and investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance issue description
+      description: Describe the performance problem you observed.
+      placeholder: What is slower than expected, and by how much?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Minimal code snippet that demonstrates the slow behavior, with the
+        number of sites, bond dimensions, `chi_out`, `dtype` and `device`.
+      render: python
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux (x86_64)
+        - Linux (aarch64 / ARM64)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: cpu
+    attributes:
+      label: CPU model
+      placeholder: "e.g. Intel Core i9-13900K, AMD EPYC 7763, Apple M3 Pro"
+    validations:
+      required: true
+
+  - type: input
+    id: ram
+    attributes:
+      label: Total RAM
+      placeholder: "e.g. 32 GB"
+    validations:
+      required: true
+
+  - type: input
+    id: cores_used
+    attributes:
+      label: Number of cores used
+      description: How many CPU cores / threads did src_method use during the run (e.g. `OMP_NUM_THREADS`)?
+      placeholder: "e.g. 8 (out of 16 physical cores)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: bench_results
+    attributes:
+      label: Benchmark results
+      description: |
+        Please include the benchmark command and output.
+
+        For the pytest benchmark suite, run for example:
+
+          uv sync --group test
+          uv run pytest -m perf
+
+        For standalone benchmarks, see `benches/`.
+      placeholder: |
+        Command:
+          uv run pytest -m perf
+
+        Output:
+          ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - CPU (NumPy)
+        - GPU, NVIDIA (CuPy, CUDA)
+        - GPU, AMD (CuPy, ROCm)
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU model and memory
+      description: Only for GPU runs.
+      placeholder: "e.g. NVIDIA A100 80 GB"
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Versions of `src_method`, Python, NumPy and, for GPU runs, CuPy and the CUDA/ROCm runtime.
+      render: text
+      placeholder: |
+        src_method:
+        Python:
+        NumPy:
+        CuPy:
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

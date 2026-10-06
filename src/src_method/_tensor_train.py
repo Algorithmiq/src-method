@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from opt_einsum import contract
 
+from ._validation import validate_open_boundary
 from .utils import to_numpy
 
 if TYPE_CHECKING:
@@ -210,8 +211,9 @@ def normalize_stack(
         the contracted train.
 
     Raises:
-        ValueError: If the stack is empty, if the trains differ in length, or if
-            adjacent trains have mismatched physical dimensions.
+        ValueError: If the stack is empty, if a train is not open-boundary, if the
+            trains differ in length, or if adjacent trains have mismatched physical
+            dimensions.
         TypeError: If a train has an unrecognised layout or an MPS sits anywhere
             other than at one end of the stack.
     """
@@ -220,6 +222,10 @@ def normalize_stack(
         raise ValueError(msg)
     kinds: list[TrainKind | None] = [infer_kind(train) for train in trains]
     _check_roles(kinds)
+    for i, (train, kind) in enumerate(zip(trains, kinds)):
+        validate_open_boundary(
+            train, _MPS_BOUNDARY_NDIM if kind == "mps" else _MPO_BOUNDARY_NDIM, i
+        )
     sizes = [len(train) for train in trains]
     if len(set(sizes)) > 1:
         msg = f"All tensor trains must have the same number of sites, got {sizes}."
@@ -237,7 +243,8 @@ def _check_roles(kinds: Sequence[TrainKind | None]) -> None:
     if None in kinds:
         msg = (
             f"Unsupported tensor network layout for train {kinds.index(None)}: "
-            "expected an MPS or MPO given as a list of per-site arrays."
+            "expected an MPS or MPO given as a list of per-site arrays "
+            "(periodic boundary conditions are not supported)."
         )
         raise TypeError(msg)
     if len(kinds) > 1 and ("mps" in kinds[1:-1] or kinds[0] == kinds[-1] == "mps"):
