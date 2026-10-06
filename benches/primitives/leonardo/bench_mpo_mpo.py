@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from time import perf_counter_ns
 
 import cyclopts
 import numpy as np
 import quimb.tensor as qtn
-import structlog
 
 from src_method import apply
 
-# Set up logger
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 # Initialize cyclopts app
@@ -38,13 +37,13 @@ def main(
     array_type = np.complex128
 
     logger.info(
-        "benchmark_start",
-        n_sites=n_sites,
-        chi_out=chi_out,
-        phys_dim=phys_dim,
-        dtype="complex128",
-        run=run,
-        compare=compare,
+        "benchmark_start: n_sites=%d, chi_out=%d, phys_dim=%d, dtype=complex128, "
+        "run=%s, compare=%s",
+        n_sites,
+        chi_out,
+        phys_dim,
+        run,
+        compare,
     )
 
     # Generate a random MPO and a perturbed identity MPO
@@ -92,4 +91,9 @@ def main(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
+    # Report the per-sweep timings of src_method too.
+    logging.getLogger("src_method").setLevel(logging.DEBUG)
     app()

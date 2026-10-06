@@ -135,3 +135,18 @@ container.
 [Visual Studio Code]: https://code.visualstudio.com/
 [GitHub CLI]: https://cli.github.com/
 [at this link]: https://docs.algorithmiq.fi/src_method
+
+### Logging
+
+`src_method` logs through the standard library `logging` module, under the
+`src_method` logger, and stays silent by default: it adds only a `NullHandler`
+and never touches the root logger or its handlers. Progress and timing messages
+are emitted at `DEBUG`, the small-network fallback at `WARNING`. To see them,
+configure logging in your application:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("src_method").setLevel(logging.DEBUG)
+```
