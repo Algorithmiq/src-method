@@ -21,10 +21,10 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Minimal code snippet that demonstrates the slow behavior.
-      placeholder: |
-        import src_method
-        # ...
+      description: |
+        Minimal code snippet that demonstrates the slow behavior, with the
+        number of sites, bond dimensions, `chi_out`, `dtype` and `device`.
+      render: python
     validations:
       required: true
 
@@ -61,7 +61,7 @@ body:
     id: cores_used
     attributes:
       label: Number of cores used
-      description: How many CPU cores / threads did src_method use during the run?
+      description: How many CPU cores / threads did src_method use during the run (e.g. `OMP_NUM_THREADS`)?
       placeholder: "e.g. 8 (out of 16 physical cores)"
     validations:
       required: true
@@ -76,12 +76,12 @@ body:
         For the pytest benchmark suite, run for example:
 
           uv sync --group test
-          uv run python -m pytest -m "perf" --log-cli-level=WARNING
+          uv run pytest -m perf
 
-        For SRC primitive benchmarks, see `benches/primitives/`.
+        For standalone benchmarks, see `benches/`.
       placeholder: |
         Command:
-          uv run python -m pytest -m "perf" --log-cli-level=WARNING
+          uv run pytest -m perf
 
         Output:
           ...
@@ -89,53 +89,34 @@ body:
       required: true
 
   - type: dropdown
-    id: install_tool
+    id: device
     attributes:
-      label: Installation tool
+      label: Device
       options:
-        - pip
-        - uv
-        - Other (describe below)
+        - CPU (NumPy)
+        - GPU, NVIDIA (CuPy, CUDA)
+        - GPU, AMD (CuPy, ROCm)
     validations:
       required: true
 
-  - type: dropdown
-    id: install_artifact
+  - type: input
+    id: gpu
     attributes:
-      label: Installation artifact
-      options:
-        - Wheel (pre-built binary)
-        - sdist (built from source)
-        - Editable install from source (git clone)
-    validations:
-      required: true
+      label: GPU model and memory
+      description: Only for GPU runs.
+      placeholder: "e.g. NVIDIA A100 80 GB"
 
   - type: textarea
-    id: sdist_details
+    id: versions
     attributes:
-      label: Source build details (sdist only)
-      description: |
-        If you built from source, provide:
-        - Compiler name and version
-        - Versions of Boost, nanobind
-        - How dependencies were installed
+      label: Versions
+      description: Versions of `src_method`, Python, NumPy and, for GPU runs, CuPy and the CUDA/ROCm runtime.
+      render: text
       placeholder: |
-        Compiler: g++ 13.2
-        Boost: 1.84
-
-  - type: input
-    id: src_method_version
-    attributes:
-      label: src_method version
-      placeholder: "e.g. 0.3.2"
-    validations:
-      required: true
-
-  - type: input
-    id: python_version
-    attributes:
-      label: Python version
-      placeholder: "e.g. 3.11.9"
+        src_method:
+        Python:
+        NumPy:
+        CuPy:
     validations:
       required: true
 

@@ -31,6 +31,7 @@ body:
     attributes:
       label: Proposed API or usage example (optional)
       description: If applicable, sketch how the feature would look from a user's perspective.
+      render: python
       placeholder: |
         import src_method
         # ...

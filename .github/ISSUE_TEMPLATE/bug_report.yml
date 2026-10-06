@@ -6,6 +6,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug! Please fill in as much detail as possible.
+        See also the "Reporting bugs" section of CONTRIBUTING.md.
 
   - type: textarea
     id: description
@@ -20,11 +21,11 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Minimal steps to reproduce the behavior.
-      placeholder: |
-        1. Import ...
-        2. Call ...
-        3. Observe error ...
+      description: |
+        A minimal, self-contained reproducer, ideally with a fixed `seed=`.
+        For accuracy problems include the number of sites, the bond dimensions,
+        `chi_out`, the `dtype` and the error metric you used.
+      render: python
     validations:
       required: true
 
@@ -33,6 +34,31 @@ body:
     attributes:
       label: Expected behavior
       description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - CPU (NumPy)
+        - GPU, NVIDIA (CuPy, CUDA)
+        - GPU, AMD (CuPy, ROCm)
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Versions of `src_method`, Python, NumPy and, for GPU runs, CuPy and the CUDA/ROCm runtime.
+      render: text
+      placeholder: |
+        src_method: (python -c "import src_method; print(src_method.__version__)")
+        Python:
+        NumPy:
+        CuPy:
     validations:
       required: true
 
@@ -49,24 +75,8 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: src_method_version
-    attributes:
-      label: src-method version
-      placeholder: "e.g. 0.3.1 — run: python -c \"import src_method; print(src_method.__version__)\""
-    validations:
-      required: true
-
-  - type: input
-    id: python_version
-    attributes:
-      label: Python version
-      placeholder: "e.g. 3.11.9 — run: python --version"
-    validations:
-      required: true
-
   - type: textarea
     id: additional
     attributes:
       label: Additional context
-      description: Logs, tracebacks, screenshots, or any other relevant information.
+      description: Logs, tracebacks, or any other relevant information.
