@@ -28,7 +28,7 @@ hooks = [{ id = "forbid-submodules" }]
 [[repos]]
 # Keep in sync with the ruff pin in pyproject.toml; update-ruff.yml bumps both.
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.16.5"
+rev = "v0.16.9"
 hooks = [
     { id = "ruff-check", exclude = "\\.out$|^benches/" },
     { id = "ruff-format", args = [
