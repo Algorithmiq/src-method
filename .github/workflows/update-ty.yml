@@ -1,0 +1,103 @@
+name: Update ty Version Monthly
+
+on:
+  schedule:
+    # Run on the 1st of every month at 00:00 UTC
+    - cron: '0 0 1 * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-ty:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Get latest ty version
+        run: |
+          LATEST_VERSION=$(curl -s https://pypi.org/pypi/ty/json | jq -r '.info.version')
+          echo "TY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest ty version: $LATEST_VERSION"
+
+          if grep -q '"ty==' pyproject.toml; then
+            CURRENT_VERSION=$(grep '"ty==' pyproject.toml | sed -E 's/.*ty==([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+            echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+            echo "Current ty version: $CURRENT_VERSION"
+
+            if [ "$LATEST_VERSION" = "$CURRENT_VERSION" ]; then
+              echo "Already using the latest version of ty. No updates needed."
+              echo "NEEDS_UPDATE=false" >> $GITHUB_ENV
+            else
+              echo "NEEDS_UPDATE=true" >> $GITHUB_ENV
+            fi
+          else
+            echo "No ty version found in pyproject.toml"
+            echo "NEEDS_UPDATE=true" >> $GITHUB_ENV
+          fi
+
+      - name: Update ty version in pyproject.toml
+        if: env.NEEDS_UPDATE == 'true'
+        run: |
+          sed -i -E 's/"ty==([0-9]+\.[0-9]+\.[0-9]+)"/"ty==${{ env.TY_VERSION }}"/' pyproject.toml
+
+      - name: Update ty version in prek.toml
+        if: env.NEEDS_UPDATE == 'true'
+        run: |
+          sed -i -E '/repo = "https:\/\/github.com\/astral-sh\/ty-pre-commit"/,/^rev = / s/^rev = "v[0-9]+\.[0-9]+\.[0-9]+"/rev = "v${{ env.TY_VERSION }}"/' prek.toml
+
+      - name: Install the latest version of uv
+        if: env.NEEDS_UPDATE == 'true'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Update the lockfile
+        if: env.NEEDS_UPDATE == 'true'
+        run: |
+          uv lock
+
+      - name: Run ty on the project
+        # ty is pre-1.0 and new releases often add diagnostics; a failure opens
+        # the PR as a draft instead of aborting the update.
+        if: env.NEEDS_UPDATE == 'true'
+        run: |
+          set +e
+          uv run --group dev ty check
+          if [ $? -ne 0 ]; then
+            echo "TY_CHECK_FAILED=true" >> $GITHUB_ENV
+          else
+            echo "TY_CHECK_FAILED=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: env.NEEDS_UPDATE == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # open in draft mode if ty check failed
+          draft: ${{ env.TY_CHECK_FAILED }}
+          commit-message: "chore(deps-dev): update ty from ${{ env.CURRENT_VERSION }} to ${{ env.TY_VERSION }}"
+          title: "chore(deps-dev): update ty from ${{ env.CURRENT_VERSION }} to ${{ env.TY_VERSION }}"
+          body: |
+            ## ty Version Update
+
+            This PR updates the ty version from ${{ env.CURRENT_VERSION }} to ${{ env.TY_VERSION }}.
+
+            Changes:
+            - Updated version in `pyproject.toml`
+            - Updated version in `prek.toml`
+            - Regenerated `uv.lock`
+
+            ${{ env.TY_CHECK_FAILED == 'true' && '⚠️ **WARNING**: `ty check` reports new diagnostics with this version. A maintainer should fix them before merging.' || '`ty check` passes with this version.' }}
+
+            This PR was created automatically by a GitHub Actions workflow.
+          branch: chore-deps-update-ty-${{ env.TY_VERSION }}
+          delete-branch: true
+          labels: |
+            dependencies
+          add-paths: |
+            pyproject.toml
+            prek.toml
+            uv.lock

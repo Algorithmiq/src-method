@@ -16,13 +16,14 @@ from .stack import src
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    import numpy as np
     from numpy.typing import DTypeLike, NDArray
 
 
 def apply(
     left_tensor: Sequence[NDArray],
     right_tensor: Sequence[NDArray],
-    chi_out: int,
+    chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
