@@ -273,5 +273,9 @@ required-imports = ["from __future__ import annotations"]
 [tool.ty.environment]
 python-version = "3.11"
 
+[tool.ty.analysis]
+# Optional GPU dependency, imported lazily in `get_xp`.
+allowed-unresolved-imports = ["cupy"]
+
 [tool.ty.src]
 include = ["src/src_method"]
