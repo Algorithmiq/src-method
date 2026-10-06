@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
 import structlog
 
 from ._sweep import sweep
@@ -19,7 +18,7 @@ from ._tensor_train import (
     exact_stack,
     normalize_stack,
 )
-from .utils import default_rng, get_xp, setup_logging
+from .utils import default_rng, get_xp, setup_logging, sketch_dtype
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -39,7 +38,7 @@ def src(
     *trains: Sequence[NDArray],
     chi_out: int,
     cutoff: float = 0.0,
-    dtype: DTypeLike = np.float64,
+    dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
 ) -> list[NDArray]:
@@ -75,7 +74,10 @@ def src(
             site during the right-to-left sweep. Set to 0.0 (default) to keep
             all bonds at ``chi_out``. Ignored for two-site stacks, which are
             contracted and truncated to ``chi_out`` exactly.
-        dtype: The data type for the computation.
+        dtype: Data type of the random sketches. Defaults to the promoted
+            floating dtype of the inputs, so single precision stays single and
+            complex inputs get complex Ginibre sketches. An explicit dtype
+            overrides this and can promote the result.
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
             the optional ``cupy`` dependency for GPU execution.
@@ -109,6 +111,14 @@ def src(
         output=kind,
         device=xp.__name__,
     )
-    result = sweep(layers, kind, chi_out, prng, xp, cutoff=cutoff, dtype=dtype)
+    result = sweep(
+        layers,
+        kind,
+        chi_out,
+        prng,
+        xp,
+        cutoff=cutoff,
+        dtype=sketch_dtype(dtype, *layers),
+    )
     logger.info("SRC complete.")
     return result

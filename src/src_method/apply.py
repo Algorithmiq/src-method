@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from ._tensor_train import infer_kind
 from .stack import src
 
@@ -27,7 +25,7 @@ def apply(
     chi_out: int,
     *,
     cutoff: float = 0.0,
-    dtype: DTypeLike = np.float64,
+    dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
 ) -> list[NDArray]:
@@ -51,7 +49,8 @@ def apply(
             site during the right-to-left sweep.  The SVD operates on the
             small ``(chi_out, chi_out)`` R factor from QR, so overhead is
             minimal.  Set to 0.0 (default) to keep all bonds at chi_out.
-        dtype: The data type for the computation.
+        dtype: Data type of the random sketches. Defaults to the promoted
+            floating dtype of the inputs; an explicit dtype can promote the result.
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.

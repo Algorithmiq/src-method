@@ -19,17 +19,17 @@ from math import prod
 from time import perf_counter_ns
 from typing import TYPE_CHECKING, NamedTuple
 
-import numpy as np
 import structlog
 from opt_einsum import contract_expression, get_symbol
 
 from ._tensor_train import pad, unpad
-from .utils import to_numpy, truncated_qr
+from .utils import gaussian_sketch, to_numpy, truncated_qr
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from types import ModuleType
 
+    import numpy as np
     from numpy.typing import DTypeLike, NDArray
     from opt_einsum.contract import ContractExpression
 
@@ -100,7 +100,7 @@ def sweep(
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: DTypeLike = np.float64,
+    dtype: DTypeLike,
 ) -> list[NDArray]:
     """Contract and compress a stack in ket form with one SRC sweep.
 
@@ -136,7 +136,7 @@ def sweep(
     C = [xp.ones((chi_out,) + (1,) * depth, dtype=dtype)]
     for j in range(n_sites - 1):
         up, down = sites[j][0].shape[2], sites[j][-1].shape[3]
-        omega = xp.asarray(prng.normal(size=(chi_out, up, down))).astype(dtype)
+        omega = gaussian_sketch(prng, (chi_out, up, down), dtype, xp)
         C.append(contract(eqs.ltr, C[j], omega, *sites[j]))
     logger.debug("Left-to-right sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
 
