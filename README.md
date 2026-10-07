@@ -128,7 +128,7 @@ logging.getLogger("src_method").setLevel(logging.DEBUG)
 # CPU only (default)
 uv pip install src_method
 
-# With NVIDIA GPU support (CUDA 12.x)
+# With NVIDIA GPU support (CUDA 13.x, driver >= 580)
 uv pip install "src_method[gpu-nvidia]"
 
 # With AMD GPU support (ROCm)
