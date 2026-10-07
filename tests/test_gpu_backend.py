@@ -181,3 +181,115 @@ def test_src_stack_gpu_matches_reference(device: str) -> None:
     ref = H1.apply(H2.apply(psi, compress=False), compress=False)
 
     np.testing.assert_allclose(ref.distance(out), 0.0, atol=1e-6)
+
+
+def test_apply_mpo_mps_to_host_false_returns_cupy() -> None:
+    """With to_host=False, apply() must return cupy arrays on GPU."""
+    n_sites, phys_dim, chi_out = 5, 2, 8
+    H = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128
+    )
+
+    result = apply(
+        H.arrays,
+        psi.arrays,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="gpu",
+        to_host=False,
+    )
+    assert all(isinstance(t, cupy.ndarray) for t in result)
+
+
+def test_compress_mpo_to_host_false_returns_cupy() -> None:
+    """With to_host=False, compress() must return cupy arrays on GPU."""
+    n_sites, phys_dim, chi_out = 5, 2, 8
+    H = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+
+    result = compress(
+        H.arrays,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="gpu",
+        to_host=False,
+    )
+    assert all(isinstance(t, cupy.ndarray) for t in result)
+
+
+def test_chained_apply_no_host_roundtrip() -> None:
+    """Chained GPU calls with to_host=False must work and match CPU results."""
+    n_sites, phys_dim, chi_out = 5, 2, 8
+    H1 = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+    H2 = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128
+    )
+
+    # 1. Chained GPU apply
+    intermediate_gpu = apply(
+        H1.arrays,
+        psi.arrays,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="gpu",
+        to_host=False,
+    )
+    assert isinstance(intermediate_gpu[0], cupy.ndarray)
+
+    final_gpu = apply(
+        H2.arrays,
+        intermediate_gpu,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="gpu",
+        to_host=False,
+    )
+    assert isinstance(final_gpu[0], cupy.ndarray)
+
+    # 2. Chained CPU apply for numerical comparison
+    intermediate_cpu = apply(
+        H1.arrays,
+        psi.arrays,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="cpu",
+        to_host=True,
+    )
+    final_cpu = apply(
+        H2.arrays,
+        intermediate_cpu,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="cpu",
+        to_host=True,
+    )
+
+    # Bring GPU result to host and compare
+    final_gpu_host = [t.get() for t in final_gpu]
+
+    qtn_cpu = as_mps(final_cpu)
+    qtn_gpu = as_mps(final_gpu_host)
+    np.testing.assert_allclose(qtn_cpu.distance(qtn_gpu), 0.0, atol=1e-6)
+
+
+def test_to_host_true_backward_compatible() -> None:
+    """to_host=True (implicit default) must return numpy arrays even when device='gpu'."""
+    n_sites, phys_dim, chi_out = 5, 2, 8
+    H = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+
+    result = compress(
+        H.arrays,
+        chi_out=chi_out,
+        dtype=np.complex128,
+        seed=0,
+        device="gpu",
+        # to_host=True is the implicit default here
+    )
+    assert all(isinstance(t, np.ndarray) for t in result)

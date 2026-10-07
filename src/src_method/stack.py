@@ -8,7 +8,7 @@ along their physical legs and compressed in a single SRC sweep. `apply` and
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._sweep import sweep
 from ._tensor_train import (
@@ -41,7 +41,8 @@ def src(
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
-) -> list[NDArray]:
+    to_host: bool = True,
+) -> list[Any]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
     The stack ``src(T_1, T_2, ..., T_m)`` is the product ``T_1 T_2 ... T_m`` in
@@ -81,10 +82,12 @@ def src(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
             the optional ``cupy`` dependency for GPU execution.
+        to_host: If ``True`` (default), results are returned as numpy arrays on
+            the host. Set to ``False`` to keep tensors on the compute device.
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), in right-canonical
-        form, as numpy arrays (host-side, whatever the ``device``).
+        form, as numpy arrays if ``to_host`` is ``True``, otherwise as arrays of ``xp``.
 
     Raises:
         TypeError: If ``chi_out`` is not an integer, if a train has an unrecognised
@@ -106,7 +109,8 @@ def src(
     if n_sites < MIN_SRC_SITES:
         check_exact_supported(n_sites)
         logger.warning(LOG_WARN_SMALL)
-        return exact_stack(layers, chi_out, kind)
+        result = exact_stack(layers, chi_out, kind)
+        return result if to_host else [xp.asarray(t) for t in result]
 
     logger.debug(
         "Starting SRC: n_sites=%d, depth=%d, output=%s, device=%s",
@@ -123,6 +127,7 @@ def src(
         xp,
         cutoff=cutoff,
         dtype=sketch_dtype(dtype, *layers),
+        to_host=to_host,
     )
     logger.debug("SRC complete")
     return result
