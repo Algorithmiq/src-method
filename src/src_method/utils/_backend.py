@@ -18,10 +18,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
     from types import ModuleType
 
-    from numpy.typing import NDArray
+    from numpy.typing import DTypeLike, NDArray
+
+    from src_method._tensor_train import Site, SiteLike
 
 
 def get_xp(device: str) -> ModuleType:
@@ -59,8 +61,11 @@ def default_rng(
     return np.random.default_rng(seed)
 
 
-def to_numpy(arr: NDArray) -> np.ndarray:
-    """Bring an array onto the host as a numpy array (no-op for numpy)."""
+def to_numpy(arr: NDArray | SiteLike) -> np.ndarray:
+    """Bring an array, or a lazily read site, onto the host as a numpy array.
+
+    A no-op for numpy arrays.
+    """
     if isinstance(arr, np.ndarray):
         return arr
     # cupy.ndarray exposes .get(); fall back to np.asarray for other dispatchers.
@@ -233,3 +238,55 @@ def host_memory_available(meminfo: str = "/proc/meminfo") -> int:
             if line.startswith("MemAvailable:"):
                 return int(line.split()[1]) * 1024
     return os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+
+
+def sketch_dtype(dtype: DTypeLike | None, *inputs: Sequence[Site]) -> np.dtype:
+    """Resolve the sketch dtype.
+
+    Args:
+        dtype: Explicit sketch dtype, or None to follow the inputs.
+        *inputs: MPS or MPO tensors.
+
+    Returns:
+        The explicit dtype, or the promoted floating dtype of the inputs, so that
+        the sketch never changes the precision or the field (real or complex) of
+        the result. Integer and boolean inputs give ``float64``.
+    """
+    if dtype is not None:
+        return np.dtype(dtype)
+    input_dtype = np.result_type(*(arr.dtype for inpt in inputs for arr in inpt))
+    if input_dtype.kind in "fc":
+        return input_dtype
+    return np.dtype(np.float64)
+
+
+def gaussian_sketch(
+    prng: np.random.Generator,
+    shape: tuple[int, ...],
+    dtype: DTypeLike,
+    xp: ModuleType,
+) -> NDArray:
+    """Draw a Gaussian test tensor of the given dtype on the device of ``xp``.
+
+    Real dtypes get i.i.d. standard normal entries. Complex dtypes get the complex
+    Ginibre ensemble, ``(x + iy) / sqrt(2)`` with ``x, y`` i.i.d. standard normal,
+    whose law is invariant under unitary transformations; a real sketch of a complex
+    operator is not, and loses the guarantees of randomized range finding.
+
+    The draw is always made on the host in double precision and then cast, so a
+    seed gives the same sketch on every device and at every precision.
+
+    Args:
+        prng: Host-side random number generator.
+        shape: Shape of the tensor.
+        dtype: Dtype of the tensor.
+        xp: Array module (``numpy`` or ``cupy``).
+
+    Returns:
+        The sketch as an array of ``xp``.
+    """
+    dtype = np.dtype(dtype)
+    if dtype.kind == "c":
+        re, im = prng.normal(size=(2, *shape)) / np.sqrt(2.0)
+        return xp.asarray(re + 1j * im).astype(dtype)
+    return xp.asarray(prng.normal(size=shape)).astype(dtype)

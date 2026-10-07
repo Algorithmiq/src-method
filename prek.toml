@@ -26,9 +26,10 @@ rev = "v5.0.0"
 hooks = [{ id = "forbid-submodules" }]
 
 [[repos]]
-# Keep in sync with the ruff pin in pyproject.toml; update-ruff.yml bumps both.
+# Keep in sync with the ruff pin in pyproject.toml; update-ruff.yml bumps both
+# and check-tool-pins enforces it.
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.16.5"
+rev = "v0.16.9"
 hooks = [
     { id = "ruff-check", exclude = "\\.out$|^benches/" },
     { id = "ruff-format", args = [
@@ -40,3 +41,16 @@ hooks = [
 repo = "https://github.com/astral-sh/uv-pre-commit"
 rev = "0.8.14"
 hooks = [{ id = "uv-lock" }]
+
+
+[[repos]]
+# Keep in sync with the ty pin in pyproject.toml; check-tool-pins enforces it.
+repo = "https://github.com/astral-sh/ty-pre-commit"
+rev = "v0.0.82"
+hooks = [{ id = "ty" }]
+
+[[repos]]
+repo = "local"
+hooks = [
+    { id = "check-tool-pins", name = "ruff and ty pins agree", language = "python", entry = "python .github/scripts/check_tool_pins.py", files = "^(pyproject|prek)\\.toml$", pass_filenames = false },
+]

@@ -421,7 +421,7 @@ class _Planner:
 
     def plan(self) -> Plan:
         budgets, n = self.budgets, self.n
-        staged: list[Tier] = ["device", *(["disk"] * (n - 1))]
+        staged: list[Tier] = ["device"] + ["disk"] * (n - 1)
         base = budgets.device - self._reserved(staged)
         batches = self._batches(staged, base)
         # Staged batches never grow in the final pass, so they bound the staging.

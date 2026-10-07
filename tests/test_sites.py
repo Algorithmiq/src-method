@@ -1,5 +1,7 @@
 """Test the lazy site source."""
 
+from collections.abc import Sequence
+
 import numpy as np
 import pytest
 
@@ -8,7 +10,7 @@ from src_method._sites import SiteSource, padded_shapes, site_bytes
 from src_method._tensor_train import pad
 
 
-class CountingTrain:
+class CountingTrain(Sequence):
     """A train that counts how often each site is read."""
 
     def __init__(self, sites):

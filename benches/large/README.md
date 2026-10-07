@@ -19,8 +19,8 @@ uv run python benches/large/bench_large.py compare /local/medium --chi-out 500 \
 
 `run` logs the wall time, the size of CuPy's pool at the end (its high-water mark,
 since the pool keeps its blocks), the host peak (`ru_maxrss`), the planned peaks,
-the bytes spilled and the tiers. With `LOG_LEVEL_SRC=DEBUG`, `src_method` also logs
-the time of each pass, and at `info` the stall time (`SRC stalls`).
+the bytes spilled and the tiers. With `--debug` before the command, `src_method` also
+logs its plan, the time of each pass and the stall time (`SRC stalls`).
 
 Acceptance of the out-of-core sweep on one A100-40GB, with at least 300 GB of host
 memory and node-local NVMe:

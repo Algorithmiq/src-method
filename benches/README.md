@@ -13,3 +13,9 @@ different SRC variants. They are grouped by the kind of workload exercised:
 - [`large/`](large/) — Out-of-core SRC of `N . V . M . U` with a large `M` read
   from disk, on one GPU: plan, wall time, memory peaks and stall time. See
   [`large/README.md`](large/README.md).
+
+The scripts need the `bench` dependency group (included in `dev`):
+
+```bash
+uv sync --group bench
+```

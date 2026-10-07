@@ -1,0 +1,53 @@
+---
+title: Precision and reproducibility
+description: Data types of sketches and results, and seeding.
+---
+
+## Data types
+
+The random sketches default to the promoted floating dtype of the inputs, so
+single-precision inputs stay single precision and complex inputs get complex
+Gaussian sketches. The result has the same dtype as the inputs:
+
+```python
+import numpy as np
+import quimb.tensor as qtn
+
+from src_method import compress
+
+mps = qtn.MPS_rand_state(6, bond_dim=8, dtype=np.complex64, seed=0)
+out = compress(mps.arrays, chi_out=4, seed=1)
+assert all(a.dtype == np.complex64 for a in out)
+```
+
+An explicit `dtype` overrides the sketch dtype, and can promote the result: for
+instance, `dtype=np.complex128` on single-precision real inputs returns a
+double-precision complex train.
+
+Complex sketches are circularly symmetric, with real and imaginary parts sharing
+the unit variance, and draw from the same random stream as real ones: the same
+`seed` gives the same sketches in single and double precision up to rounding.
+
+## Seeding
+
+SRC is randomized, so two calls generally return slightly different trains. Pass
+an integer `seed` for reproducible results:
+
+```python
+import numpy as np
+import quimb.tensor as qtn
+
+from src_method import compress
+
+mpo = qtn.MPO_rand(6, bond_dim=8, seed=0)
+first = compress(mpo.arrays, chi_out=4, seed=7)
+second = compress(mpo.arrays, chi_out=4, seed=7)
+assert all(np.array_equal(a, b) for a, b in zip(first, second))
+```
+
+## Validation
+
+`chi_out` must be a positive integer (NumPy integers are accepted, `bool` is
+not), and the trains must be open-boundary and agree on their length and the
+physical dimensions they join. Invalid input raises a `TypeError` or `ValueError`
+naming the culprit before any work is done.

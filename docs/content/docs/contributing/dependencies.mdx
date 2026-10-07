@@ -1,0 +1,61 @@
+---
+title: Dependencies
+description: Dependency groups and how to change them.
+---
+
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) and declared in
+`pyproject.toml`:
+
+- **Runtime dependencies** (`[project] dependencies`) are what users install:
+  NumPy and `opt_einsum`. Keep this list short; every entry is imposed on every
+  downstream project.
+- **Extras** (`[project.optional-dependencies]`) enable optional features in
+  production: `gpu-nvidia` and `gpu-rocm` add CuPy.
+- **Dependency groups** (`[dependency-groups]`) are for development only and are
+  never installed by users:
+  - `test`: `pytest`, its plugins, and `quimb` to build reference networks;
+  - `bench`: what the scripts under `benches/` import (`cyclopts`, `quimb`,
+    `scipy`);
+  - `dev`: the linters, type checker and hooks, plus `test` and `bench`;
+  - `interactive`: Jupyter and plotting for notebooks;
+  - `docs`: what this site's build needs, plus `test` and `interactive`.
+
+## Why uv?
+
+- Its lockfile is compact and multi-platform.
+- It gives granular control over which index each dependency comes from, which
+  matters with private indexes.
+- It is very fast.
+
+## Changing dependencies
+
+1. Edit `pyproject.toml`.
+2. Run `uv sync --all-groups` to update the environment and regenerate
+   `uv.lock`, and commit both files. The `uv-lock` hook fails if they disagree.
+
+## Version constraints
+
+Declare the oldest version that works rather than the one you happen to have
+installed: a high floor stops users from installing `src_method` next to anything
+that has not caught up yet. Give every direct dependency a floor, including those
+in dependency groups.
+
+Floors are tested rather than assumed: the test workflow has a job on the oldest
+supported Python that resolves every direct dependency to its lowest allowed
+version (`UV_RESOLUTION=lowest-direct`). To reproduce it locally:
+
+```bash
+export UV_RESOLUTION=lowest-direct
+uv sync --python 3.11 --no-dev --group test
+uv run --no-sync pytest -m "not slow"
+```
+
+`--no-sync` matters: a plain `uv run` would also install the `dev` group, at its
+lowest versions. Do not commit the `uv.lock` this produces. Raise a floor only
+when the code needs a newer feature or the lowest-resolution job fails.
+
+## Tool pins
+
+`ruff` and `ty` are pinned twice, in the `dev` group and in `prek.toml`. The
+`check-tool-pins` hook fails if the two disagree; `update-ruff.yml` and
+`update-ty.yml` bump both pins of their tool together.

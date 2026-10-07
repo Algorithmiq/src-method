@@ -17,11 +17,11 @@ environments live on the device, in host memory or on disk (`EnvironmentStore`).
 
 from __future__ import annotations
 
+import logging
 from time import perf_counter_ns
 from typing import TYPE_CHECKING
 
 import numpy as np
-import structlog
 
 from ._kernels import SiteKernels
 from ._plan import make_plan, resolve_budgets
@@ -31,6 +31,7 @@ from ._tensor_train import unpad
 from .utils import (
     device_pool_bytes,
     device_pool_limit,
+    gaussian_sketch,
     new_stream,
     to_numpy,
     truncated_qr,
@@ -40,12 +41,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
     from types import ModuleType
 
-    from numpy.typing import NDArray
+    from numpy.typing import DTypeLike, NDArray
 
     from ._plan import Plan, Resources
-    from ._tensor_train import TrainKind
+    from ._tensor_train import Site, TrainKind
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _ranges(n: int, batch: int) -> Iterator[tuple[int, int]]:
@@ -55,14 +56,14 @@ def _ranges(n: int, batch: int) -> Iterator[tuple[int, int]]:
 
 
 def sweep(
-    layers: Sequence[Sequence[NDArray]],
+    layers: Sequence[Sequence[Site]],
     kind: TrainKind,
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike,
     resources: Resources | None = None,
 ) -> list[NDArray]:
     """Contract and compress a stack in ket form with one SRC sweep.
@@ -70,8 +71,8 @@ def sweep(
     Args:
         layers: MPOs, optionally followed by one MPS, all with the same number
             (at least three) of sites and matching physical legs. Sites may be any
-            array-likes with ``shape``, ``dtype`` and ``np.asarray`` support; each is
-            read only when the sweep reaches it.
+            array-likes with ``shape``, ``dtype``, ``ndim`` and ``np.asarray``
+            support; each is read only when the sweep reaches it.
         kind: The kind of the contracted train.
         chi_out: The sketch size, which is the maximum output bond dimension.
         prng: The generator for the Gaussian sketches, always host-side so that a
@@ -88,22 +89,25 @@ def sweep(
     shapes = padded_shapes(layers)
     # The dtype of the environments and the output: the sketches promoted by the
     # cores, as the contractions would.
-    work = np.result_type(dtype, *(layer[0].dtype for layer in layers))
+    work = np.result_type(dtype, *(site.dtype for layer in layers for site in layer))
     budgets = resolve_budgets(resources, xp)
     plan = make_plan(shapes, site_bytes(layers), chi_out, work, budgets)
-    logger.info(
-        "SRC plan",
-        prefetch=plan.prefetch,
-        device_peak_bytes=plan.device_peak,
-        host_peak_bytes=plan.host_peak,
-        disk_bytes=plan.disk_bytes,
-        scratch_dir=str(budgets.scratch_dir) if plan.disk_bytes else None,
-        tiers=[site.tier for site in plan.sites],
-        batches=[
-            (site.env_batch, site.sketch_batch, site.project_batch)
-            for site in plan.sites
-        ],
-    )
+    # Guarded: the per-site lists walk the whole plan, wasted work unless logged.
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "SRC plan: prefetch=%s, device peak=%d B, host peak=%d B, disk=%d B, "
+            "scratch=%s, tiers=%s, batches (env, sketch, project)=%s",
+            plan.prefetch,
+            plan.device_peak,
+            plan.host_peak,
+            plan.disk_bytes,
+            budgets.scratch_dir if plan.disk_bytes else None,
+            [site.tier for site in plan.sites],
+            [
+                (site.env_batch, site.sketch_batch, site.project_batch)
+                for site in plan.sites
+            ],
+        )
     env_shapes = [(chi_out, *(s[0] for s in site)) for site in shapes]
     kernels = SiteKernels(len(layers))
     with (
@@ -117,7 +121,7 @@ def sweep(
         _left_to_right(
             kernels, source, store, plan, chi_out=chi_out, prng=prng, xp=xp, dtype=dtype
         )
-        logger.debug("Left-to-right sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
+        logger.debug("Left-to-right sweep: %.3f s", (perf_counter_ns() - tms) * 1e-9)
         tms = perf_counter_ns()
         eta = _right_to_left(
             kernels,
@@ -129,13 +133,13 @@ def sweep(
             xp=xp,
             dtype=work,
         )
-        logger.debug("Right-to-left sweep", seconds=(perf_counter_ns() - tms) * 1e-9)
-        logger.info(
-            "SRC stalls",
-            site_seconds=source.stall_seconds,
-            environment_seconds=store.stall_seconds,
+        logger.debug("Right-to-left sweep: %.3f s", (perf_counter_ns() - tms) * 1e-9)
+        logger.debug(
+            "SRC stalls: sites %.3f s, environments %.3f s",
+            source.stall_seconds,
+            store.stall_seconds,
         )
-        logger.debug("Device pool", bytes=device_pool_bytes(xp))
+        logger.debug("Device pool: %d B", device_pool_bytes(xp))
     return [to_numpy(site) for site in unpad(eta, kind)]
 
 
@@ -148,7 +152,7 @@ def _left_to_right(
     chi_out: int,
     prng: np.random.Generator,
     xp: ModuleType,
-    dtype: type,
+    dtype: DTypeLike,
 ) -> None:
     """Build the environments ``C_1 .. C_{n-1}`` into the store."""
     depth = len(kernels.eqs.ltr.split(",")) - 2
@@ -159,7 +163,7 @@ def _left_to_right(
         if plan.prefetch:
             source.prefetch(j + 1)
         up, down = cores[0].shape[2], cores[-1].shape[3]
-        omega = xp.asarray(prng.normal(size=(chi_out, up, down))).astype(dtype)
+        omega = gaussian_sketch(prng, (chi_out, up, down), dtype, xp)
         batches = list(_ranges(chi_out, plan.sites[j].env_batch))
         if j > 0:
             store.prefetch(j, batches)

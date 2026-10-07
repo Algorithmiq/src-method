@@ -1,0 +1,71 @@
+---
+title: Getting Started
+description: Install src_method and compress your first product.
+---
+
+## Installation
+
+```bash
+# CPU only (default)
+uv pip install src_method
+
+# With NVIDIA GPU support (CUDA 12.x)
+uv pip install "src_method[gpu-nvidia]"
+
+# With AMD GPU support (ROCm)
+uv pip install "src_method[gpu-rocm]"
+```
+
+The runtime dependencies are NumPy and `opt_einsum`. The GPU extras add CuPy;
+see [GPU execution](/features/gpu).
+
+## The three entry points
+
+```python
+from src_method import apply, compress, src
+```
+
+- [`apply`](/api/apply#apply) contracts an MPO with an MPS or another MPO and
+  compresses the product.
+- [`compress`](/api/compress#compress) compresses a single MPS or MPO.
+- [`src`](/api/stack#src) contracts a whole stack of trains in one sweep;
+  `apply` and `compress` are its two- and one-train special cases.
+
+All three are pure: they never modify their inputs, and return a new list of
+site arrays in right-canonical form. Whether a train is an MPS or an MPO is
+inferred from the rank of its first site tensor, so there is no wrapper type.
+
+## A first example
+
+Apply a random MPO to a random MPS and keep the result at bond dimension 16.
+Trains are plain lists of arrays in the [`quimb` layout](/concepts/conventions),
+so `quimb` can build the inputs and check the result:
+
+```python
+import quimb.tensor as qtn
+
+from src_method import apply
+
+H = qtn.MPO_rand(10, bond_dim=4, phys_dim=2, seed=0)
+psi = qtn.MPS_rand_state(10, bond_dim=8, phys_dim=2, seed=1)
+
+result = apply(H.arrays, psi.arrays, chi_out=32, seed=2)
+phi = qtn.MatrixProductState(result)
+
+exact = H.apply(psi, compress=False)
+print(f"max bond: {phi.max_bond()}")
+print(f"relative error: {phi.distance(exact) / exact.norm():.2e}")
+```
+
+The exact product has bond dimension 32, so `chi_out=32` reproduces it
+essentially exactly; lower it to trade accuracy for size. Passing `seed` makes the random
+sketches, and therefore the result, reproducible.
+
+Networks with fewer than three sites fall back to an exact SVD-based contraction
+and log a warning.
+
+## Next steps
+
+- [Concepts](/concepts) explains what SRC does and the index conventions.
+- [Features](/features) covers stacks, adaptive truncation and GPUs.
+- [Python API](/api) lists every argument.

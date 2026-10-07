@@ -5,6 +5,8 @@ Skipped automatically when cupy or a CUDA/ROCm device is unavailable.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 import quimb.tensor as qtn
@@ -220,7 +222,7 @@ def plans(monkeypatch: pytest.MonkeyPatch) -> list[Plan]:
     """Record the plan of every sweep."""
     recorded: list[Plan] = []
 
-    def spy(*args: object, **kwargs: object) -> Plan:
+    def spy(*args: Any, **kwargs: Any) -> Plan:
         recorded.append(make_plan(*args, **kwargs))
         return recorded[-1]
 

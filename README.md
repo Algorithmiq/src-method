@@ -1,6 +1,6 @@
 # Successive Randomized Compression
 
-[![Documentation](https://github.com/Algorithmiq/src-method/actions/workflows/docpages.yml/badge.svg)](https://docs.algorithmiq.fi/src-method)
+[![Documentation](https://github.com/Algorithmiq/src-method/actions/workflows/docpages.yml/badge.svg)](https://algorithmiq.github.io/src-method/)
 [![Test src_method](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml/badge.svg)](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -25,7 +25,7 @@ from src_method import apply, compress, src
 
 The `apply` function covers cases 1 and 2 above, the `compress` function cases 3 and 4, and `src` all five: `apply` and `compress` are its two- and one-train special cases. All three functions are pure, meaning no in-place modification ever happens. The user should
 manage the assignment of the returned objects, possibly overwriting the input variables.
-See the [reference documentation](algorithmiq.github.io/src_method/) for details, and the [tests](tests/) or [benchmarks](benches/) folders for usage examples.
+See the [reference documentation](https://algorithmiq.github.io/src-method/) for details, and the [tests](tests/) or [benchmarks](benches/) folders for usage examples.
 
 Whether a train is an MPS or an MPO is inferred from the rank of its first site tensor, so no wrapper type is needed.
 
@@ -105,7 +105,22 @@ out = src(
 )
 ```
 
-See [Large problems](docs/large-problems.md) for the budgets, the scratch directory and how to read the logged plan.
+See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory and how to read the logged plan.
+
+### Logging
+
+`src_method` logs through the standard library `logging` module, under the
+`src_method` logger, and stays silent by default: it adds only a `NullHandler`
+and never touches the root logger or its handlers. Progress and timing messages
+are emitted at `DEBUG`, the small-network fallback at `WARNING`. To see them,
+configure logging in your application:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("src_method").setLevel(logging.DEBUG)
+```
 
 ## Installation
 
@@ -198,18 +213,23 @@ you. Run `prek install --prepare-hooks` once after the first `nix develop`.
 
 ## Documentation
 
-We use [MkDocs] to generate our documentation pages. You can find the latest version [at this link].
+The documentation is a [Fumadocs] site under `docs/`, published [at this link].
+It covers concepts, features, tutorials, the API reference generated from the
+docstrings, and the developer guide.
 
-We encourage you to build the documentation locally, so you can check that newer
-documentation you might have added looks as it should.
+To preview it locally you need [Node.js] 22 or later:
 
-To do so, open a terminal in [Visual Studio Code] and run:
-
+```bash
+uv sync --group docs
+cd docs
+npm ci
+uv run python scripts/gen_api_dump.py src_method -d .
+node scripts/generate-api.mjs
+uv run python scripts/notebooks_to_mdx.py
+npm run dev
 ```
-mkdocs serve
-```
 
-the editor will prompt you to open a new page in your browser, where you can see the rendered documentation.
+and open http://localhost:3000. See [`docs/README.md`](docs/README.md) for details.
 
 [DevContainer]: https://containers.dev/
 [Docker]: https://docs.docker.com/get-docker/
@@ -219,5 +239,6 @@ the editor will prompt you to open a new page in your browser, where you can see
 [Nix]: https://nixos.org/download/
 [direnv]: https://direnv.net/
 [uv]: https://docs.astral.sh/uv/
-[MkDocs]: https://www.mkdocs.org/
-[at this link]: https://docs.algorithmiq.fi/src_method
+[Fumadocs]: https://fumadocs.dev
+[Node.js]: https://nodejs.org
+[at this link]: https://algorithmiq.github.io/src-method/

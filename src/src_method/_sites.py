@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 
-from ._tensor_train import infer_kind, pad_site, padded_shape
+from ._tensor_train import known_kind, pad_site, padded_shape
 from .utils import NullEvent, current_stream, is_host, pinned_empty, to_device_async
 
 if TYPE_CHECKING:
@@ -25,11 +25,15 @@ if TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
+    from ._tensor_train import Site
+
 # Byte alignment of each core inside a page-locked staging buffer.
 _ALIGN = 256
 
 
-def padded_shapes(layers: Sequence[Sequence[Any]]) -> list[tuple[tuple[int, ...], ...]]:
+def padded_shapes(
+    layers: Sequence[Sequence[Site]],
+) -> list[tuple[tuple[int, ...], ...]]:
     """Return, for every site, the padded ``(l, r, u, d)`` shape of each layer.
 
     Args:
@@ -38,7 +42,7 @@ def padded_shapes(layers: Sequence[Sequence[Any]]) -> list[tuple[tuple[int, ...]
     Returns:
         One tuple of shapes per site, without reading any data.
     """
-    kinds = [infer_kind(layer) for layer in layers]
+    kinds = [known_kind(layer) for layer in layers]
     last = len(layers[0]) - 1
     return [
         tuple(
@@ -49,7 +53,7 @@ def padded_shapes(layers: Sequence[Sequence[Any]]) -> list[tuple[tuple[int, ...]
     ]
 
 
-def site_bytes(layers: Sequence[Sequence[Any]]) -> list[int]:
+def site_bytes(layers: Sequence[Sequence[Site]]) -> list[int]:
     """Return, for every site, the bytes of its cores over all layers."""
     return [
         sum(
@@ -74,16 +78,16 @@ class SiteSource:
 
     Args:
         layers: A stack in ket form, each layer a sequence of array-likes with
-            ``shape``, ``dtype`` and ``np.asarray`` support.
+            ``shape``, ``dtype``, ``ndim`` and ``np.asarray`` support.
         xp: Array module (``numpy`` or ``cupy``).
         depth: How many sites `prefetch` may load ahead (0 disables the thread).
     """
 
     def __init__(
-        self, layers: Sequence[Sequence[Any]], xp: ModuleType, *, depth: int
+        self, layers: Sequence[Sequence[Site]], xp: ModuleType, *, depth: int
     ) -> None:
         self._layers = layers
-        self._kinds = [infer_kind(layer) for layer in layers]
+        self._kinds = [known_kind(layer) for layer in layers]
         self._last = len(layers[0]) - 1
         self._xp = xp
         self._pending: dict[int, Future[tuple[list[Any], Any]]] = {}
@@ -182,7 +186,7 @@ class SiteSource:
         return staged, buffer
 
 
-def _read(core: Any) -> NDArray:  # noqa: ANN401  (any array-like)
+def _read(core: Site) -> NDArray:
     """Bring a core into memory; memmaps are read now, not on first touch."""
     if isinstance(core, np.memmap) or not isinstance(core, np.ndarray):
         return np.array(core)

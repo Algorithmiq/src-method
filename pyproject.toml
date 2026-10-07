@@ -32,7 +32,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["numpy>=2.4.4,<3", "opt_einsum>=3.4.0", "structlog>=25.5.0"]
+dependencies = ["numpy>=2.0,<3", "opt_einsum>=3.4.0"]
 
 
 [project.optional-dependencies]
@@ -63,32 +63,34 @@ test = [
   "pytest-cov>=4.0",
   "pytest>=9.1.0,<10.0",
   "pytest-benchmark>=5.2.3",
-  "quimb>=1.14.0,<2",
+  "quimb>=1.8.3,<2",
+  # Not imported directly: without it, cotengra (via quimb) warns when it plans a
+  # contraction, which `filterwarnings = ["error"]` turns into a failure.
   "cmaes>=0.12.0",
 ]
+# Only the scripts under benches/ need these.
+bench = ["cyclopts>=3.20", "quimb>=1.8.3,<2", "cmaes>=0.12.0", "scipy>=1.13"]
 dev = [
-  "scalene",
+  "scalene>=1.5",
   "prek>=0.2.6",
-  "ruff==0.16.5",
-  "cyclopts>=3.20",
+  "ruff==0.16.9",
+  "ty==0.0.82",
   { include-group = "test" },
+  { include-group = "bench" },
 ]
 interactive = [
   "ipykernel>=7.2.0",
   "matplotlib>=3.11.0",
   "pydot>=1.4",
   "tqdm>=4.65.0",
-  "pylatexenc",
+  "pylatexenc>=2.10",
 ]
 docs = [
-  "black[jupyter]>=26.5.1",
-  "mkdocs-gen-files>=0.5.0",
-  "mkdocs-jupyter>=0.24.2",
-  "mkdocs-literate-nav>=0.6.0",
-  "mkdocs-material>=9",
-  "mkdocs-section-index>=0.3.5",
-  "mkdocs>=1.5.1",
-  "mkdocstrings-python>=1.2.1",
+  # Builds the Fumadocs site under docs/; see docs/README.md.
+  "griffelib>=2.2,<3",
+  "nbconvert>=7",
+  "pytest-markdown-docs>=0.9",
+  { include-group = "test" },
   { include-group = "interactive" },
 ]
 
@@ -269,25 +271,12 @@ convention = "google"
 required-imports = ["from __future__ import annotations"]
 
 
-[tool.pyright]
-pythonVersion = "3.11"
+[tool.ty.environment]
+python-version = "3.11"
 
-include = ["src/src_method/**/*.py"]
+[tool.ty.analysis]
+# Optional GPU dependency, imported lazily in `utils._backend`.
+allowed-unresolved-imports = ["cupy", "cupyx"]
 
-exclude = ["test_*.py", "docs/**", "**/__pycache__"]
-
-typeCheckingMode = "basic"
-useLibraryCodeForTypes = true
-
-reportGeneralTypeIssues = "information"
-reportMissingImports = true
-reportMissingTypeStubs = "warning"
-reportImportCycles = "information"
-reportPrivateUsage = "information"
-reportPrivateImportUsage = "information"
-reportUnnecessaryIsInstance = "information"
-reportUnnecessaryCast = "information"
-reportUnnecessaryComparison = "information"
-reportUnnecessaryContains = "information"
-reportUnnecessaryTypeIgnoreComment = "information"
-reportMatchNotExhaustive = "information"
+[tool.ty.src]
+include = ["src/src_method", "tests"]

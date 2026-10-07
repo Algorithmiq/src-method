@@ -1,6 +1,7 @@
 """Test the memory planner: sizes, budgets, batches and tiers."""
 
 from pathlib import Path
+from types import ModuleType
 
 import numpy as np
 import pytest
@@ -68,7 +69,7 @@ def test_resolve_budgets_detects_host_memory(monkeypatch, tmp_path):
 
 
 def test_resolve_budgets_detects_device_memory(monkeypatch, tmp_path):
-    fake_xp = object()
+    fake_xp = ModuleType("fake_xp")
     monkeypatch.setattr(plan_module, "is_host", lambda _xp: False)
     monkeypatch.setattr(plan_module, "device_memory", lambda _xp: (30 * GB, 40 * GB))
 

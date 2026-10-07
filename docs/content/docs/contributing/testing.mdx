@@ -1,0 +1,115 @@
+---
+title: Testing
+description: Layout of the test suite, markers, warnings and logging in tests.
+---
+
+The tests live in `tests/` and run with `pytest`:
+
+```bash
+uv run pytest -m "not slow"     # what pull requests run
+uv run pytest                   # everything
+uv run pytest -k cutoff -x      # select by name, stop at the first failure
+```
+
+Always run tests through `pytest`, never as `python tests/test_<name>.py`.
+
+| File | Covers |
+|---|---|
+| `test_package.py` | `apply` and `compress` against `quimb` references, validation, precision |
+| `test_stack.py` | `src` over stacks and the sweep behind it |
+| `test_tensor_train.py` | the shared train helpers in `_tensor_train` |
+| `test_backend.py` | the stream, staging and memory helpers in `utils._backend` |
+| `test_kernels.py` | the batched site contractions and their peak-memory estimate |
+| `test_plan.py` | the planner: budgets, batch sizes and environment tiers |
+| `test_store.py` | environment storage on the device, in host memory and on disk |
+| `test_sites.py` | reading the cores one site at a time, with prefetching |
+| `test_logging.py` | the package leaves the host's logging configuration alone |
+| `test_gpu_backend.py` | the CuPy path; skipped without CuPy or a GPU |
+
+## Writing tests
+
+- Test one behaviour per test, with a name that says which.
+- Build reference networks with `quimb` and compare with `distance` or dense
+  contractions; numerical changes need a test that pins the accuracy, not just
+  the shapes.
+- Pass a fixed `seed` wherever the result is compared exactly.
+- Use `pytest.raises` with `match`, so the test fails if a different error is
+  raised:
+
+```python
+import pytest
+
+from src_method import compress
+
+
+def test_rejects_zero_chi_out():
+    with pytest.raises(ValueError, match="chi_out"):
+        compress([], chi_out=0)
+```
+
+- Parametrize instead of copying a test across inputs:
+
+```python
+import numpy as np
+import pytest
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.complex128])
+def test_dtype(dtype):
+    assert np.zeros(2, dtype=dtype).dtype == dtype
+```
+
+## Markers
+
+`--strict-markers` is on, so only the markers declared in `pyproject.toml` exist:
+
+- `@pytest.mark.slow` for tests that take a minute or more. Pull requests run
+  `-m "not slow"`, so mark anything long.
+- `@pytest.mark.perf` for `pytest-benchmark` tests, which the benchmark job
+  compares against `main` and fails on a median slowdown of more than 25 %.
+
+## Warnings are errors
+
+`filterwarnings = ["error"]` turns any stray warning into a failure. If a warning
+is the behaviour under test, assert it with `pytest.warns`. The exact fallback for
+networks with fewer than three sites logs a warning rather than raising one, so
+tests of that path assert on the log instead, as below.
+
+## Exercising the out-of-core paths
+
+The batched contractions and the host and disk tiers of the sweep only engage when
+the budgets are tight, so tests force them with tiny budgets: on the CPU,
+`Resources(host_memory="1MB", scratch_dir=tmp_path)` gives small batches and spills
+the environments of a depth-4 stack with bonds of 4 to `tmp_path` (see
+`tests/test_stack.py`). Compare the dense operator of the result with that of a
+default run, not the cores: batching changes the rounding, and with it the cores of
+an ill-conditioned sketch, but not the operator they represent. The planner is a
+pure function, so `tests/test_plan.py` checks batch sizes and tiers from shapes
+alone, and `tests/test_gpu_backend.py` derives GPU budgets from a plan made with
+`make_plan` to reach every tier.
+
+## Logging in tests
+
+`log_cli` is on, so log records show up live while the tests run. To assert on
+them, use the `caplog` [fixture](https://docs.pytest.org/en/stable/how-to/logging.html);
+the library logs progress at `DEBUG`, so lower the level of the `src_method`
+logger first:
+
+```python
+import logging
+
+import quimb.tensor as qtn
+
+from src_method import compress
+
+
+def test_reports_completion(caplog):
+    caplog.set_level(logging.DEBUG, logger="src_method")
+    compress(qtn.MPO_rand(4, bond_dim=2, seed=0).arrays, chi_out=2, seed=0)
+    assert "SRC complete" in caplog.text
+```
+
+## Coverage
+
+CI runs the suite with `--cov=src --cov-branch` and reports to SonarCloud. Aim
+for every new line to be covered by at least one test.

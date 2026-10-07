@@ -16,11 +16,12 @@ exact SVD is both cheaper and more accurate than a randomized sketch.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
 import numpy as np
 from opt_einsum import contract
 
+from ._validation import validate_open_boundary
 from .utils import to_numpy
 
 if TYPE_CHECKING:
@@ -40,14 +41,48 @@ _MPO_BOUNDARY_NDIM = 3
 
 TrainKind = Literal["mps", "mpo"]
 
+
+class SiteLike(Protocol):
+    """A site tensor that may be read lazily, such as a zarr or HDF5 dataset.
+
+    Its shape, dtype and rank are known at once; the data is read only by
+    ``np.asarray``. NumPy and CuPy arrays and ``np.memmap`` all qualify.
+    """
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """The shape of the site."""
+        ...
+
+    @property
+    def dtype(self) -> np.dtype:
+        """The dtype of the site."""
+        ...
+
+    @property
+    def ndim(self) -> int:
+        """The rank of the site, known without reading it."""
+        ...
+
+    def __array__(self, dtype: Any = None, copy: bool | None = None) -> np.ndarray:  # noqa: ANN401, FBT001  (the NumPy array protocol)
+        """Read the site into a NumPy array."""
+        ...
+
+
+# A site as the public entry points accept it: an array or a lazily read array-like.
+Site: TypeAlias = "NDArray | SiteLike"
+
 __all__ = [
     "MIN_SRC_SITES",
+    "Site",
+    "SiteLike",
     "SwappedLegs",
     "TrainKind",
     "check_exact_supported",
     "exact_compress",
     "exact_stack",
     "infer_kind",
+    "known_kind",
     "normalize_stack",
     "pad",
     "pad_site",
@@ -57,7 +92,7 @@ __all__ = [
 ]
 
 
-def infer_kind(arrays: Sequence[NDArray]) -> TrainKind | None:
+def infer_kind(arrays: Sequence[Site]) -> TrainKind | None:
     """Classify a tensor train from the rank of its first site tensor.
 
     A boundary site carries one bond index plus either a single physical
@@ -77,6 +112,25 @@ def infer_kind(arrays: Sequence[NDArray]) -> TrainKind | None:
     if ndim == _MPO_BOUNDARY_NDIM:
         return "mpo"
     return None
+
+
+def known_kind(arrays: Sequence[Site]) -> TrainKind:
+    """Classify a train already validated by `normalize_stack`; see `infer_kind`.
+
+    Args:
+        arrays: The site tensors of the train.
+
+    Returns:
+        ``"mps"`` or ``"mpo"``.
+
+    Raises:
+        TypeError: If the layout is unrecognised.
+    """
+    kind = infer_kind(arrays)
+    if kind is None:
+        msg = "Unrecognised train layout: expected an MPS or an MPO."
+        raise TypeError(msg)
+    return kind
 
 
 def check_exact_supported(n_sites: int) -> None:
@@ -154,12 +208,13 @@ def padded_shape(
     Returns:
         The padded shape.
     """
-    padded = (*shape, 1) if kind == "mps" else tuple(shape)
+    dims = [*shape, 1] if kind == "mps" else list(shape)
     if i == 0:
-        padded = (1, *padded)
+        dims.insert(0, 1)
     if i == last:
-        padded = (padded[0], 1, *padded[1:])
-    return padded  # type: ignore[return-value]
+        dims.insert(1, 1)
+    left, right, up, down = dims
+    return left, right, up, down
 
 
 def pad_site(site: NDArray, kind: TrainKind, i: int, last: int) -> NDArray:
@@ -195,7 +250,7 @@ def pad(train: Sequence[NDArray]) -> list[NDArray]:
     Returns:
         The rank-4 views, one per site.
     """
-    kind = infer_kind(train)
+    kind = known_kind(train)
     last = len(train) - 1
     return [pad_site(site, kind, i, last) for i, site in enumerate(train)]
 
@@ -230,11 +285,11 @@ class SwappedLegs:
     at once and the data is only read by ``np.asarray``.
     """
 
-    def __init__(self, site: Any) -> None:  # noqa: ANN401  (any lazy array-like)
+    def __init__(self, site: Site) -> None:
         """Wrap a lazily loaded site.
 
         Args:
-            site: An array-like with ``shape``, ``dtype`` and ``np.asarray`` support.
+            site: The site to transpose.
         """
         self._site = site
         shape = tuple(site.shape)
@@ -249,20 +304,21 @@ class SwappedLegs:
         return swapped if dtype is None else swapped.astype(dtype)
 
 
-def transpose_mpo(train: Sequence[NDArray]) -> list[NDArray]:
+def transpose_mpo(train: Sequence[Site]) -> list[Site]:
     """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site.
 
     Arrays give views; lazily loaded sites without ``swapaxes`` give `SwappedLegs`.
     """
-    return [
-        site.swapaxes(-2, -1) if hasattr(site, "swapaxes") else SwappedLegs(site)
-        for site in train
-    ]
+    transposed: list[Site] = []
+    for site in train:
+        swapaxes = getattr(site, "swapaxes", None)
+        transposed.append(swapaxes(-2, -1) if callable(swapaxes) else SwappedLegs(site))
+    return transposed
 
 
 def normalize_stack(
-    trains: Sequence[Sequence[NDArray]],
-) -> tuple[list[Sequence[NDArray]], TrainKind]:
+    trains: Sequence[Sequence[Site]],
+) -> tuple[list[Sequence[Site]], TrainKind]:
     """Validate a stack and rewrite it in ket form.
 
     A stack ``T_1 . T_2 . ... . T_m`` is contracted along the physical legs, the
@@ -280,8 +336,9 @@ def normalize_stack(
         the contracted train.
 
     Raises:
-        ValueError: If the stack is empty, if the trains differ in length, or if
-            adjacent trains have mismatched physical dimensions.
+        ValueError: If the stack is empty, if a train is not open-boundary, if the
+            trains differ in length, or if adjacent trains have mismatched physical
+            dimensions.
         TypeError: If a train has an unrecognised layout or an MPS sits anywhere
             other than at one end of the stack.
     """
@@ -290,6 +347,10 @@ def normalize_stack(
         raise ValueError(msg)
     kinds: list[TrainKind | None] = [infer_kind(train) for train in trains]
     _check_roles(kinds)
+    for i, (train, kind) in enumerate(zip(trains, kinds)):
+        validate_open_boundary(
+            train, _MPS_BOUNDARY_NDIM if kind == "mps" else _MPO_BOUNDARY_NDIM, i
+        )
     sizes = [len(train) for train in trains]
     if len(set(sizes)) > 1:
         msg = f"All tensor trains must have the same number of sites, got {sizes}."
@@ -307,7 +368,8 @@ def _check_roles(kinds: Sequence[TrainKind | None]) -> None:
     if None in kinds:
         msg = (
             f"Unsupported tensor network layout for train {kinds.index(None)}: "
-            "expected an MPS or MPO given as a list of per-site arrays."
+            "expected an MPS or MPO given as a list of per-site arrays "
+            "(periodic boundary conditions are not supported)."
         )
         raise TypeError(msg)
     if len(kinds) > 1 and ("mps" in kinds[1:-1] or kinds[0] == kinds[-1] == "mps"):
@@ -319,7 +381,7 @@ def _check_roles(kinds: Sequence[TrainKind | None]) -> None:
 
 
 def _check_physical_dims(
-    trains: Sequence[Sequence[NDArray]], kinds: Sequence[TrainKind | None]
+    trains: Sequence[Sequence[Site]], kinds: Sequence[TrainKind | None]
 ) -> None:
     """Check that the legs joined between adjacent trains agree at every site."""
     for i in range(len(trains) - 1):
@@ -335,7 +397,7 @@ def _check_physical_dims(
 
 
 def exact_stack(
-    layers: Sequence[Sequence[NDArray]], chi_out: int, kind: TrainKind
+    layers: Sequence[Sequence[Site]], chi_out: int, kind: TrainKind
 ) -> list[NDArray]:
     """Contract and compress a two-site stack exactly.
 

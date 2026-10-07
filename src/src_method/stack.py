@@ -7,10 +7,8 @@ along their physical legs and compressed in a single SRC sweep. `apply` and
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
-
-import numpy as np
-import structlog
 
 from ._sweep import sweep
 from ._tensor_train import (
@@ -19,17 +17,19 @@ from ._tensor_train import (
     exact_stack,
     normalize_stack,
 )
-from .utils import default_rng, get_xp, setup_logging
+from ._validation import validate_chi_out, validate_cutoff
+from .utils import default_rng, get_xp, sketch_dtype
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import NDArray
+    import numpy as np
+    from numpy.typing import DTypeLike, NDArray
 
     from ._plan import Resources
+    from ._tensor_train import Site
 
-setup_logging()
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 LOG_WARN_SMALL = (
     "The current SRC implementation targets tensor networks with 3 or more sites. "
@@ -38,10 +38,10 @@ LOG_WARN_SMALL = (
 
 
 def src(
-    *trains: Sequence[NDArray],
-    chi_out: int,
+    *trains: Sequence[Site],
+    chi_out: int | np.integer,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
@@ -70,7 +70,10 @@ def src(
     two or three Trotter layers). Apply anything else pairwise.
 
     Args:
-        *trains: The site arrays of each train, in mathematical order.
+        *trains: The site arrays of each train, in mathematical order. A site may
+            also be any array-like with ``shape``, ``dtype``, ``ndim`` and
+            ``np.asarray`` support (`SiteLike`), such as ``np.memmap`` or a zarr or
+            HDF5 dataset; it is then read only when the sweep reaches it.
         chi_out: The desired maximum bond dimension of the output train.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
             When positive, bonds are trimmed to their effective rank by
@@ -78,7 +81,10 @@ def src(
             site during the right-to-left sweep. Set to 0.0 (default) to keep
             all bonds at ``chi_out``. Ignored for two-site stacks, which are
             contracted and truncated to ``chi_out`` exactly.
-        dtype: The data type for the computation.
+        dtype: Data type of the random sketches. Defaults to the promoted
+            floating dtype of the inputs, so single precision stays single and
+            complex inputs get complex Ginibre sketches. An explicit dtype
+            overrides this and can promote the result.
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
             the optional ``cupy`` dependency for GPU execution.
@@ -91,13 +97,17 @@ def src(
         form, as numpy arrays (host-side, whatever the ``device``).
 
     Raises:
-        TypeError: If a train has an unrecognised layout or an MPS sits anywhere
-            other than at one end of the stack.
-        ValueError: If the stack is empty, if the trains differ in length or in
-            the physical dimensions they join, if a sub-three-site stack is not
-            exactly two sites, or if ``device`` is not recognised.
+        TypeError: If ``chi_out`` is not an integer, if a train has an unrecognised
+            layout or an MPS sits anywhere other than at one end of the stack.
+        ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not in
+            ``[0.0, 1.0)``, if a train is not open-boundary, if the stack is empty,
+            if the trains differ in length or in the physical dimensions they join,
+            if a sub-three-site stack is not exactly two sites, or if ``device`` is
+            not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
+    chi_out = validate_chi_out(chi_out)
+    validate_cutoff(cutoff)
     xp = get_xp(device)
     prng = default_rng(seed)
     layers, kind = normalize_stack(trains)
@@ -108,12 +118,12 @@ def src(
         logger.warning(LOG_WARN_SMALL)
         return exact_stack(layers, chi_out, kind)
 
-    logger.info(
-        "Starting SRC",
-        n_sites=n_sites,
-        depth=len(layers),
-        output=kind,
-        device=xp.__name__,
+    logger.debug(
+        "Starting SRC: n_sites=%d, depth=%d, output=%s, device=%s",
+        n_sites,
+        len(layers),
+        kind,
+        xp.__name__,
     )
     result = sweep(
         layers,
@@ -122,8 +132,8 @@ def src(
         prng,
         xp,
         cutoff=cutoff,
-        dtype=dtype,
+        dtype=sketch_dtype(dtype, *layers),
         resources=resources,
     )
-    logger.info("SRC complete.")
+    logger.debug("SRC complete")
     return result

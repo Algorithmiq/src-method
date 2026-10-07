@@ -10,17 +10,18 @@ from ._backend import (
     device_memory,
     device_pool_bytes,
     device_pool_limit,
+    gaussian_sketch,
     get_xp,
     host_memory_available,
     is_host,
     new_stream,
     pinned_empty,
+    sketch_dtype,
     to_device_async,
     to_host_async,
     to_numpy,
 )
 from .linalg import truncated_qr
-from .logging_config import setup_logging
 
 __all__ = [
     "NullEvent",
@@ -30,12 +31,13 @@ __all__ = [
     "device_memory",
     "device_pool_bytes",
     "device_pool_limit",
+    "gaussian_sketch",
     "get_xp",
     "host_memory_available",
     "is_host",
     "new_stream",
     "pinned_empty",
-    "setup_logging",
+    "sketch_dtype",
     "to_device_async",
     "to_host_async",
     "to_numpy",

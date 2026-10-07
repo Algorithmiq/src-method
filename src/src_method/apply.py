@@ -10,26 +10,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from ._tensor_train import infer_kind
 from .stack import src
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import NDArray
+    import numpy as np
+    from numpy.typing import DTypeLike, NDArray
 
     from ._plan import Resources
+    from ._tensor_train import Site
 
 
 def apply(
-    left_tensor: Sequence[NDArray],
-    right_tensor: Sequence[NDArray],
-    chi_out: int,
+    left_tensor: Sequence[Site],
+    right_tensor: Sequence[Site],
+    chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
-    dtype: type = np.float64,
+    dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
@@ -54,7 +54,8 @@ def apply(
             site during the right-to-left sweep.  The SVD operates on the
             small ``(chi_out, chi_out)`` R factor from QR, so overhead is
             minimal.  Set to 0.0 (default) to keep all bonds at chi_out.
-        dtype: The data type for the computation.
+        dtype: Data type of the random sketches. Defaults to the promoted
+            floating dtype of the inputs; an explicit dtype can promote the result.
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.
@@ -64,10 +65,13 @@ def apply(
         The site arrays of the compressed tensor network (MPS or MPO).
 
     Raises:
-        TypeError: If the combination of input tensor types is unsupported.
-        ValueError: If the two trains differ in length or in the physical
-            dimensions they join, if a sub-three-site train is not exactly two
-            sites, or if ``device`` is not recognised.
+        TypeError: If ``chi_out`` is not an integer or the combination of input
+            tensor types is unsupported.
+        ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
+            in ``[0.0, 1.0)``, if a train is not open-boundary, if the two trains
+            differ in length or in the physical dimensions they join, if a
+            sub-three-site train is not exactly two sites, or if ``device`` is not
+            recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     left_kind = infer_kind(left_tensor)

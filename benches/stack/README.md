@@ -25,8 +25,7 @@ uv run python benches/stack/bench_depth.py accuracy --output accuracy.md
 uv run python benches/stack/bench_depth.py timing --output timing.md
 ```
 
-Tuple options repeat the flag, e.g. `--depths 2 --depths 3`. Set
-`LOG_LEVEL_SRC=WARNING` to silence the per-call logs.
+Tuple options repeat the flag, e.g. `--depths 2 --depths 3`.
 
 ## Results
 

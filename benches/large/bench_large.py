@@ -9,8 +9,8 @@ Three commands:
 - ``compare``: run twice with two GPU budgets and report the relative distance
   between the two outputs, which checks that the plan does not change the result.
 
-The per-pass times and the stall time are also logged by `src_method` itself; set
-``LOG_LEVEL_SRC=DEBUG`` to see them.
+The plan, the per-pass times and the stall time are also logged by `src_method`
+itself at ``DEBUG``; pass ``--debug`` to see them.
 """
 
 from __future__ import annotations
@@ -19,16 +19,16 @@ import logging
 import resource
 from pathlib import Path  # noqa: TC003  (cyclopts reads the annotations at runtime)
 from time import perf_counter
+from typing import Annotated
 
 import cyclopts
 import numpy as np
-import structlog
 
 import src_method._sweep as sweep_module
 from src_method import Resources, src
 from src_method._plan import make_plan
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 app = cyclopts.App(help="Benchmark out-of-core SRC of N.V.M.U with a large M.")
 
 LAYERS = ("N", "V", "M", "U")
@@ -80,7 +80,7 @@ def generate(
                 site[row] = draw * scale
             site.flush()
             del site
-        logger.info("Layer written", layer=name, bond=chi)
+        logger.info("Layer %s written: bond %d", name, chi)
 
 
 def _load(directory: Path) -> list[list[np.ndarray]]:
@@ -122,15 +122,16 @@ def _run(
     (plan,) = plans
     tiers = [site.tier for site in plan.sites]
     logger.info(
-        "Run complete",
-        seconds=round(seconds, 1),
-        pool_bytes=cupy.get_default_memory_pool().total_bytes(),
-        host_peak_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
-        planned_device_peak=plan.device_peak,
-        planned_host_peak=plan.host_peak,
-        disk_bytes=plan.disk_bytes,
-        tiers={tier: tiers.count(tier) for tier in ("device", "host", "disk")},
-        sketch_batches=sorted({site.sketch_batch for site in plan.sites[1:]}),
+        "Run complete: %.1f s, pool %d B, host peak %d B, planned device peak %d B, "
+        "planned host peak %d B, disk %d B, tiers %s, sketch batches %s",
+        seconds,
+        cupy.get_default_memory_pool().total_bytes(),
+        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+        plan.device_peak,
+        plan.host_peak,
+        plan.disk_bytes,
+        {tier: tiers.count(tier) for tier in ("device", "host", "disk")},
+        sorted({site.sketch_batch for site in plan.sites[1:]}),
     )
     return out
 
@@ -190,9 +191,25 @@ def compare(
     second = _run(directory, chi_out, Resources(large, None, scratch_dir), seed)
     aa, bb, ab = _inner(first, first), _inner(second, second), _inner(first, second)
     distance = np.sqrt(max((aa + bb - 2 * ab).real, 0.0) / aa.real)
-    logger.info("Relative distance between the runs", distance=distance)
+    logger.info("Relative distance between the runs: %.3e", distance)
+
+
+@app.meta.default
+def main(
+    *tokens: Annotated[str, cyclopts.Parameter(show=False, allow_leading_hyphen=True)],
+    debug: bool = False,
+) -> None:
+    """Configure logging, then dispatch to a command.
+
+    Args:
+        tokens: The command and its arguments.
+        debug: Also show the `src_method` debug log: plan, pass times and stalls.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if debug:
+        logging.getLogger("src_method").setLevel(logging.DEBUG)
+    app(tokens)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    app()
+    app.meta()
