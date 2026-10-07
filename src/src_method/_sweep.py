@@ -111,7 +111,7 @@ def sweep(
     env_shapes = [(chi_out, *(s[0] for s in site)) for site in shapes]
     kernels = SiteKernels(len(layers))
     with (
-        device_pool_limit(xp, budgets.device),
+        device_pool_limit(xp, budgets.device_cap),
         SiteSource(layers, xp, depth=plan.prefetch) as source,
         EnvironmentStore(
             plan, env_shapes, work, xp, budgets.scratch_dir, copy_stream=new_stream(xp)

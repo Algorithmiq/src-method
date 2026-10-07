@@ -14,7 +14,13 @@ import quimb.tensor as qtn
 import src_method._sweep as sweep_module
 from src_method import Resources, apply, compress, src
 from src_method._kernels import SiteKernels
-from src_method._plan import Budgets, Plan, make_plan
+from src_method._plan import (
+    GPU_MARGIN_FRACTION,
+    GPU_MARGIN_MIN,
+    Budgets,
+    Plan,
+    make_plan,
+)
 from src_method._sites import padded_shapes, site_bytes
 
 cupy = pytest.importorskip("cupy")
@@ -281,3 +287,33 @@ def test_gpu_pool_limit_is_restored(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(RuntimeError, match="boom"):
         src(*stack, chi_out=4, seed=0, device="gpu")
     assert pool.get_limit() == previous
+
+
+def test_gpu_pool_cap_leaves_room_for_fragmentation(tmp_path) -> None:
+    """The pool is capped at the GPU budget plus the margin, not at the budget."""
+    rng = np.random.default_rng(9)
+    stack = [random_mpo_arrays([2, 3, 3, 2], rng) for _ in range(2)]
+    pool = cupy.get_default_memory_pool()
+    limits: list[int] = []
+
+    def spy(*_args: object) -> None:
+        limits.append(pool.get_limit())
+        msg = "spy"
+        raise RuntimeError(msg)
+
+    budget = 10**8
+    used = pool.used_bytes()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(SiteKernels, "env", spy)
+        with pytest.raises(RuntimeError, match="spy"):
+            src(
+                *stack,
+                chi_out=4,
+                seed=0,
+                device="gpu",
+                resources=Resources(gpu_memory=budget, scratch_dir=tmp_path),
+            )
+
+    _, total = cupy.cuda.runtime.memGetInfo()
+    margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
+    assert limits == [used + budget + margin]

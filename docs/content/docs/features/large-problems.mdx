@@ -47,9 +47,13 @@ Sizes are byte counts or strings: `"36GB"` is `36 * 10**9` bytes, `"36GiB"` is
 measured when the call starts, so inputs already held in memory are not counted
 twice.
 
-During the sweep, CuPy's default memory pool is capped at the GPU budget, so that
-an estimate that falls short fails at once rather than when some other allocation
-does; the previous limit is restored afterwards. If a single site does not fit the
+The sweep is planned to fit the GPU budget, counting the bytes its arrays use.
+CuPy's memory pool also holds blocks that are split and only partly in use, so
+during the sweep the pool is capped at the GPU budget plus the margin of
+`max(10%, 1 GiB)` of the device. That margin is the one detection leaves free, so
+with a detected budget the cap is the free device memory. An estimate that falls
+short by more than the margin fails at once rather than when some other
+allocation does; the previous limit is restored afterwards. If a single site does not fit the
 budget even with batches of one column, `src` raises `MemoryError` naming the site.
 
 ## Inputs on disk

@@ -193,9 +193,11 @@ Explicit `Resources` fields are used as given.
 
 - GPU: `cupy.cuda.runtime.memGetInfo()` free memory plus the free bytes of CuPy's
   memory pool, minus `max(10%, 1 GiB)` for cuBLAS/cuSOLVER workspaces and
-  fragmentation. During the sweep the pool is capped at the budget with
-  `set_limit`, so an overshoot fails at once; the previous limit is restored
-  afterwards.
+  fragmentation. During the sweep the pool is capped with `set_limit` at the
+  budget plus that margin (for explicit budgets too), so an overshoot fails at
+  once; the previous limit is restored afterwards. The cap includes the margin
+  because the pool limit counts split blocks that are only partly in use, which
+  the plan cannot see; the first GPU run failed with a cap at the budget itself.
 - Host: `MemAvailable` from `/proc/meminfo`, falling back to `os.sysconf`, minus
   10%. It is measured at call time, so an `M` the caller holds in memory is already
   excluded.
@@ -327,8 +329,9 @@ stray `ResourceWarning`, since warnings are errors in this suite.
 GPU tests in `tests/test_gpu_backend.py`, skipped without CuPy: the same comparison
 with budgets derived from a plan made with `make_plan`, chosen to reach the device,
 host and disk tiers with small batches, which exercises the streams and the pinned
-staging. The run succeeds under the pool cap set to the budget, so its peak stays
-within it; the pool limit is restored after the sweep, also after an exception.
+staging. The run succeeds under the pool cap, the budget plus the margin, so its
+peak stays within it; a separate test checks the cap, and the pool limit is
+restored after the sweep, also after an exception.
 
 ## Acceptance on the cluster
 
@@ -342,8 +345,8 @@ Pass criteria:
 
 1. The reference problem completes on one A100-40GB within 300 GB of host memory
    and local NVMe.
-2. The pool peak stays within the GPU budget and the host peak within the host
-   budget.
+2. The pool peak stays within the GPU budget plus the margin and the host peak
+   within the host budget.
 3. The stall time is below 10% of the wall time.
 4. On a medium problem (`D_M = 1000`, `l = 500`), runs with GPU budgets of 40 GB and
    80 GB agree to `1e-10` in relative Frobenius norm.
@@ -373,8 +376,9 @@ Pass criteria:
 ## Risks
 
 - The memory model may underestimate the peak: cuTENSOR and cuBLAS workspaces and
-  pool fragmentation are covered only by the margin. The pool limit turns an
-  underestimate into an immediate error, and the GPU tests check the model.
+  pool fragmentation are covered only by the margin, which the pool cap
+  includes. The pool limit turns an underestimate beyond the margin into an
+  immediate error, and the GPU tests check the model.
 - The planner assumes the peak grows with the batch; where a different path at a
   larger batch has a smaller peak, the binary search may settle on a smaller batch
   than possible. Any batch it returns fits.

@@ -79,6 +79,27 @@ def test_resolve_budgets_detects_device_memory(monkeypatch, tmp_path):
 
     assert not budgets.unified
     assert budgets.device == 26 * GB  # minus max(10% of 40 GB, 1 GiB)
+    assert budgets.device_cap == 30 * GB  # the pool may grow into the margin
+
+
+def test_resolve_budgets_caps_explicit_device_memory_with_margin(monkeypatch, tmp_path):
+    fake_xp = ModuleType("fake_xp")
+    monkeypatch.setattr(plan_module, "is_host", lambda _xp: False)
+    monkeypatch.setattr(plan_module, "device_memory", lambda _xp: (30 * GB, 40 * GB))
+
+    budgets = resolve_budgets(
+        Resources(gpu_memory="10GB", host_memory="1GB", scratch_dir=tmp_path),
+        fake_xp,
+    )
+
+    assert budgets.device == 10 * GB
+    assert budgets.device_cap == 14 * GB
+
+
+def test_resolve_budgets_leaves_the_host_uncapped(tmp_path):
+    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), np)
+
+    assert budgets.device_cap is None
 
 
 def test_resolve_budgets_detects_disk(monkeypatch, tmp_path):

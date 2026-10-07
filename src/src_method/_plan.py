@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 Tier = Literal["device", "host", "disk"]
 Shape = tuple[int, ...]
 
-# Kept free on the device for cuBLAS/cuSOLVER workspaces and pool fragmentation.
+# Device memory outside the plan: cuBLAS/cuSOLVER workspaces and pool fragmentation.
+# Detection keeps it free, and CuPy's pool may grow into it during the sweep.
 GPU_MARGIN_FRACTION = 0.10
 GPU_MARGIN_MIN = 2**30
 HOST_MARGIN_FRACTION = 0.10
@@ -89,9 +90,11 @@ class Resources:
     Every field left as ``None`` is detected when the call starts.
 
     Attributes:
-        gpu_memory: Device memory the sweep may use, as a byte count or a size
-            string (``"36GB"``, ``"36GiB"``). Defaults to the free device memory
-            minus ``max(10%, 1 GiB)``. Ignored on the CPU.
+        gpu_memory: Device memory the sweep plans to use, as a byte count or a
+            size string (``"36GB"``, ``"36GiB"``). Defaults to the free device
+            memory minus a margin of ``max(10%, 1 GiB)`` of the device. CuPy's pool
+            is capped at the budget plus that margin, which absorbs fragmentation.
+            Ignored on the CPU.
         host_memory: Host memory the sweep may use. Defaults to ``MemAvailable``
             minus 10%. On the CPU it covers the working set as well.
         scratch_dir: Directory for environments that fit in neither budget,
@@ -125,6 +128,9 @@ class Budgets:
         disk: Bytes free in ``scratch_dir``.
         scratch_dir: Where the disk tier lives.
         unified: Whether device and host memory are the same (the CPU backend).
+        device_cap: The cap on CuPy's pool during the sweep: ``device`` plus the
+            margin for workspaces and fragmentation, which the plan leaves out.
+            ``None`` leaves the pool uncapped, as on the CPU backend.
     """
 
     device: int
@@ -132,6 +138,7 @@ class Budgets:
     disk: int
     scratch_dir: Path
     unified: bool
+    device_cap: int | None = None
 
 
 def resolve_budgets(resources: Resources | None, xp: ModuleType) -> Budgets:
@@ -155,16 +162,22 @@ def resolve_budgets(resources: Resources | None, xp: ModuleType) -> Budgets:
     else:
         host = int(host_memory_available() * (1 - HOST_MARGIN_FRACTION))
     unified = is_host(xp)
+    cap = None
     if unified:
         device = host
-    elif resources.gpu_memory is not None:
-        device = parse_size(resources.gpu_memory)
     else:
         available, total = device_memory(xp)
-        device = available - max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
+        margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
+        if resources.gpu_memory is not None:
+            device = max(parse_size(resources.gpu_memory), 0)
+        else:
+            device = max(available - margin, 0)
+        # The plan counts the bytes in use, but the pool limit applies to every
+        # block the pool holds, including split blocks that are partly free.
+        cap = device + margin
     free = shutil.disk_usage(_existing_parent(scratch)).free
     disk = int(free * (1 - DISK_MARGIN_FRACTION))
-    return Budgets(max(device, 0), max(host, 0), disk, scratch, unified)
+    return Budgets(device, max(host, 0), disk, scratch, unified=unified, device_cap=cap)
 
 
 def _existing_parent(path: Path) -> Path:

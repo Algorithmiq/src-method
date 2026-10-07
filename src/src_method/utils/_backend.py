@@ -196,20 +196,22 @@ def device_pool_bytes(xp: ModuleType) -> int:
 
 
 @contextmanager
-def device_pool_limit(xp: ModuleType, budget: int) -> Iterator[None]:
+def device_pool_limit(xp: ModuleType, budget: int | None) -> Iterator[None]:
     """Cap cupy's default memory pool at ``budget`` bytes beyond its current use.
 
     An allocation past the cap fails at once instead of when another allocation
-    runs out. The previous limit is restored on exit. No-op on the host backend.
+    runs out. The previous limit is restored on exit. No-op on the host backend or
+    without a budget.
 
     Args:
         xp: Array module (``numpy`` or ``cupy``).
-        budget: The bytes the pool may allocate on top of those in use.
+        budget: The bytes the pool may allocate on top of those in use, or
+            ``None`` for no cap.
 
     Yields:
         Nothing.
     """
-    if is_host(xp):
+    if is_host(xp) or budget is None:
         yield
         return
     pool = xp.get_default_memory_pool()

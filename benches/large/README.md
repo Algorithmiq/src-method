@@ -26,7 +26,8 @@ Acceptance of the out-of-core sweep on one A100-40GB, with at least 300 GB of ho
 memory and node-local NVMe:
 
 1. `run` completes at 50 sites, `D_M = 4000`, `chi_out = 2000`, complex128.
-2. The pool size stays within the GPU budget and the host peak within the host
+2. The pool size stays within the GPU budget plus the `max(10%, 1 GiB)` margin
+   the pool cap allows for fragmentation, and the host peak within the host
    budget.
 3. The stall time is below 10% of the wall time.
 4. `compare` at `D_M = 1000`, `chi_out = 500` reports a distance below `1e-10`.
