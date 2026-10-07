@@ -36,16 +36,8 @@ dependencies = ["numpy>=2.0,<3", "opt_einsum>=3.4.0"]
 
 
 [project.optional-dependencies]
-gpu-nvidia = [
-  "cupy-cuda12x>=13",
-  "nvidia-cuda-nvrtc-cu12",
-  "nvidia-cuda-runtime-cu12",
-  "nvidia-cublas-cu12",
-  "nvidia-cusolver-cu12",
-  "nvidia-curand-cu12",
-  "nvidia-cusparse-cu12",
-  "nvidia-nvjitlink-cu12",
-]
+# The ctk extra pulls the CUDA 13 libraries from NVIDIA's cuda-toolkit wheels.
+gpu-nvidia = ["cupy-cuda13x[ctk]>=14"]
 gpu-rocm = ["cupy>=14.1.1"]
 
 
@@ -275,8 +267,8 @@ required-imports = ["from __future__ import annotations"]
 python-version = "3.11"
 
 [tool.ty.analysis]
-# Optional GPU dependency, imported lazily in `get_xp`.
-allowed-unresolved-imports = ["cupy"]
+# Optional GPU dependency, imported lazily in `utils._backend`.
+allowed-unresolved-imports = ["cupy", "cupyx"]
 
 [tool.ty.src]
 include = ["src/src_method", "tests"]
