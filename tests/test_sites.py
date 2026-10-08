@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 
 from src_method import src
-from src_method._sites import SiteSource, padded_shapes, site_bytes
+from src_method._group import DeviceGroup
+from src_method._sites import SiteSource, padded_shapes, site_bytes, sweep_order
 from src_method._tensor_train import pad
 
 
@@ -62,19 +63,57 @@ def test_padded_shapes_and_bytes_without_reading():
 
 
 @pytest.mark.parametrize("depth", [0, 1])
-def test_sites_are_read_when_requested(depth):
+def test_sites_come_in_the_given_order(depth):
     rng = np.random.default_rng(1)
     train = CountingTrain(random_mpo(4, 3, rng))
 
-    with SiteSource([train], np, depth=depth) as source:
-        (core,) = source[2]
-        assert train.reads == [0, 0, 1, 0]
-        source.prefetch(3)
-        (last,) = source[3]
-        assert train.reads == [0, 0, 1, 1]
+    with SiteSource([train], np, [2, 3, 2], depth=depth) as source:
+        cores = [source.next() for _ in range(3)]
 
-    np.testing.assert_array_equal(core, pad(train.sites)[2])
-    np.testing.assert_array_equal(last, pad(train.sites)[3])
+    assert train.reads == [0, 0, 2, 1]
+    for (core,), j in zip(cores, [2, 3, 2]):
+        np.testing.assert_array_equal(core, pad(train.sites)[j])
+
+
+@pytest.mark.parametrize("depth", [0, 1])
+def test_simulated_devices_share_one_read(depth):
+    rng = np.random.default_rng(1)
+    train = CountingTrain(random_mpo(4, 3, rng))
+    mps = [t[..., 0] for t in random_mpo(4, 2, rng)]
+    group = DeviceGroup(np, [0, 1, 2])
+    order = sweep_order(4)
+
+    with SiteSource([train, mps], np, order, depth=depth, group=group) as source:
+        got = group.run(lambda rank: [source.next(rank) for _ in order])
+
+    assert train.reads == [2, 2, 2, 1]
+    for per_rank in got:
+        for cores, j in zip(per_rank, order):
+            np.testing.assert_array_equal(cores[0], pad(train.sites)[j])
+            np.testing.assert_array_equal(cores[1], pad(mps)[j])
+
+
+def test_a_failed_read_reaches_every_device():
+    class Broken(CountingSite):
+        def __array__(self, dtype=None, copy=None):
+            msg = "unreadable"
+            raise OSError(msg)
+
+    class BrokenTrain(CountingTrain):
+        def __getitem__(self, j):
+            return Broken(self, j) if j == 1 else CountingSite(self, j)
+
+    rng = np.random.default_rng(1)
+    group = DeviceGroup(np, [0, 1])
+    order = sweep_order(4)
+
+    with (
+        SiteSource(
+            [BrokenTrain(random_mpo(4, 3, rng))], np, order, depth=1, group=group
+        ) as source,
+        pytest.raises(OSError, match="unreadable"),
+    ):
+        group.run(lambda rank: [source.next(rank) for _ in order])
 
 
 def test_src_reads_each_site_once_per_pass():

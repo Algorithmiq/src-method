@@ -23,6 +23,7 @@ Always run tests through `pytest`, never as `python tests/test_<name>.py`.
 | `test_plan.py` | the planner: budgets, batch sizes and environment tiers |
 | `test_store.py` | environment storage on the device, in host memory and on disk |
 | `test_sites.py` | reading the cores one site at a time, with prefetching |
+| `test_group.py` | the device group: work splitting, collectives, failures |
 | `test_logging.py` | the package leaves the host's logging configuration alone |
 | `test_gpu_backend.py` | the CuPy path; skipped without CuPy or a GPU |
 
@@ -87,6 +88,16 @@ an ill-conditioned sketch, but not the operator they represent. The planner is a
 pure function, so `tests/test_plan.py` checks batch sizes and tiers from shapes
 alone, and `tests/test_gpu_backend.py` derives GPU budgets from a plan made with
 `make_plan` to reach every tier.
+
+## Exercising several devices
+
+`Resources(devices=n)` on the CPU simulates `n` devices with threads that share
+the host, through the same code as on GPUs: the split of the sketch columns, the
+collectives and the shared reading of the cores. `tests/test_stack.py` compares
+such runs with a single device, also with uneven blocks (`chi_out` not a
+multiple of `n`, or smaller than it), a cutoff and spilling. Only the peer copies
+and device selection are GPU-specific; their tests in `tests/test_gpu_backend.py`
+skip unless at least two GPUs are visible.
 
 ## Logging in tests
 

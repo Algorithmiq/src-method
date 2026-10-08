@@ -1,5 +1,6 @@
 """Test the memory planner: sizes, budgets, batches and tiers."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 
@@ -68,10 +69,29 @@ def test_resolve_budgets_detects_host_memory(monkeypatch, tmp_path):
     assert budgets.host == 9 * GB
 
 
-def test_resolve_budgets_detects_device_memory(monkeypatch, tmp_path):
-    fake_xp = ModuleType("fake_xp")
+@pytest.fixture
+def fake_gpus(monkeypatch):
+    """Fake devices for the planner; returns a dict of ``id -> (free, total)``."""
+    memory = {0: (30 * GB, 40 * GB)}
+    current = [0]
+
+    @contextmanager
+    def use_device(_xp, device):
+        previous, current[0] = current[0], device
+        try:
+            yield
+        finally:
+            current[0] = previous
+
     monkeypatch.setattr(plan_module, "is_host", lambda _xp: False)
-    monkeypatch.setattr(plan_module, "device_memory", lambda _xp: (30 * GB, 40 * GB))
+    monkeypatch.setattr(plan_module, "use_device", use_device)
+    monkeypatch.setattr(plan_module, "device_memory", lambda _xp: memory[current[0]])
+    return memory
+
+
+@pytest.mark.usefixtures("fake_gpus")
+def test_resolve_budgets_detects_device_memory(tmp_path):
+    fake_xp = ModuleType("fake_xp")
 
     budgets = resolve_budgets(
         Resources(host_memory="1GB", scratch_dir=tmp_path), fake_xp
@@ -82,10 +102,9 @@ def test_resolve_budgets_detects_device_memory(monkeypatch, tmp_path):
     assert budgets.device_cap == 30 * GB  # the pool may grow into the margin
 
 
-def test_resolve_budgets_caps_explicit_device_memory_with_margin(monkeypatch, tmp_path):
+@pytest.mark.usefixtures("fake_gpus")
+def test_resolve_budgets_caps_explicit_device_memory_with_margin(tmp_path):
     fake_xp = ModuleType("fake_xp")
-    monkeypatch.setattr(plan_module, "is_host", lambda _xp: False)
-    monkeypatch.setattr(plan_module, "device_memory", lambda _xp: (30 * GB, 40 * GB))
 
     budgets = resolve_budgets(
         Resources(gpu_memory="10GB", host_memory="1GB", scratch_dir=tmp_path),
@@ -94,6 +113,28 @@ def test_resolve_budgets_caps_explicit_device_memory_with_margin(monkeypatch, tm
 
     assert budgets.device == 10 * GB
     assert budgets.device_cap == 14 * GB
+
+
+def test_resolve_budgets_takes_the_smallest_device(fake_gpus, tmp_path):
+    fake_gpus[1] = (20 * GB, 40 * GB)
+
+    budgets = resolve_budgets(
+        Resources(host_memory="1GB", scratch_dir=tmp_path),
+        ModuleType("fake_xp"),
+        devices=(0, 1),
+    )
+
+    assert budgets.device == 16 * GB
+    assert budgets.device_cap == 20 * GB
+
+
+def test_resolve_budgets_splits_the_host_among_simulated_devices(tmp_path):
+    budgets = resolve_budgets(
+        Resources(host_memory="8GB", scratch_dir=tmp_path), np, devices=(0, 1, 2, 3)
+    )
+
+    assert budgets.host == 8 * GB
+    assert budgets.device == 2 * GB
 
 
 def test_resolve_budgets_leaves_the_host_uncapped(tmp_path):
@@ -251,3 +292,62 @@ def test_prefetch_is_dropped_before_giving_up():
             shapes, site_bytes(shapes), chi, np.complex128, budgets(lo - cores // 2)
         )
         assert dropped.prefetch == 0
+
+
+def test_devices_split_the_environments_and_the_batches():
+    shapes = mpo_stack_shapes(8, [4, 4, 64, 4])
+    chi = 256
+    env = chi * 4 * 4 * 64 * 4 * 16  # one bulk environment on one device
+    one = make_plan(shapes, site_bytes(shapes), chi, np.complex128, budgets(10 * GB))
+    # A device budget that holds half of one device's environments on four devices
+    # holds all of them.
+    tight = one.device_peak - 3 * env
+
+    single = make_plan(
+        shapes, site_bytes(shapes), chi, np.complex128, budgets(tight, host=10 * GB)
+    )
+    four = make_plan(
+        shapes,
+        site_bytes(shapes),
+        chi,
+        np.complex128,
+        budgets(tight, host=10 * GB),
+        devices=4,
+    )
+
+    assert "host" in {s.tier for s in single.sites}
+    assert {s.tier for s in four.sites} == {"device"}
+    for site in four.sites[1:]:
+        assert site.sketch_batch <= chi // 4
+        assert site.project_batch <= chi // 4
+    assert four.sites[0].env_batch <= chi // 4
+    # The first site runs on rank 0 alone, on every row.
+    assert four.sites[0].project_batch == chi
+
+
+def test_devices_share_host_memory_and_disk():
+    shapes = mpo_stack_shapes(8, [4, 4, 64, 4])
+    chi = 256
+    env = chi * 4 * 4 * 64 * 4 * 16 // 2  # one bulk environment on each of 2 devices
+    roomy = make_plan(
+        shapes, site_bytes(shapes), chi, np.complex128, budgets(10 * GB), devices=2
+    )
+    device = roomy.device_peak - 6 * env
+    # Each device stages four batches of 128 columns, one environment each.
+    staging = 4 * env
+    host = roomy.host_peak + 2 * staging + 4 * env
+
+    plan = make_plan(
+        shapes,
+        site_bytes(shapes),
+        chi,
+        np.complex128,
+        budgets(device, host=host),
+        devices=2,
+    )
+
+    tiers = [s.tier for s in plan.sites[1:]]
+    # Host room for four environments in all: two per device.
+    assert tiers.count("host") == 2
+    assert plan.disk_bytes == 2 * env * tiers.count("disk")
+    assert plan.host_peak <= host
