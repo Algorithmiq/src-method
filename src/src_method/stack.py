@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     import numpy as np
     from numpy.typing import DTypeLike, NDArray
 
+    from ._plan import Resources
+    from ._tensor_train import Site
+
 logger = logging.getLogger(__name__)
 
 LOG_WARN_SMALL = (
@@ -35,12 +38,13 @@ LOG_WARN_SMALL = (
 
 
 def src(
-    *trains: Sequence[NDArray],
+    *trains: Sequence[Site],
     chi_out: int | np.integer,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
+    resources: Resources | None = None,
 ) -> list[NDArray]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
@@ -66,7 +70,10 @@ def src(
     two or three Trotter layers). Apply anything else pairwise.
 
     Args:
-        *trains: The site arrays of each train, in mathematical order.
+        *trains: The site arrays of each train, in mathematical order. A site may
+            also be any array-like with ``shape``, ``dtype``, ``ndim`` and
+            ``np.asarray`` support (`SiteLike`), such as ``np.memmap`` or a zarr or
+            HDF5 dataset; it is then read only when the sweep reaches it.
         chi_out: The desired maximum bond dimension of the output train.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
             When positive, bonds are trimmed to their effective rank by
@@ -81,6 +88,9 @@ def src(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy). Requires
             the optional ``cupy`` dependency for GPU execution.
+        resources: Memory budgets and scratch space for the sweep (see
+            `Resources`); every budget left unset is detected. Ignored for
+            two-site stacks.
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), in right-canonical
@@ -123,6 +133,7 @@ def src(
         xp,
         cutoff=cutoff,
         dtype=sketch_dtype(dtype, *layers),
+        resources=resources,
     )
     logger.debug("SRC complete")
     return result

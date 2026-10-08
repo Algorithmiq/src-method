@@ -1,4 +1,4 @@
 {
   "title": "Features",
-  "pages": ["stacks", "cutoff", "precision", "gpu", "logging"]
+  "pages": ["stacks", "cutoff", "precision", "gpu", "large-problems", "logging"]
 }

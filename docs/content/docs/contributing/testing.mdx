@@ -18,6 +18,11 @@ Always run tests through `pytest`, never as `python tests/test_<name>.py`.
 | `test_package.py` | `apply` and `compress` against `quimb` references, validation, precision |
 | `test_stack.py` | `src` over stacks and the sweep behind it |
 | `test_tensor_train.py` | the shared train helpers in `_tensor_train` |
+| `test_backend.py` | the stream, staging and memory helpers in `utils._backend` |
+| `test_kernels.py` | the batched site contractions and their peak-memory estimate |
+| `test_plan.py` | the planner: budgets, batch sizes and environment tiers |
+| `test_store.py` | environment storage on the device, in host memory and on disk |
+| `test_sites.py` | reading the cores one site at a time, with prefetching |
 | `test_logging.py` | the package leaves the host's logging configuration alone |
 | `test_gpu_backend.py` | the CuPy path; skipped without CuPy or a GPU |
 
@@ -69,6 +74,19 @@ def test_dtype(dtype):
 is the behaviour under test, assert it with `pytest.warns`. The exact fallback for
 networks with fewer than three sites logs a warning rather than raising one, so
 tests of that path assert on the log instead, as below.
+
+## Exercising the out-of-core paths
+
+The batched contractions and the host and disk tiers of the sweep only engage when
+the budgets are tight, so tests force them with tiny budgets: on the CPU,
+`Resources(host_memory="1MB", scratch_dir=tmp_path)` gives small batches and spills
+the environments of a depth-4 stack with bonds of 4 to `tmp_path` (see
+`tests/test_stack.py`). Compare the dense operator of the result with that of a
+default run, not the cores: batching changes the rounding, and with it the cores of
+an ill-conditioned sketch, but not the operator they represent. The planner is a
+pure function, so `tests/test_plan.py` checks batch sizes and tiers from shapes
+alone, and `tests/test_gpu_backend.py` derives GPU budgets from a plan made with
+`make_plan` to reach every tier.
 
 ## Logging in tests
 

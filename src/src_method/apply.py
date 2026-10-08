@@ -19,16 +19,20 @@ if TYPE_CHECKING:
     import numpy as np
     from numpy.typing import DTypeLike, NDArray
 
+    from ._plan import Resources
+    from ._tensor_train import Site
+
 
 def apply(
-    left_tensor: Sequence[NDArray],
-    right_tensor: Sequence[NDArray],
+    left_tensor: Sequence[Site],
+    right_tensor: Sequence[Site],
     chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
+    resources: Resources | None = None,
 ) -> list[NDArray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
@@ -55,6 +59,7 @@ def apply(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.
+        resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
         The site arrays of the compressed tensor network (MPS or MPO).
@@ -86,4 +91,5 @@ def apply(
         dtype=dtype,
         seed=seed,
         device=device,
+        resources=resources,
     )
