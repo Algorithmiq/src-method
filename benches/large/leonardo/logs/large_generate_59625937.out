@@ -1,0 +1,15 @@
+NODE: lrdn2918, CPUS: 32, ARGS: generate /leonardo_scratch/large/userexternal/rpanades/src-large/m4000 --bond-m 4000
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+Layer N written: bond 4
+Layer V written: bond 4
+Layer M written: bond 4000
+Layer U written: bond 4
+JobID           JobName    Elapsed     MaxRSS  MaxDiskRead MaxDiskWrite ExitCode 
+------------ ---------- ---------- ---------- ------------ ------------ -------- 
+59625937     large_gen+   00:11:35                                           0:0 
+59625937.ba+      batch   00:11:35                                           0:0 
+59625937.ex+     extern   00:11:35                                           0:0 
+59625937.0       python   00:11:31      2.42G        0.01G        0.02M      0:0 

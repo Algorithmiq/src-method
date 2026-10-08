@@ -1,10 +1,10 @@
 #!/usr/bin/env -S bash -l
-# Usage, from this folder: sbatch run.sh [bench_mpo_mpo.py options]
-# e.g. sbatch run.sh --n-sites 25 --chi-out 1000 --compare no --device gpu
+# Usage, from this folder: sbatch run.sh evolve [bench_depth.py evolve options]
+# accuracy and timing are laptop-sized; run them locally.
 # Add --qos=boost_qos_dbg (30 min, 2 nodes) to sbatch for short test runs.
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=mpo_mpo
+#SBATCH --job-name=stack
 #SBATCH --account=EUHPC_D30_139
 #SBATCH --partition=boost_usr_prod
 #SBATCH --time=02:00:00
@@ -30,9 +30,5 @@ if [[ -d $CUDA_COMPAT ]]; then
 fi
 
 echo "NODE: $SLURMD_NODENAME, CPUS: $SLURM_CPUS_PER_TASK, ARGS: $*"
-nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
 
-srun --label python bench_mpo_mpo.py "$@"
-
-sacct --format=JobID,JobName,NCPUS,AveCPU,Elapsed,ExitCode --jobs="$SLURM_JOB_ID"
-sacct --format=JobID,JobName,MaxRSS,MaxRSSNode --units=G --jobs="$SLURM_JOB_ID"
+srun python "$REPO/benches/stack/bench_depth.py" "$@" --output "logs/$1_$SLURM_JOB_ID.md"

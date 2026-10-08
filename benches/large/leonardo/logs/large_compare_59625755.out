@@ -1,0 +1,28 @@
+NODE: lrdn2346, CPUS: 32, ARGS: --debug compare /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 --chi-out 500 --small 4GB --large 60GB --scratch-dir /leonardo_scratch/large/userexternal/rpanades/src-large/scratch
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: prefetch=1, device peak=3855012864 B, host peak=30958244864 B, disk=0 B, scratch=None, tiers=['device', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host'], batches (env, sketch, project)=[(480, 0, 480), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (64, 32, 16), (0, 480, 480)]
+Left-to-right sweep: 38.243 s
+Right-to-left sweep: 69.762 s
+SRC stalls: sites 10.108 s, environments 31.839 s
+Device pool: 5460450304 B
+SRC complete
+Run complete: 129.8 s, pool 5460450304 B, host peak 40588197888 B, planned device peak 3855012864 B, planned host peak 30958244864 B, disk 0 B, tiers {'device': 1, 'host': 49, 'disk': 0}, sketch batches [32, 480]
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: prefetch=1, device peak=58841624576 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 13.859 s
+Right-to-left sweep: 95.954 s
+SRC stalls: sites 13.835 s, environments 0.000 s
+Device pool: 60811395072 B
+SRC complete
+Run complete: 109.9 s, pool 60811395072 B, host peak 40588197888 B, planned device peak 58841624576 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [480]
+Relative distance between the runs: 0.000e+00
+JobID           JobName    Elapsed     MaxRSS  MaxDiskRead MaxDiskWrite ExitCode 
+------------ ---------- ---------- ---------- ------------ ------------ -------- 
+59625755     large_com+   00:04:47                                           0:0 
+59625755.ba+      batch   00:04:47                                           0:0 
+59625755.ex+     extern   00:04:47                                           0:0 
+59625755.0       python   00:04:44                                           0:0 

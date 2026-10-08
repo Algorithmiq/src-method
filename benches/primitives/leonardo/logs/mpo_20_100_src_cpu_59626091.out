@@ -1,0 +1,32 @@
+NODE: lrdn3007, CPUS: 32, ARGS: --n-sites 20 --chi-out 100
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 15:51:38,906 INFO __main__ benchmark_start: n_sites=20, chi_out=100, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=yes, device=cpu
+0: 2026-10-07 15:51:38,906 INFO __main__ Generating MPOs...
+0: 2026-10-07 15:51:39,734 INFO __main__ Computing reference contraction (no compression)...
+0: 2026-10-07 15:51:39,867 INFO __main__ Reference contraction took 0.13266686700000002 s
+0: 2026-10-07 15:51:39,867 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 15:51:39,867 DEBUG src_method.stack Starting SRC: n_sites=20, depth=2, output=mpo, device=numpy
+0: 2026-10-07 15:51:39,879 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=37439744 B, host peak=14089472 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(96, 0, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (0, 96, 96)]
+0: 2026-10-07 15:51:39,999 DEBUG src_method._sweep Left-to-right sweep: 0.120 s
+0: 2026-10-07 15:51:40,113 DEBUG src_method._sweep Right-to-left sweep: 0.114 s
+0: 2026-10-07 15:51:40,113 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 15:51:40,114 DEBUG src_method._sweep Device pool: 0 B
+0: 2026-10-07 15:51:40,114 DEBUG src_method.stack SRC complete
+0: 2026-10-07 15:51:40,114 INFO __main__  SRC's contraction-compression took 0.247298909 s
+0: 2026-10-07 15:51:40,612 INFO __main__  - Distance to reference: 1.4901161193847656e-08 (relative 1.4901161193847666e-08)
+0: 2026-10-07 15:51:40,612 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626091     mpo_20_10+         32              00:00:24      0:0 
+59626091.ba+      batch         32              00:00:24      0:0 
+59626091.ex+     extern         32              00:00:24      0:0 
+59626091.0       python         32              00:00:20      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626091     mpo_20_10+                       
+59626091.ba+      batch                       
+59626091.ex+     extern                       
+59626091.0       python                       

@@ -1,0 +1,39 @@
+NODE: lrdn3032, CPUS: 32, ARGS: --n-sites 50 --chi-out 1000 --compare no --device gpu
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 16:07:18,364 INFO __main__ benchmark_start: n_sites=50, chi_out=1000, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=no, device=gpu
+0: 2026-10-07 16:07:18,364 INFO __main__ Generating MPOs...
+0: 2026-10-07 16:07:29,145 INFO __main__ Warming up the GPU...
+0: 2026-10-07 16:07:42,169 DEBUG src_method.stack Starting SRC: n_sites=4, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:07:43,471 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=4224 B, host peak=2432 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device'], batches (env, sketch, project)=[(2, 0, 2), (2, 2, 2), (2, 2, 2), (0, 2, 2)]
+0: 2026-10-07 16:07:59,920 DEBUG src_method._sweep Left-to-right sweep: 16.131 s
+0: 2026-10-07 16:08:11,732 DEBUG src_method._sweep Right-to-left sweep: 11.812 s
+0: 2026-10-07 16:08:11,732 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 16:08:11,732 DEBUG src_method._sweep Device pool: 48640 B
+0: 2026-10-07 16:08:11,733 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:08:11,733 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 16:08:11,733 DEBUG src_method.stack Starting SRC: n_sites=50, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:08:11,752 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=4281347072 B, host peak=3328067072 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(992, 0, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (9
+0: 92, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (0, 992, 992)]
+0: 2026-10-07 16:08:12,392 DEBUG src_method._sweep Left-to-right sweep: 0.604 s
+0: 2026-10-07 16:08:16,200 DEBUG src_method._sweep Right-to-left sweep: 3.809 s
+0: 2026-10-07 16:08:16,200 DEBUG src_method._sweep SRC stalls: sites 0.398 s, environments 0.000 s
+0: 2026-10-07 16:08:16,200 DEBUG src_method._sweep Device pool: 5080812544 B
+0: 2026-10-07 16:08:16,201 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:08:16,201 INFO __main__  SRC's contraction-compression took 4.468574902 s
+0: 2026-10-07 16:08:16,201 INFO __main__  - CuPy pool high-water mark: 5.08 GB
+0: 2026-10-07 16:08:16,201 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59627373     mpo_50_10+         32              00:01:30      0:0 
+59627373.ba+      batch         32              00:01:30      0:0 
+59627373.ex+     extern         32              00:01:30      0:0 
+59627373.0       python         32   00:05:16   00:01:26      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59627373     mpo_50_10+                       
+59627373.ba+      batch                       
+59627373.ex+     extern                       
+59627373.0       python      6.40G   lrdn3032 

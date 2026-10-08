@@ -11,25 +11,60 @@ commands to reproduce them.
 ## Primitives
 
 [`benches/primitives`](https://github.com/Algorithmiq/src-method/tree/main/benches/primitives)
-compares the MPO-MPO product against `quimb`'s contract-then-compress on the
-Leonardo supercomputer at CINECA. One MPO is random, the other a slightly
-perturbed identity, so the product is highly compressible.
+compares the MPO-MPO product against `quimb`'s contract-then-compress on one
+Booster node of the Leonardo supercomputer at CINECA (32 cores, one A100-64GB).
+One MPO is random, the other a slightly perturbed identity, so the product is
+highly compressible.
 
-| Experiment | CPUs | quimb (s) | src (s) | Speedup |
+| Experiment | quimb CPU (s) | src CPU (s) | src GPU (s) | Speedup (GPU) |
 |---|---|---|---|---|
-| 50 sites, $\chi = 50$ | 32 | 164.97 | 11.92 | 13.8x |
-| 20 sites, $\chi = 100$ | 32 | 2004.52 | 94.83 | 21x |
-| 25 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 112 | 501.82 (rsvd) | 71.01 | 7x |
-| 50 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 112 | 1187.82 (rsvd) | 150.11 | 8x |
+| 50 sites, $\chi = 50$ | 37.76 | 0.23 | 0.57 | 66x |
+| 20 sites, $\chi = 100$ | 17.86 | 0.25 | 0.46 | 39x |
+| 25 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 422.57 | 60.47 | 2.32 | 182x |
+| 50 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 1040.72 | 137.37 | 4.47 | 233x |
 
-At $\chi = 1000$, SRC also used about a sixth of the peak memory of `quimb`.
+At small $\chi$ the CPU is faster than the GPU, which has too little work to
+fill it. At $\chi = 1000$ SRC uses about a seventh of the peak host memory of
+`quimb`, and single precision (`complex64`) brings the GPU time to 1.90 s and
+3.03 s.
 
-## Stacks
+## Quench dynamics
 
 [`benches/stack`](https://github.com/Algorithmiq/src-method/tree/main/benches/stack)
-compares one sweep over a [stack](/features/stacks), `src(A_1, ..., A_k, psi)`,
+evolves 50 and 100 qubits of the non-integrable mixed-field Ising chain from
+$|0\dots0\rangle$ to $t = 8$ (80 Trotter steps), on one A100, fusing $k$ steps
+per [stack](/features/stacks) sweep. Errors are against a $\chi = 1024$
+reference.
+
+| Qubits | $\chi$ | Method | Time (s) | Infidelity |
+|---|---|---|---|---|
+| 50 | 64 | quimb, 32 cores | 731 | 0.037 |
+| 50 | 64 | src GPU, $k = 1$ | 6.87 | 0.062 |
+| 50 | 128 | src GPU, $k = 4$ | 3.01 | 0.022 |
+| 50 | 512 | src GPU, $k = 2$ | 19.2 | 6.9e-4 |
+| 100 | 256 | src GPU, $k = 4$ | 11.6 | 0.014 |
+| 100 | 512 | src GPU, $k = 2$ | 40.6 | 1.8e-3 |
+
+- SRC on the GPU is 100-250x faster than `quimb` at equal $\chi$. Exact SVD
+  truncation is more accurate at equal $\chi$, but SRC at twice the bond
+  dimension beats it at a fraction of the time.
+- Fusing two or four steps per sweep is 1.8-2.8x faster than one at a time, for
+  at most 7 % more infidelity.
+
+## Out-of-core
+
+[`benches/large`](https://github.com/Algorithmiq/src-method/tree/main/benches/large)
+compresses a stack whose middle MPO is read from disk. On one A100, a 50-site
+stack with $D_M = 1000$ compressed to $\chi = 500$ gives bit-identical results
+under a 4 GB and a 60 GB GPU budget, which keep 49 and 0 of the 50
+environments on the host; spilling costs 18 % of the wall time.
+
+## Stack depth
+
+[`benches/stack`](https://github.com/Algorithmiq/src-method/tree/main/benches/stack)
+also compares one sweep over a [stack](/features/stacks), `src(A_1, ..., A_k, psi)`,
 with pairwise application truncating after every product, as a function of the
-number of trains.
+number of trains, on small chains on a laptop.
 
 - One sweep over the whole stack is at best moderately more accurate. For random
   stacks ending in an MPS it has about 20 % lower median error at depth 4; for

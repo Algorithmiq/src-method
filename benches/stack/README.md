@@ -14,6 +14,8 @@ check.
   left).
 - `timing`: best-of-3 wall time on 30-site chains, MPS bond 64, `chi = 64`.
   `ratio` is one-shot time over sequential time.
+- `evolve`: quench dynamics of 50+ qubits on the GPU (see
+  [Leonardo](#leonardo-quench-of-50-and-100-qubits)).
 
 Families: `random` are complex Gaussian MPOs of bond 3 (flat spectra);
 `trotter-<dt>` are brickwork layers of a mixed-field Ising model with random
@@ -27,7 +29,68 @@ uv run python benches/stack/bench_depth.py timing --output timing.md
 
 Tuple options repeat the flag, e.g. `--depths 2 --depths 3`.
 
-## Results
+## Leonardo: quench of 50 and 100 qubits
+
+`evolve` runs the quench of the mixed-field Ising chain
+`H = sum Z_i Z_{i+1} + 1.05 sum X_i + 0.5 sum Z_i` from `|0...0>`, the
+non-integrable point of Banuls, Cirac and Hastings (PRL 106, 050405, 2011). A
+first-order Trotter step is a single MPO of bond 2; 80 steps of `dt = 0.1` reach
+`t = 8`, where the entanglement exceeds what `chi = 512` holds. SRC applies `k`
+steps per sweep (`k = 1` is pairwise application), on one A100-64GB. The
+reference is `k = 1` at `chi = 1024`; rows give the wall time of the 80 steps,
+the infidelity of the final state and the error of `<Z>` on the middle qubit.
+`quimb` applies the same MPO with exact SVD truncation on the 32 cores of the
+node. The script and logs are in [`leonardo/`](leonardo/); see the
+[Leonardo section](../README.md#leonardo) for the environment.
+
+```bash
+sbatch run.sh evolve --n-sites 50 --quimb-max-chi 0
+sbatch run.sh evolve --n-sites 100 --quimb-max-chi 0
+sbatch run.sh evolve --n-sites 50 --chis 64 --quimb-max-chi 64
+```
+
+| qubits | chi | method | seconds | infidelity | z_error |
+|---|---|---|---|---|---|
+| 50 | 64 | quimb cpu | 731 | 0.0368 | 0.00408 |
+| 50 | 64 | src gpu k=1 | 6.87 | 0.0616 | 0.0134 |
+| 50 | 64 | src gpu k=2 | 4.2 | 0.0621 | 0.012 |
+| 50 | 64 | src gpu k=4 | 2.89 | 0.0631 | 0.0135 |
+| 50 | 128 | src gpu k=1 | 7.61 | 0.0212 | 0.00554 |
+| 50 | 128 | src gpu k=2 | 4.49 | 0.0216 | 0.006 |
+| 50 | 128 | src gpu k=4 | 3.01 | 0.0218 | 0.00596 |
+| 50 | 256 | src gpu k=1 | 13.9 | 0.00527 | 0.00168 |
+| 50 | 256 | src gpu k=2 | 7.82 | 0.00538 | 0.00191 |
+| 50 | 256 | src gpu k=4 | 5.86 | 0.0055 | 0.00187 |
+| 50 | 512 | src gpu k=1 | 33.9 | 0.000662 | 0.000235 |
+| 50 | 512 | src gpu k=2 | 19.2 | 0.000692 | 0.000259 |
+| 50 | 512 | src gpu k=4 | 19.1 | 0.000711 | 0.000276 |
+| 100 | 64 | src gpu k=1 | 13.1 | 0.136 | 0.0126 |
+| 100 | 64 | src gpu k=2 | 7.63 | 0.137 | 0.0151 |
+| 100 | 64 | src gpu k=4 | 5.22 | 0.138 | 0.0141 |
+| 100 | 128 | src gpu k=1 | 15.7 | 0.0499 | 0.00592 |
+| 100 | 128 | src gpu k=2 | 8.77 | 0.0509 | 0.0064 |
+| 100 | 128 | src gpu k=4 | 5.61 | 0.0512 | 0.00625 |
+| 100 | 256 | src gpu k=1 | 28.2 | 0.0131 | 0.00168 |
+| 100 | 256 | src gpu k=2 | 15.4 | 0.0134 | 0.00166 |
+| 100 | 256 | src gpu k=4 | 11.6 | 0.0137 | 0.00179 |
+| 100 | 512 | src gpu k=1 | 72.3 | 0.00175 | 0.000245 |
+| 100 | 512 | src gpu k=2 | 40.6 | 0.00184 | 0.000254 |
+| 100 | 512 | src gpu k=4 | 41.4 | 0.00188 | 0.000247 |
+
+The references take 138 s (50 qubits) and 308 s (100 qubits) and agree on the
+middle `<Z>` to `1e-6` (0.667890 and 0.667891).
+
+- SRC on the GPU runs the 50-qubit quench 100-250x faster than `quimb` on 32
+  cores at `chi = 64`. Exact SVD truncation is more accurate at equal `chi`
+  (infidelity 0.037 against 0.062), but SRC at `chi = 128` beats it in 3-8 s
+  against 731 s, and at `chi = 512` reaches `7e-4` in 19-34 s.
+- Fusing two or four Trotter steps per sweep is 1.8-2.8x faster than one step at
+  a time and raises the infidelity by at most 7 %. At `chi = 512` four steps are
+  no faster than two: the `chi**2` times `2**k` cost of the sweep takes over.
+- The time grows linearly with the number of qubits; the infidelity of a fixed
+  `chi` grows with it, while the local error does not.
+
+## Small-scale results (laptop)
 
 Measured on an AMD Ryzen 7 7840U, 16 threads, with light background load.
 
@@ -105,7 +168,7 @@ Measured on an AMD Ryzen 7 7840U, 16 threads, with light background load.
 | random D=16 x2 . mps | 3 | 64 | 11.8 | 1.31 | 9.05 |
 | random D=16 x3 . mps | 4 | 64 | 316 | 2.33 | 136 |
 
-## Summary
+### Summary
 
 - One sweep over the whole stack is at best moderately more accurate than
   pairwise application. For random stacks ending in an MPS it has about 20 %
