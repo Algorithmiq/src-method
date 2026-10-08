@@ -6,9 +6,9 @@
 
 **Architecture:** A small `Communicator` interface in `_comm.py` (single process, `mpi4py` on host arrays, NCCL on CuPy arrays) carries the few collectives the sweep needs. `src` builds the communicator from `Resources(comm=...)`, agrees on the call and the seed, and hands the output to a sink (rank 0 in memory, or `.npy` files and memmaps on every rank). The Phase 1 driver keeps one copy of the maths: each rank owns a cyclic subset of the sketch columns, and the right-to-left pass all-gathers the sketch columns and the rows of the projected environment at every site. The planner plans each rank's share.
 
-**Tech Stack:** Python 3.11-3.14, NumPy and CuPy (through `src_method.utils._backend`), `opt_einsum`, `structlog`, `mpi4py>=4` (new `mpi` extra), NCCL through `cupy.cuda.nccl` (`nvidia-nccl-cu12` in the `gpu-nvidia` extra), `pytest`, `cyclopts` (benchmark), `uv`, `ruff` through `prek`, GitButler (`but`).
+**Tech Stack:** Python 3.11-3.14, NumPy and CuPy (through `src_method.utils._backend`), `opt_einsum`, standard-library `logging`, `mpi4py>=4` (new `mpi` extra), NCCL through `cupy.cuda.nccl` (`nvidia-nccl-cu12` in the `gpu-nvidia` extra), `pytest`, `cyclopts` (benchmark), `uv`, `ruff` through `prek`, GitButler (`but`).
 
-**Spec:** `docs/superpowers/specs/2026-09-25-src-multi-gpu-design.md` (read it first; this plan argues from it). Phase 1 context: `docs/superpowers/specs/2026-09-25-src-out-of-core-design.md`.
+**Spec:** `docs/superpowers/specs/2026-09-25-src-multi-gpu-design.md` (read it first; this plan argues from it). Phase 1 is the out-of-core sweep merged in #42 (`_plan.py`, `_kernels.py`, `_sites.py`, `_store.py`, `_sweep.py`).
 
 ## How to read this plan
 
@@ -20,10 +20,10 @@ given. Where a detail is left to the executor, the plan says so.
 
 ## Global Constraints
 
-- Work on branch `feat/src-multi-gpu`, stacked on `feat/src-out-of-core`; the spec is committed there. Commit with `but commit -b feat/src-multi-gpu -m ... <ids>` (IDs from `but diff`), never `git add`/`git commit`, and never the untracked `.codegraph/`.
+- Work on branch `feat/src-multi-gpu`, on top of `main` (Phase 1 is merged). Commit only the files of the task, never the untracked `.codegraph/`.
 - `from __future__ import annotations` at the top of every module under `src/`; type hints everywhere; Google-style docstrings without types on every public function, class and module; `ruff` is the source of truth for style.
 - Backend-specific calls (CuPy, NCCL, device selection) live in `src_method.utils._backend` or in `_comm.py`; the algorithms get `xp` and a `Communicator`. `mpi4py` and `cupy.cuda.nccl` are imported lazily, only when a communicator is given: a single-process run imports neither.
-- Log with `structlog`, never `print`, and never `warnings.warn` for run-time advice (`filterwarnings = ["error"]` turns warnings into test failures).
+- Log with the standard library (`logger = logging.getLogger(__name__)`, lazy `%`-style arguments, no handlers in the package), never `print`, and never `warnings.warn` for run-time advice (`filterwarnings = ["error"]` turns warnings into test failures).
 - `src`, `apply`, `compress` stay pure: never mutate inputs.
 - Commits: `<type>(<optional scope>): <gitmoji> <description>`, ending with `Assisted-by: Pi:claude-opus-5-5`, no `Co-authored-by`.
 - Before pushing: `uv run prek run --all-files` and `uv run pytest` pass.
@@ -37,7 +37,7 @@ Settled while planning; the executor should not undo them.
 1. **`Communicator.abort(code)`** joins the interface: the driver calls it when an exception escapes during the sweep on more than one rank. `SingleComm.abort` is never called.
 2. **The truncation rank is agreed through a callback**: `truncated_qr(matrix, cutoff, xp, agree_rank=None)` computes its local rank from the singular values of `R` and passes it through `agree_rank` (rank 0's value, broadcast) before truncating. The spec's "optional `rank` argument" cannot work, because the rank is only known inside the function.
 3. **Output sinks and `unpad_site`**: the output goes through a small sink object, and each core is unpadded as it is produced, with a new `unpad_site` that mirrors `pad_site`.
-4. **Large in-memory inputs are logged, not warned about**: when a distributed call on more than one rank per node gets an in-memory `np.ndarray` layer (not a memmap) above 1 GiB, `src` logs a warning through `structlog` that every rank holds a copy.
+4. **Large in-memory inputs are logged, not warned about**: when a distributed call on more than one rank per node gets an in-memory `np.ndarray` layer (not a memmap) above 1 GiB, `src` logs a warning (`logger.warning`) that every rank holds a copy.
 5. **CI uses the system MPICH** on the Ubuntu runner (`apt-get install mpich`) with the `mpi4py` wheel from PyPI; the MPI tests skip wherever `mpiexec` or a working `mpi4py` is missing.
 
 ## File map
@@ -58,7 +58,7 @@ Settled while planning; the executor should not undo them.
 | `tests/test_comm.py`, `tests/test_output.py` | create | unit and MPI tests |
 | `tests/test_plan.py`, `tests/test_stack.py`, `tests/test_tensor_train.py`, `tests/test_backend.py`, `tests/test_gpu_backend.py`, `tests/test_linalg.py` | modify / create | planner, integration, helpers, GPU |
 | `benches/large/bench_large.py`, `benches/large/README.md` | modify | MPI mode, `scaling` and `efficiency` commands |
-| `docs/large-problems.md`, `README.md`, `docs/developer-guide/dependencies.md`, `docs/developer-guide/testing.md` | modify | documentation |
+| `docs/content/docs/features/large-problems.mdx`, `README.md`, `docs/content/docs/contributing/dependencies.mdx`, `docs/content/docs/contributing/testing.mdx` | modify | documentation |
 
 ---
 
@@ -101,7 +101,7 @@ def collectively(comm: Communicator, fn: Callable[[], T]) -> T
 Behaviour:
 
 - `agree` runs `fn` on every rank, then all-gathers `None` or `(type name, message)` of the exception it raised. If any rank failed, every rank raises an exception of the same type (one of `ValueError`, `MemoryError`, `TypeError`, otherwise `RuntimeError`) with the message of the lowest failing rank, prefixed `"Rank {r}: "`. Without failures it returns `fn()`'s result. With `SingleComm` it is `fn()`.
-- `collectively` runs `fn`; if an exception escapes and `comm.size > 1`, it logs it with `logger.exception("SRC failed; aborting", rank=comm.rank)` and calls `comm.abort(1)`; with one rank it re-raises.
+- `collectively` runs `fn`; if an exception escapes and `comm.size > 1`, it logs it with `logger.exception("SRC failed on rank %d; aborting", comm.rank)` and calls `comm.abort(1)`; with one rank it re-raises.
 
 Tests to write (`tests/test_comm.py`):
 
@@ -154,7 +154,7 @@ def mpirun(tmp_path) -> Callable[..., MpiResult]:
     # run(script: str, n: int, *args: str, timeout: float = 120) -> MpiResult
     #   command: mpiexec [--oversubscribe if Open MPI] -n n sys.executable
     #            tests/mpi_scripts/<script> <tmp_path> *args
-    #   env: LOG_LEVEL_SRC=INFO, OMP_NUM_THREADS=1
+    #   env: OMP_NUM_THREADS=1 (the scripts configure logging themselves)
     # MpiResult: returncode, output (stdout + stderr), and per-rank results loaded from
     #   <tmp_path>/rank-<r>.npz (a dict of arrays; missing file -> None)
 ```
@@ -178,7 +178,7 @@ Tests to write:
 ### Task 3: NCCL on device arrays
 
 **Files:**
-- Modify: `src/src_method/_comm.py` (`NcclComm`), `src/src_method/utils/_backend.py` (`nccl_module`, `select_device`), `pyproject.toml` (`nvidia-nccl-cu12` in `gpu-nvidia`), `uv.lock`
+- Modify: `src/src_method/_comm.py` (`NcclComm`), `src/src_method/utils/_backend.py` (`nccl_module`, `select_device`), `pyproject.toml` (`nvidia-nccl-cu13` in `gpu-nvidia`, matching `cupy-cuda13x`), `uv.lock`
 - Test: `tests/test_backend.py` (append), `tests/test_gpu_backend.py` (append), `tests/mpi_scripts/collectives.py` (a `--device gpu` option)
 
 **Interfaces (produced):**
@@ -353,7 +353,7 @@ agree(comm, check_fingerprint)        # all-gather the fingerprint; mismatch -> 
     message: "Ranks disagree on the call: rank {r} has {field} = {value}, rank 0 {value0}."
 if seed is None and comm.size > 1: seed = comm.bcast_int(fresh 63-bit seed on rank 0)
 prng = default_rng(seed)
-warn_in_memory_inputs(layers, comm)   # structlog warning, see Refinement 4
+warn_in_memory_inputs(layers, comm)   # logger.warning, see Refinement 4
 sink = make_sink(n_sites, comm.rank, output_dir, comm.barrier)
 exact path: cores computed on every rank; rank 0 adds them to the sink
 sweep path: until Task 8, call sweep as today and let rank 0 add the returned cores
@@ -411,7 +411,7 @@ collectively(comm, passes):
     S = comm.allgather(local_S, axis=0)
     if comm.rank == 0: sink.add(j, unpad_site(to_numpy(eta_j), kind, j, last))
   first site: rank 0 only, added to the sink as site 0
-log "SRC stalls" per rank (add rank=comm.rank to the log lines when comm.size > 1)
+log "SRC stalls" per rank (prefix the log lines with the rank when comm.size > 1)
 return sink.finish() only when the sink was created here; otherwise src finishes it
 ```
 
@@ -424,7 +424,7 @@ Tests to write (`tests/mpi_scripts/distributed_src.py` builds, on every rank, th
   - With `--host-memory 1MB --scratch-dir <tmp>`: the result still matches, and every rank's scratch directory is gone afterwards (the tmp directory is empty).
   - Planning failure: rank 1 gets `--host-memory 1kB`: every rank saves a `MemoryError` naming rank 1; exit status 0.
   - Abort: `--fail-on-rank 1` monkeypatches `SiteKernels.sketch` to raise on rank 1: nonzero exit status, and the output contains `aborting` and `rank=1`.
-  - Seed agreement: `--no-seed` with `n = 2`: rank 0 logs the agreed seed (at `debug`, `seed=...`); a single-process `src` with that seed gives the same dense operator as rank 0's result.
+  - Seed agreement: `--no-seed` with `n = 2`: rank 0 logs the agreed seed (at `DEBUG`, `seed=%d`); a single-process `src` with that seed gives the same dense operator as rank 0's result.
   - The existing single-process tests pass unchanged (`uv run pytest -m "not perf"`).
 - [ ] **Step 2: Run**; expected: failures (keyword `comm` unknown to `sweep`).
 - [ ] **Step 3: Implement** in `_sweep.py`; keep one copy of the passes, with the communicator calls as the only difference.
@@ -466,12 +466,12 @@ Behaviour:
 ### Task 11: Documentation and final verification
 
 **Files:**
-- Modify: `docs/large-problems.md` (section "Several GPUs"), `README.md` (a sentence and a link under "Large Problems"), `docs/developer-guide/dependencies.md` (the `mpi` extra and an MPI library: system, or `mpich`/`openmpi` wheels from `https://pypi.anaconda.org/mpi4py/simple`, or `impi-rt`), `docs/developer-guide/testing.md` (running the MPI tests: install MPICH, `uv sync --extra mpi`, then `uv run pytest`; the `mpirun` fixture; timeouts)
+- Modify: `docs/content/docs/features/large-problems.mdx` (section "Several GPUs"), `README.md` (a sentence and a link under "Large Problems"), `docs/content/docs/contributing/dependencies.mdx` (the `mpi` extra and an MPI library: system, or `mpich`/`openmpi` wheels from `https://pypi.anaconda.org/mpi4py/simple`, or `impi-rt`), `docs/content/docs/contributing/testing.mdx` (running the MPI tests: install MPICH, `uv sync --extra mpi`, then `uv run pytest`; the `mpirun` fixture; timeouts)
 
 Content of "Several GPUs": launching with `srun -n G` or `mpirun -n G`; `Resources(comm=MPI.COMM_WORLD, output_dir=...)`; every rank calls `src` with the same arguments; return values on rank 0 and the others; large inputs file-backed, and the logged warning otherwise; how the ranks of a node share host memory and scratch disk; an error during the sweep aborts the job; the expected efficiency and when it drops (small problems).
 
 - [ ] **Step 1: Write** the documentation.
-- [ ] **Step 2: Build** `uv run mkdocs build`; expected: success.
+- [ ] **Step 2: Build** the docs site (see `docs/content/docs/contributing/documenting.mdx`); expected: success, and the Python blocks of the new section pass the docs test (or are marked `python notest`).
 - [ ] **Step 3: Verify** `uv run prek run --all-files` and `uv run pytest` (with and without the `mpi` extra); expected: all pass, MPI tests skipped without it.
 - [ ] **Step 4: Commit** `docs: 📝 running SRC on several GPUs`.
 - [ ] **Step 5: Acceptance on the cluster:** the 1/2/4/8 series on 8xA100 and 8xH100 and the 1/2 series on 2xA100 at the reference size, with `efficiency` over each; record the tables and the pass criteria in `benches/large/README.md` under "Results (Phase 2)", and commit `perf(bench): 📈 multi-GPU scaling results`.

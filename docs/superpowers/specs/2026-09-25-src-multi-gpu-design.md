@@ -1,8 +1,7 @@
 # Design: SRC sweep over the GPUs of a node (Phase 2)
 
 - Status: approved; refined while planning (see the plan's "Refinements of the spec")
-- Builds on: Phase 1, the out-of-core sweep
-  ([design](2026-09-25-src-out-of-core-design.md)).
+- Builds on: Phase 1, the out-of-core sweep (#42, merged).
 - Follow-up: Phase 3, the bond split across nodes; see
   [Forward compatibility](#forward-compatibility-with-phase-3).
 
@@ -205,7 +204,7 @@ leave the others waiting.
   MPICH, the `mpich` or `openmpi` wheels of the mpi4py project, or `impi-rt`. CI
   installs the system MPICH on its Ubuntu runner, and the Nix dev shell provides
   MPICH.
-- The `gpu-nvidia` extra gains `nvidia-nccl-cu12`.
+- The `gpu-nvidia` extra gains `nvidia-nccl-cu13`, matching `cupy-cuda13x`.
 
 ## Expected scaling
 
@@ -280,12 +279,12 @@ Pass criteria:
 
 ## Documentation
 
-- A "Several GPUs" section in `docs/large-problems.md`: launching with `srun` or
+- A "Several GPUs" section in `docs/content/docs/features/large-problems.mdx`: launching with `srun` or
   `mpirun`, `Resources(comm=..., output_dir=...)`, file-backed large inputs, how the
   ranks of a node share host memory and scratch disk, and the abort on errors
   during the sweep.
-- `README.md` points to it; `docs/developer-guide/dependencies.md` lists the `mpi`
-  extra; `docs/developer-guide/testing.md` explains how to run the MPI tests.
+- `README.md` points to it; `docs/content/docs/contributing/dependencies.mdx` lists
+  the `mpi` extra; `docs/content/docs/contributing/testing.mdx` explains how to run the MPI tests.
 
 ## Forward compatibility with Phase 3
 
