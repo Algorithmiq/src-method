@@ -105,7 +105,9 @@ out = src(
 )
 ```
 
-See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory and how to read the logged plan.
+On a node with several GPUs, `Resources(devices=4)` splits the sweep among four of them, in the same process.
+
+See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory, several GPUs and how to read the logged plan.
 
 ### Logging
 

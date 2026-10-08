@@ -1,6 +1,6 @@
 ---
 title: Large problems
-description: Run stacks that fit neither on the GPU nor in host memory.
+description: Run stacks that fit neither on the GPU nor in host memory, on one GPU or several.
 ---
 
 A single SRC sweep keeps, besides the input and output trains, one sketched
@@ -75,13 +75,68 @@ reference size of 50 sites, `D_M = 4000` and `chi_out = 2000` in complex128, up 
 returns, also after an error; a process killed with `SIGKILL` leaves it behind, and
 its name identifies the process.
 
+## Several GPUs
+
+On a node with several GPUs, one sweep can be split among them:
+
+```python notest
+from src_method import Resources, src
+
+out = src(
+    N, V, M, U,
+    chi_out=2000,
+    dtype=np.complex128,
+    device="gpu",
+    resources=Resources(devices=4, scratch_dir="/local/scratch"),
+)
+```
+
+`devices` is a count, for the first `n` visible GPUs, or a list of device ids;
+the first one gathers the sketches and runs the QR. Everything runs in the calling
+process, one thread per GPU, so nothing changes for the caller: the call returns
+the output cores as with one GPU, errors are raised as usual, and the inputs are
+read once and shared.
+
+The sketch index is split: each GPU owns a contiguous block of the `chi_out`
+sketch columns and computes only those columns of every environment and of every
+sketch, so the environments, the dominant memory, are split among the GPUs too.
+At every site of the right-to-left pass, the first GPU gathers the sketch, runs
+the QR and gives each GPU a block of rows of the output core; each GPU projects
+its rows of the next projected environment, and those rows are gathered on every
+GPU. The random draws are those of one GPU, so the result is that of one GPU up to
+rounding.
+
+What is not split:
+
+- every GPU holds a whole site: the cores, the projected environment and the
+  output core of the site, so the largest site that fits is that of one GPU;
+- every core is read from the source once, but every GPU needs a copy. When the
+  GPUs reach each other directly (NVLink, or PCIe peer-to-peer), each uploads a
+  slice of the core and gathers the rest from the others; otherwise each uploads
+  the whole core;
+- the QR runs on the first GPU while the others wait.
+
+These costs grow more slowly with the problem than the contractions do, so large
+problems, the ones this is for, scale close to linearly, while small ones may run
+slower on several GPUs than on one.
+
+The budgets apply as follows: `gpu_memory` is the budget of each GPU (detected:
+the smallest free memory of the GPUs), while `host_memory` and `scratch_dir` are
+shared by all of them. Every GPU writes its environments to its own scratch
+directory.
+
+On the CPU, `devices` simulates the GPUs with threads that share the host; the
+result is the same, and the mode exists to test the multi-GPU sweep without GPUs.
+
 ## Reading the plan
 
 With `DEBUG` logging on for the `src_method` logger (see
 [Logging](/features/logging)), every sweep logs its plan as `SRC plan: ...`:
 
 - `prefetch`: whether the next site is read ahead;
-- `device peak`, `host peak`, `disk`: the planned peaks, in bytes;
+- `devices`: the device ids the sweep is split among;
+- `device peak`, `host peak`, `disk`: the planned peaks, in bytes; the device
+  peak is that of each device, the others are totals;
 - `scratch`: the scratch directory, when anything spills to disk;
 - `tiers`: where the environment of each site lives (`device`, `host` or `disk`);
 - `batches`: for each site, the batch of the environment, sketch and projection
@@ -89,4 +144,5 @@ With `DEBUG` logging on for the `src_method` logger (see
 
 It then logs the time of each pass and, at the end, `SRC stalls`: the seconds
 the sweep waited for input cores and for environments. If they are a large
-fraction of the run, the disk is too slow for the compute.
+fraction of the run, the disk is too slow for the compute. With several devices,
+these lines start with the device they refer to.
