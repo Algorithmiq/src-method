@@ -317,3 +317,116 @@ def test_gpu_pool_cap_leaves_room_for_fragmentation(tmp_path) -> None:
     _, total = cupy.cuda.runtime.memGetInfo()
     margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
     assert limits == [used + budget + margin]
+
+
+# --------------------
+# --- Several GPUs ---
+# --------------------
+
+
+@pytest.fixture
+def two_gpus() -> None:
+    """Skip unless at least two GPUs are visible."""
+    if cupy.cuda.runtime.getDeviceCount() < 2:
+        pytest.skip("Needs at least two GPUs.")
+
+
+@pytest.mark.usefixtures("two_gpus")
+@pytest.mark.parametrize("uploads", ["split", "full"])
+def test_two_gpus_match_one(
+    tmp_path, plans: list[Plan], monkeypatch: pytest.MonkeyPatch, uploads: str
+) -> None:
+    """Two GPUs, with or without split uploads, give the operator of one.
+
+    An odd ``chi`` gives uneven blocks, and the budgets every tier.
+    """
+    rng = np.random.default_rng(7)
+    stack = [random_mpo_arrays([4, 8, 8, 8, 4], rng) for _ in range(4)]
+    chi = 63
+    if uploads == "full":
+        monkeypatch.setattr(
+            "src_method._group.enable_peer_access", lambda _xp, _devices: False
+        )
+    shapes, sizes = padded_shapes(stack), site_bytes(stack)
+    roomy = make_plan(
+        shapes,
+        sizes,
+        chi,
+        np.complex128,
+        Budgets(10**10, 10**10, 10**12, tmp_path, unified=False),
+        devices=2,
+    )
+    env = (chi // 2 + 1) * 8**4 * 16  # one bulk environment on one GPU
+    # Checked with make_plan: one environment per GPU on the device, two in host
+    # memory, the oldest two on disk.
+    tight = Resources(
+        gpu_memory=roomy.device_peak - 2 * env,
+        host_memory=roomy.host_peak + 12 * env,
+        scratch_dir=tmp_path,
+        devices=2,
+    )
+
+    one = src(*stack, chi_out=chi, seed=3, dtype=np.complex128, device="gpu")
+    two = src(
+        *stack, chi_out=chi, seed=3, dtype=np.complex128, device="gpu", resources=tight
+    )
+
+    assert {site.tier for site in plans[-1].sites} == {"device", "host", "disk"}
+    reference = dense_mpo(one)
+    error = np.linalg.norm(dense_mpo(two) - reference) / np.linalg.norm(reference)
+    assert error < 1e-10
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.usefixtures("two_gpus")
+def test_two_gpus_take_device_inputs() -> None:
+    """Cores given on one GPU reach the other through the staging buffer."""
+    rng = np.random.default_rng(10)
+    stack = [random_mpo_arrays([2, 3, 3, 2], rng) for _ in range(2)]
+    with cupy.cuda.Device(1):
+        on_device = [[cupy.asarray(t) for t in train] for train in stack]
+
+    host = src(*stack, chi_out=8, seed=0, device="gpu")
+    both = src(
+        *on_device, chi_out=8, seed=0, device="gpu", resources=Resources(devices=2)
+    )
+
+    reference = dense_mpo(host)
+    assert (
+        np.linalg.norm(dense_mpo(both) - reference) / np.linalg.norm(reference) < 1e-10
+    )
+
+
+@pytest.mark.usefixtures("two_gpus")
+def test_two_gpus_raise_the_first_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An error on one GPU stops both, restores the pool limits and is raised."""
+    rng = np.random.default_rng(11)
+    stack = [random_mpo_arrays([2, 3, 3, 2], rng) for _ in range(2)]
+    limits = []
+    for d in range(2):
+        with cupy.cuda.Device(d):
+            limits.append(cupy.get_default_memory_pool().get_limit())
+
+    def boom(self: SiteKernels, *args: Any) -> Any:
+        if cupy.cuda.runtime.getDevice() == 1:
+            msg = "boom on GPU 1"
+            raise RuntimeError(msg)
+        return original(self, *args)
+
+    original = SiteKernels.sketch
+    monkeypatch.setattr(SiteKernels, "sketch", boom)
+    with pytest.raises(RuntimeError, match="boom on GPU 1"):
+        src(*stack, chi_out=4, seed=0, device="gpu", resources=Resources(devices=2))
+    for d in range(2):
+        with cupy.cuda.Device(d):
+            assert cupy.get_default_memory_pool().get_limit() == limits[d]
+
+
+@pytest.mark.usefixtures("two_gpus")
+def test_too_many_devices_raise() -> None:
+    count = cupy.cuda.runtime.getDeviceCount()
+    rng = np.random.default_rng(12)
+    stack = [random_mpo_arrays([2, 3, 3, 2], rng) for _ in range(2)]
+
+    with pytest.raises(ValueError, match="visible"):
+        src(*stack, chi_out=4, device="gpu", resources=Resources(devices=count + 1))
