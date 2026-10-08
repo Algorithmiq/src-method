@@ -27,3 +27,7 @@ result = apply(H, psi, chi_out=256, device="gpu")
 The inputs can be NumPy or CuPy arrays; they are moved to the device for the
 sweep, and the result always comes back as NumPy arrays on the host. Without
 CuPy installed, `device="gpu"` raises an `ImportError`.
+
+To split one sweep among several GPUs of a node, pass
+`resources=Resources(devices=n)`; see
+[Large problems](/features/large-problems#several-gpus).
