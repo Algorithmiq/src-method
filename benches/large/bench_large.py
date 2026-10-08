@@ -1,13 +1,16 @@
 """Out-of-core SRC of ``N . V . M . U`` with a large ``M``, read from disk.
 
-Three commands:
+Four commands:
 
 - ``generate``: write the four MPOs site by site as ``.npy`` files, so that ``M``
   is never whole in memory.
-- ``run``: compress the stack with automatic (or given) budgets and report the
-  plan, the wall time, the device pool size, the host peak and the stall time.
+- ``run``: compress the stack with automatic (or given) budgets, on one or several
+  GPUs, and report the plan, the wall time, the device pool sizes, the host peak
+  and the stall time.
 - ``compare``: run twice with two GPU budgets and report the relative distance
   between the two outputs, which checks that the plan does not change the result.
+- ``scaling``: run on 1, 2, 4, ... GPUs of the node and report the wall time, the
+  parallel efficiency and the distance to the single-GPU output.
 
 The plan, the per-pass times and the stall time are also logged by `src_method`
 itself at ``DEBUG``; pass ``--debug`` to see them.
@@ -15,6 +18,7 @@ itself at ``DEBUG``; pass ``--debug`` to see them.
 
 from __future__ import annotations
 
+import json
 import logging
 import resource
 from pathlib import Path  # noqa: TC003  (cyclopts reads the annotations at runtime)
@@ -94,8 +98,12 @@ def _load(directory: Path) -> list[list[np.ndarray]]:
 
 
 def _run(
-    directory: Path, chi_out: int, resources: Resources, seed: int
-) -> list[np.ndarray]:
+    directory: Path,
+    chi_out: int,
+    resources: Resources,
+    seed: int,
+    device: str = "gpu",
+) -> tuple[list[np.ndarray], float]:
     layers = _load(directory)
     plans = []
 
@@ -111,21 +119,27 @@ def _run(
             chi_out=chi_out,
             dtype=layers[0][0].dtype,
             seed=seed,
-            device="gpu",
+            device=device,
             resources=resources,
         )
         seconds = perf_counter() - start
     finally:
         sweep_module.make_plan = make_plan
-    import cupy  # noqa: PLC0415  (GPU-only benchmark)
-
     (plan,) = plans
     tiers = [site.tier for site in plan.sites]
+    pools = []
+    if device == "gpu":
+        import cupy  # noqa: PLC0415  (optional dependency)
+
+        devices = resources.devices or 1
+        for gpu in range(devices) if isinstance(devices, int) else devices:
+            with cupy.cuda.Device(gpu):
+                pools.append(cupy.get_default_memory_pool().total_bytes())
     logger.info(
-        "Run complete: %.1f s, pool %d B, host peak %d B, planned device peak %d B, "
+        "Run complete: %.1f s, pools %s B, host peak %d B, planned device peak %d B, "
         "planned host peak %d B, disk %d B, tiers %s, sketch batches %s",
         seconds,
-        cupy.get_default_memory_pool().total_bytes(),
+        pools,
         resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
         plan.device_peak,
         plan.host_peak,
@@ -133,7 +147,7 @@ def _run(
         {tier: tiers.count(tier) for tier in ("device", "host", "disk")},
         sorted({site.sketch_batch for site in plan.sites[1:]}),
     )
-    return out
+    return out, seconds
 
 
 @app.command
@@ -144,6 +158,7 @@ def run(
     gpu_memory: str | None = None,
     host_memory: str | None = None,
     scratch_dir: Path | None = None,
+    devices: int = 1,
     seed: int = 0,
 ) -> None:
     """Compress the stack written by ``generate`` on the GPU.
@@ -151,12 +166,14 @@ def run(
     Args:
         directory: The directory given to ``generate``.
         chi_out: The output bond dimension.
-        gpu_memory: GPU budget, e.g. ``36GB``; detected when omitted.
+        gpu_memory: GPU budget of each device, e.g. ``36GB``; detected when omitted.
         host_memory: Host budget; detected when omitted.
         scratch_dir: Where to spill environments; ``$TMPDIR`` when omitted.
+        devices: The number of GPUs to split the sweep among.
         seed: Seed of the sketch.
     """
-    _run(directory, chi_out, Resources(gpu_memory, host_memory, scratch_dir), seed)
+    resources = Resources(gpu_memory, host_memory, scratch_dir, devices=devices)
+    _run(directory, chi_out, resources, seed)
 
 
 def _inner(a: list[np.ndarray], b: list[np.ndarray]) -> complex:
@@ -187,11 +204,82 @@ def compare(
         scratch_dir: Where to spill environments; ``$TMPDIR`` when omitted.
         seed: Seed of the sketch, the same for both runs.
     """
-    first = _run(directory, chi_out, Resources(small, None, scratch_dir), seed)
-    second = _run(directory, chi_out, Resources(large, None, scratch_dir), seed)
-    aa, bb, ab = _inner(first, first), _inner(second, second), _inner(first, second)
-    distance = np.sqrt(max((aa + bb - 2 * ab).real, 0.0) / aa.real)
-    logger.info("Relative distance between the runs: %.3e", distance)
+    first, _ = _run(directory, chi_out, Resources(small, None, scratch_dir), seed)
+    second, _ = _run(directory, chi_out, Resources(large, None, scratch_dir), seed)
+    logger.info("Relative distance between the runs: %.3e", _distance(first, second))
+
+
+def _distance(a: list[np.ndarray], b: list[np.ndarray]) -> float:
+    """Relative Frobenius distance ``|a - b| / |a|`` of two MPOs."""
+    aa, bb, ab = _inner(a, a), _inner(b, b), _inner(a, b)
+    return float(np.sqrt(max((aa + bb - 2 * ab).real, 0.0) / aa.real))
+
+
+@app.command
+def scaling(
+    directory: Path,
+    *,
+    chi_out: int = 2000,
+    devices: Annotated[tuple[int, ...], cyclopts.Parameter(consume_multiple=True)] = (
+        1,
+        2,
+        4,
+        8,
+    ),
+    gpu_memory: str | None = None,
+    host_memory: str | None = None,
+    scratch_dir: Path | None = None,
+    results: Path | None = None,
+    seed: int = 0,
+    device: str = "gpu",
+) -> None:
+    """Run on increasing numbers of GPUs and report the strong scaling.
+
+    The first count is the reference: the efficiency of ``G`` GPUs is
+    ``T_ref * G_ref / (T_G * G)``, and every output is compared with the
+    reference output. Host memory holds two outputs at a time.
+
+    Args:
+        directory: The directory given to ``generate``.
+        chi_out: The output bond dimension.
+        devices: The GPU counts, the reference first.
+        gpu_memory: GPU budget of each device; detected when omitted.
+        host_memory: Host budget of the node; detected when omitted.
+        scratch_dir: Where to spill environments; ``$TMPDIR`` when omitted.
+        results: A JSON-lines file to append one record per run to.
+        seed: Seed of the sketch, the same for every run.
+        device: ``gpu``, or ``cpu`` to smoke-test with simulated devices.
+    """
+    reference: list[np.ndarray] | None = None
+    ref_seconds = ref_devices = 0.0
+    for count in devices:
+        resources = Resources(gpu_memory, host_memory, scratch_dir, devices=count)
+        out, seconds = _run(directory, chi_out, resources, seed, device)
+        if reference is None:
+            reference, ref_seconds, ref_devices = out, seconds, count
+            distance = 0.0
+        else:
+            distance = _distance(reference, out)
+        efficiency = ref_seconds * ref_devices / (seconds * count)
+        logger.info(
+            "GPUs %d: %.1f s, speed-up %.2f, efficiency %.0f %%, distance %.3e",
+            count,
+            seconds,
+            ref_seconds / seconds,
+            100 * efficiency,
+            distance,
+        )
+        if results is not None:
+            record = {
+                "gpus": count,
+                "seconds": seconds,
+                "efficiency": efficiency,
+                "distance": distance,
+                "chi_out": chi_out,
+            }
+            with results.open("a") as f:
+                f.write(json.dumps(record) + "\n")
+        del out
 
 
 @app.meta.default
