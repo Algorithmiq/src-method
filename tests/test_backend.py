@@ -1,19 +1,25 @@
 """Test the host-side behaviour of the backend helpers."""
 
 import numpy as np
+import pytest
 
 from src_method.utils import (
     NullEvent,
     NullStream,
+    copy_into,
+    current_device,
     current_stream,
+    device_count,
     device_pool_bytes,
     device_pool_limit,
+    enable_peer_access,
     host_memory_available,
     is_host,
     new_stream,
     pinned_empty,
     to_device_async,
     to_host_async,
+    use_device,
 )
 
 
@@ -72,3 +78,26 @@ def test_host_memory_reads_mem_available(tmp_path):
 
 def test_host_memory_falls_back_without_meminfo(tmp_path):
     assert host_memory_available(str(tmp_path / "missing")) > 0
+
+
+def test_host_devices_are_simulated():
+    assert device_count(np) is None
+    assert current_device(np) == 0
+    assert enable_peer_access(np, [0, 1, 2])
+    with use_device(np, 5):
+        assert current_device(np) == 0
+
+
+def test_copy_into_on_host():
+    dst = np.empty((2, 3), dtype=complex)
+
+    copy_into(dst, np.arange(6.0).reshape(2, 3).astype(complex), np, NullStream())
+
+    np.testing.assert_array_equal(dst, np.arange(6.0).reshape(2, 3))
+
+
+def test_copy_into_rejects_mismatches():
+    with pytest.raises(ValueError, match="Cannot copy"):
+        copy_into(np.empty(3), np.empty(4), np, NullStream())
+    with pytest.raises(ValueError, match="Cannot copy"):
+        copy_into(np.empty(3), np.empty(3, dtype=np.float32), np, NullStream())
