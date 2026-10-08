@@ -1,8 +1,12 @@
 """Memory planning for the SRC sweep: budgets, batch sizes and environment tiers.
 
-`make_plan` is a pure function of the core shapes, the sketch size, the dtype and
-the budgets, so the plan of a run can be inspected, and tested, without loading any
-data or touching a GPU.
+`make_plan` is a pure function of the core shapes, the sketch size, the dtype, the
+number of devices and the budgets, so the plan of a run can be inspected, and
+tested, without loading any data or touching a GPU.
+
+With several devices, every device runs the same plan on its block of the sketch
+columns and of the rows of the projected environment; the plan is that of the
+largest block, and of rank 0, which also gathers the sketch and runs the QR.
 """
 
 from __future__ import annotations
@@ -10,19 +14,27 @@ from __future__ import annotations
 import re
 import shutil
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
-from math import prod
+from math import ceil, prod
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
 from ._kernels import equations, peak_elements
-from .utils import device_memory, host_memory_available, is_host
+from .utils import (
+    current_device,
+    device_count,
+    device_memory,
+    host_memory_available,
+    is_host,
+    use_device,
+)
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
     from types import ModuleType
 
 Tier = Literal["device", "host", "disk"]
@@ -100,22 +112,79 @@ class Resources:
         scratch_dir: Directory for environments that fit in neither budget,
             ideally on node-local disk. Defaults to ``tempfile.gettempdir()``,
             which honours ``$TMPDIR``.
+        devices: The devices to split the sweep among: a count ``n`` for the
+            first ``n`` visible devices, or a sequence of device ids. Defaults to
+            the current device alone. With several devices, ``gpu_memory`` is the
+            budget of each, and ``host_memory`` and ``scratch_dir`` are shared. On
+            the CPU the devices are simulated, which gives the same result and
+            exists to test the multi-device sweep.
     """
 
     gpu_memory: int | str | None = None
     host_memory: int | str | None = None
     scratch_dir: str | os.PathLike[str] | None = None
+    devices: int | Sequence[int] | None = None
 
     def __post_init__(self) -> None:
-        """Validate the explicit budgets.
+        """Validate the explicit budgets and devices.
 
         Raises:
-            TypeError: If a budget is neither an integer nor a string.
-            ValueError: If a budget is not a recognised size.
+            TypeError: If a budget is neither an integer nor a string, or the
+                devices are neither a count nor a sequence of integers.
+            ValueError: If a budget is not a recognised size, the device count is
+                not positive, or the device ids are negative, repeated or none.
         """
         for value in (self.gpu_memory, self.host_memory):
             if value is not None:
                 parse_size(value)
+        _device_ids(self.devices)
+
+
+def _device_ids(devices: object) -> tuple[int, ...] | None:
+    """Validate a device request and return its ids, or ``None`` for the default."""
+    if devices is None:
+        return None
+    if isinstance(devices, int | np.integer) and not isinstance(devices, bool):
+        if devices < 1:
+            msg = f"Expected a positive device count, got {devices}."
+            raise ValueError(msg)
+        return tuple(range(int(devices)))
+    if isinstance(devices, str) or not isinstance(devices, Sequence):
+        msg = f"Expected a device count or a sequence of device ids, got {devices!r}."
+        raise TypeError(msg)
+    ids = []
+    for d in devices:
+        if not isinstance(d, int | np.integer) or isinstance(d, bool):
+            msg = f"Expected integer device ids, got {devices!r}."
+            raise TypeError(msg)
+        ids.append(int(d))
+    if not ids or min(ids) < 0 or len(set(ids)) != len(ids):
+        msg = f"Expected distinct non-negative device ids, got {devices!r}."
+        raise ValueError(msg)
+    return tuple(ids)
+
+
+def resolve_devices(resources: Resources | None, xp: ModuleType) -> tuple[int, ...]:
+    """Return the device ids of a sweep, in rank order.
+
+    Args:
+        resources: The requested devices, or ``None`` for the current device.
+        xp: Array module (``numpy`` or ``cupy``).
+
+    Returns:
+        The device ids.
+
+    Raises:
+        ValueError: If a device does not exist.
+    """
+    ids = _device_ids(resources.devices if resources is not None else None)
+    if ids is None:
+        return (current_device(xp),)
+    count = device_count(xp)
+    if count is not None and max(ids) >= count:
+        msg = f"Requested devices {list(ids)}, but only {count} are visible."
+        raise ValueError(msg)
+    return ids
 
 
 @dataclass(frozen=True)
@@ -141,12 +210,17 @@ class Budgets:
     device_cap: int | None = None
 
 
-def resolve_budgets(resources: Resources | None, xp: ModuleType) -> Budgets:
+def resolve_budgets(
+    resources: Resources | None, xp: ModuleType, devices: Sequence[int] = (0,)
+) -> Budgets:
     """Turn `Resources` into byte budgets, detecting those left unset.
 
     Args:
         resources: The requested budgets, or ``None`` to detect all of them.
         xp: Array module (``numpy`` or ``cupy``).
+        devices: The devices of the sweep. The device budget is that of each of
+            them: the smallest detected one. Host memory and disk are those of the
+            node; on the CPU the simulated devices split the host budget.
 
     Returns:
         The budgets.
@@ -164,14 +238,19 @@ def resolve_budgets(resources: Resources | None, xp: ModuleType) -> Budgets:
     unified = is_host(xp)
     cap = None
     if unified:
-        device = host
+        device = max(host, 0) // len(devices)
     else:
-        available, total = device_memory(xp)
-        margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
+        caps = []
+        for d in devices:
+            with use_device(xp, d):
+                available, total = device_memory(xp)
+            margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
+            caps.append((available - margin, margin))
+        margin = min(m for _, m in caps)
         if resources.gpu_memory is not None:
             device = max(parse_size(resources.gpu_memory), 0)
         else:
-            device = max(available - margin, 0)
+            device = max(min(a for a, _ in caps), 0)
         # The plan counts the bytes in use, but the pool limit applies to every
         # block the pool holds, including split blocks that are partly free.
         cap = device + margin
@@ -196,6 +275,7 @@ class SitePlan:
         env_batch: Sketch columns per environment step (0 at the last site).
         sketch_batch: Sketch columns per sketch step (0 at the first site).
         project_batch: Rows per projection step, or per first-site step at site 0.
+            With several devices, batches split each device's share.
         tier: Where ``C_j`` is kept; site 0 stores no environment.
     """
 
@@ -209,12 +289,15 @@ class SitePlan:
 class Plan:
     """The memory plan of one sweep.
 
+    With several devices, every device runs the same plan on its share of the
+    sketch columns.
+
     Attributes:
         sites: One entry per site.
         prefetch: How many sites ahead the cores are loaded (0 or 1).
-        device_peak: Estimated peak device bytes.
-        host_peak: Estimated peak host bytes, beyond the inputs.
-        disk_bytes: Bytes spilled to the scratch directory.
+        device_peak: Estimated peak bytes of each device.
+        host_peak: Estimated peak host bytes, beyond the inputs, over all devices.
+        disk_bytes: Bytes spilled to the scratch directory, over all devices.
     """
 
     sites: tuple[SitePlan, ...]
@@ -225,7 +308,13 @@ class Plan:
 
 
 class _Site:
-    """The memory model of one site, in bytes."""
+    """The memory model of one site on one device, in bytes.
+
+    With ``ranks`` devices, a device owns ``cols`` of the ``chi`` sketch columns
+    and projects ``cols`` rows of the new projected environment; rank 0 also holds
+    the full sketch for the QR. With one device every term is that of the
+    single-device sweep.
+    """
 
     def __init__(
         self,
@@ -236,6 +325,7 @@ class _Site:
         chi: int,
         itemsize: int,
         n_sites: int,
+        ranks: int = 1,
     ) -> None:
         self.j, self.shapes, self.core_bytes, self.chi, self.e = (
             j,
@@ -244,6 +334,10 @@ class _Site:
             chi,
             itemsize,
         )
+        self.ranks = ranks
+        self.cols = ceil(chi / ranks)
+        # The slice of the cores a device uploads before gathering the rest.
+        self.chunk = ceil(core_bytes / ranks) if ranks > 1 else 0
         self.eqs = equations(len(shapes))
         self.left = tuple(s[0] for s in shapes)
         self.right = tuple(s[1] for s in shapes)
@@ -252,12 +346,15 @@ class _Site:
         self.p = self.up * self.down
         # Rows of the projected environment S that enters site j right-to-left.
         self.eta = 1 if j == n_sites - 1 else chi
-        self.env_bytes = chi * self.a * itemsize
+        self.env_bytes = self.cols * self.a * itemsize
+
+    def _cores(self, prefetch: int) -> int:
+        return self.core_bytes * (1 + prefetch) + self.chunk
 
     def env(self, b: int, prefetch: int, *, staged_in: bool, staged_out: bool) -> int:
         """Bytes of one environment step on ``b`` columns."""
-        e, chi = self.e, self.chi
-        fixed = self.core_bytes * (1 + prefetch) + chi * self.p * e
+        e = self.e
+        fixed = self._cores(prefetch) + self.cols * self.p * e
         slices = (1 + staged_in) * b * self.a * e + staged_out * b * self.b * e
         peak = peak_elements(
             self.eqs.ltr, ((b, *self.left), (b, self.up, self.down), *self.shapes)
@@ -266,11 +363,11 @@ class _Site:
 
     def sketch(self, b: int, prefetch: int, *, staged: bool) -> int:
         """Bytes of one sketch step on ``b`` columns."""
-        e, chi = self.e, self.chi
+        e = self.e
         fixed = (
-            self.core_bytes * (1 + prefetch)
+            self._cores(prefetch)
             + self.eta * self.b * e
-            + self.eta * self.p * chi * e
+            + self.eta * self.p * self.cols * e
         )
         slices = (1 + staged) * b * self.a * e
         peak = (
@@ -283,22 +380,35 @@ class _Site:
         return fixed + slices + peak
 
     def qr(self, prefetch: int) -> int:
-        """Bytes of the QR of the sketch: the sketch, ``Q`` and a workspace."""
+        """Bytes of the QR of the sketch: the sketch, ``Q`` and a workspace.
+
+        On rank 0 of a group, the local block of the sketch is alive as well while
+        the full sketch is gathered.
+        """
         e = self.e
+        local = self.eta * self.p * self.cols * e if self.ranks > 1 else 0
         return (
-            self.core_bytes * (1 + prefetch)
+            self._cores(prefetch)
             + self.eta * self.b * e
             + 3 * self.eta * self.p * self.chi * e
+            + local
         )
+
+    def gather(self, prefetch: int) -> int:
+        """Bytes of gathering the new projected environment from its row blocks."""
+        if self.ranks == 1:
+            return 0
+        e = self.e
+        return self._cores(prefetch) + (self.cols + self.chi) * self.a * e
 
     def project(self, b: int, prefetch: int) -> int:
         """Bytes of one projection step on ``b`` rows."""
-        e, chi = self.e, self.chi
+        e = self.e
         fixed = (
-            self.core_bytes * (1 + prefetch)
+            self._cores(prefetch)
             + self.eta * self.b * e
-            + self.eta * self.p * chi * e
-            + chi * self.a * e
+            + self.eta * self.p * self.cols * e
+            + self.cols * self.a * e
         )
         slices = b * self.eta * self.p * e
         peak = (
@@ -318,9 +428,7 @@ class _Site:
         """Bytes of one first-site step on ``b`` rows of ``S``."""
         e, chi = self.e, self.chi
         fixed = (
-            self.core_bytes * (1 + prefetch)
-            + self.eta * self.b * e
-            + self.a * chi * self.p * e
+            self._cores(prefetch) + self.eta * self.b * e + self.a * chi * self.p * e
         )
         peak = peak_elements(self.eqs.first, (*self.shapes, (b, *self.right))) * e
         return fixed + peak
@@ -355,6 +463,8 @@ class _Planner:
         self.sites, self.budgets, self.prefetch = sites, budgets, prefetch
         self.n = len(sites)
         self.chi = sites[0].chi
+        self.cols = sites[0].cols
+        self.ranks = sites[0].ranks
         self.out_total = sum(self.chi * s.p * s.eta * s.e for s in sites)
         # Pinned ring of the site source, plus the host copy being read.
         self.site_ring = (prefetch + 2) * max(s.core_bytes for s in sites)
@@ -378,14 +488,20 @@ class _Planner:
             costs["first"] = lambda b: site.first(b, pf)
         return costs
 
+    def _limit(self, kernel: str) -> int:
+        """The largest useful batch: the first site runs on rank 0 alone."""
+        return self.chi if kernel == "first" else self.cols
+
     def _batches(self, tiers: Sequence[Tier], avail: int) -> list[dict[str, int]]:
         batches = []
         for j, site in enumerate(self.sites):
             if j > 0 and site.qr(self.prefetch) > avail:
                 _fail(j, "QR", site.qr(self.prefetch), avail)
+            if j > 0 and site.gather(self.prefetch) > avail:
+                _fail(j, "gather", site.gather(self.prefetch), avail)
             chosen = {}
             for kernel, cost in self._costs(j, tiers).items():
-                b = _largest_batch(cost, self.chi, avail)
+                b = _largest_batch(cost, self._limit(kernel), avail)
                 if b == 0:
                     _fail(j, kernel, cost(1), avail)
                 chosen[kernel] = b
@@ -446,10 +562,13 @@ class _Planner:
             {kernel: min(b, PREFERRED_BATCH) for kernel, b in chosen.items()}
             for chosen in batches
         ]
-        host_left = budgets.host - self.out_total - self.site_ring - self.env_staging
+        # The output and the site ring are shared by the devices; each has its own
+        # staging buffers and host tier.
+        shared = budgets.host - self.out_total - self.site_ring
+        host_left = shared // self.ranks - self.env_staging
         tiers = self._tiers(base - self._peak(staged, preferred), host_left)
 
-        disk_bytes = sum(
+        disk_bytes = self.ranks * sum(
             s.env_bytes for j, s in enumerate(self.sites) if tiers[j] == "disk"
         )
         if disk_bytes > budgets.disk:
@@ -466,7 +585,7 @@ class _Planner:
         )
         host_peak = self.out_total + self.site_ring
         if disk_bytes or host_env:
-            host_peak += host_env + self.env_staging
+            host_peak += self.ranks * (host_env + self.env_staging)
         sites = tuple(
             SitePlan(
                 env_batch=chosen.get("env", 0),
@@ -500,6 +619,8 @@ def make_plan(
     chi_out: int,
     dtype: type | np.dtype,
     budgets: Budgets,
+    *,
+    devices: int = 1,
 ) -> Plan:
     """Plan the batches and the environment tiers of one sweep.
 
@@ -509,6 +630,8 @@ def make_plan(
         chi_out: The sketch size.
         dtype: The data type of the computation.
         budgets: The resolved budgets.
+        devices: The number of devices the sweep is split among; each runs the
+            plan on its share of the sketch columns.
 
     Returns:
         The plan. Prefetching is dropped before giving up.
@@ -527,6 +650,7 @@ def make_plan(
             chi=chi_out,
             itemsize=itemsize,
             n_sites=n_sites,
+            ranks=devices,
         )
         for j, (shapes, core_bytes) in enumerate(zip(site_shapes, site_bytes))
     ]

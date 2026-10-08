@@ -1,5 +1,6 @@
 """Test `src` over stacks of tensor trains, and the sweep behind it."""
 
+import threading
 from functools import reduce
 
 import numpy as np
@@ -7,6 +8,7 @@ import pytest
 
 import src_method._sweep as sweep_module
 from src_method import Resources, apply, compress, src
+from src_method._kernels import SiteKernels
 from src_method._plan import make_plan
 from src_method._sweep import sweep
 
@@ -405,3 +407,94 @@ def test_compress_passes_resources(rng):
 
     with pytest.raises(MemoryError, match="working set exceeds the budget"):
         compress(A, chi_out=8, resources=Resources(host_memory="1kB"))
+
+
+# -------------------------------
+# --- Several (simulated) devices ---
+# -------------------------------
+
+
+@pytest.mark.parametrize(
+    ("devices", "chi"), [(2, 16), (3, 16), (3, 17), ([2, 0, 1], 16), (4, 3)]
+)
+def test_devices_match_one_device(devices, chi, rng):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
+
+    one = src(*stack, chi_out=chi, seed=5, dtype=np.complex128)
+    many = src(
+        *stack,
+        chi_out=chi,
+        seed=5,
+        dtype=np.complex128,
+        resources=Resources(devices=devices),
+    )
+
+    assert [t.shape for t in many] == [t.shape for t in one]
+    assert rel_error(many, dense(one)) < 1e-10
+
+
+@pytest.mark.parametrize("spec", ["psi", "A psi", "A B", "phi A B"])
+def test_devices_are_exact_without_truncation(spec, rng):
+    stack = make_stack(spec, rng)
+
+    out = src(*stack, chi_out=CHI_EXACT, resources=Resources(devices=3))
+
+    assert rel_error(out, dense_stack(*stack)) < 1e-10
+
+
+def test_devices_with_cutoff_keep_the_bonds(rng):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(3)]
+
+    one = src(*stack, chi_out=24, cutoff=0.05, seed=2)
+    many = src(*stack, chi_out=24, cutoff=0.05, seed=2, resources=Resources(devices=2))
+
+    assert [t.shape for t in many] == [t.shape for t in one]
+    assert rel_error(many, dense(one)) < 1e-10
+
+
+def test_devices_spill_and_clean_up(rng, tmp_path, plans):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
+    tight = Resources(host_memory="1MB", scratch_dir=tmp_path, devices=2)
+
+    default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
+    spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)
+
+    assert "disk" in {site.tier for site in plans[1].sites}
+    assert rel_error(spilled, dense(default)) < 1e-10
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_error_on_one_device_is_raised(rng, monkeypatch, tmp_path):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(2)]
+    calls, lock = [0], threading.Lock()
+    original = SiteKernels.sketch
+
+    def flaky(self, *args):
+        with lock:
+            calls[0] += 1
+            fail = calls[0] == 2
+        if fail:
+            msg = "sketch failed"
+            raise RuntimeError(msg)
+        return original(self, *args)
+
+    monkeypatch.setattr(SiteKernels, "sketch", flaky)
+    resources = Resources(host_memory="2MB", scratch_dir=tmp_path, devices=3)
+    with pytest.raises(RuntimeError, match="sketch failed"):
+        src(*stack, chi_out=16, seed=0, resources=resources)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_devices_are_validated(rng):
+    stack = make_stack("A B", rng)
+
+    with pytest.raises(ValueError, match="positive device count"):
+        Resources(devices=0)
+    with pytest.raises(ValueError, match="distinct"):
+        Resources(devices=[1, 1])
+    with pytest.raises(TypeError, match="device count or a sequence"):
+        Resources(devices="0,1")  # ty: ignore[invalid-argument-type]
+    with pytest.raises(TypeError, match="integer device ids"):
+        Resources(devices=[0.0, 1.0])  # ty: ignore[invalid-argument-type]
+    # Simulated devices have no upper limit.
+    src(*stack, chi_out=4, resources=Resources(devices=[0, 7]))
