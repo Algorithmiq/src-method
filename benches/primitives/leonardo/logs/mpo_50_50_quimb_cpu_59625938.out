@@ -1,0 +1,25 @@
+NODE: lrdn2926, CPUS: 32, ARGS: --n-sites 50 --chi-out 50 --run quimb
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 15:49:42,313 INFO __main__ benchmark_start: n_sites=50, chi_out=50, chi_id=4, phys_dim=2, dtype=complex128, run=quimb, compare=yes, device=cpu
+0: 2026-10-07 15:49:42,314 INFO __main__ Generating MPOs...
+0: 2026-10-07 15:49:42,502 INFO __main__ Computing reference contraction (no compression)...
+0: 2026-10-07 15:49:42,557 INFO __main__ Reference contraction took 0.05452135 s
+0: 2026-10-07 15:49:42,557 INFO __main__ Computing Quimb's MPO-MPO contraction (with compression)...
+0: 2026-10-07 15:50:20,313 INFO __main__  Quimb's contraction-compression took 37.755962594 s
+0: 2026-10-07 15:50:20,696 INFO __main__  - Distance to reference: 2.5809568279517847e-08 (relative 2.5809568279517943e-08)
+0: 2026-10-07 15:50:20,696 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59625938     mpo_50_50+         32              00:01:04      0:0 
+59625938.ba+      batch         32              00:01:04      0:0 
+59625938.ex+     extern         32              00:01:04      0:0 
+59625938.0       python         32   00:16:51   00:01:00      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59625938     mpo_50_50+                       
+59625938.ba+      batch                       
+59625938.ex+     extern                       
+59625938.0       python      0.67G   lrdn2926 

@@ -1,0 +1,30 @@
+NODE: lrdn2517, CPUS: 32, ARGS: --n-sites 50 --chi-out 1000 --compare no
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 16:02:04,119 INFO __main__ benchmark_start: n_sites=50, chi_out=1000, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=no, device=cpu
+0: 2026-10-07 16:02:04,119 INFO __main__ Generating MPOs...
+0: 2026-10-07 16:02:15,292 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 16:02:15,293 DEBUG src_method.stack Starting SRC: n_sites=50, depth=2, output=mpo, device=numpy
+0: 2026-10-07 16:02:15,328 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=7609414144 B, host peak=3328067072 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(992, 0, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (9
+0: 92, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (0, 992, 992)]
+0: 2026-10-07 16:02:56,795 DEBUG src_method._sweep Left-to-right sweep: 41.467 s
+0: 2026-10-07 16:04:32,664 DEBUG src_method._sweep Right-to-left sweep: 95.868 s
+0: 2026-10-07 16:04:32,664 DEBUG src_method._sweep SRC stalls: sites 0.001 s, environments 0.000 s
+0: 2026-10-07 16:04:32,664 DEBUG src_method._sweep Device pool: 0 B
+0: 2026-10-07 16:04:32,665 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:04:32,665 INFO __main__  SRC's contraction-compression took 137.37281321700002 s
+0: 2026-10-07 16:04:32,665 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626808     mpo_50_10+         32              00:02:52      0:0 
+59626808.ba+      batch         32              00:02:52      0:0 
+59626808.ex+     extern         32              00:02:52      0:0 
+59626808.0       python         32   00:50:14   00:02:48      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626808     mpo_50_10+                       
+59626808.ba+      batch                       
+59626808.ex+     extern                       
+59626808.0       python      6.83G   lrdn2517 

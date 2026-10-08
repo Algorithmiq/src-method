@@ -1,0 +1,41 @@
+NODE: lrdn0473, CPUS: 32, ARGS: --n-sites 20 --chi-out 100 --device gpu
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 16:03:39,120 INFO __main__ benchmark_start: n_sites=20, chi_out=100, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=yes, device=gpu
+0: 2026-10-07 16:03:39,120 INFO __main__ Generating MPOs...
+0: 2026-10-07 16:03:39,298 INFO __main__ Computing reference contraction (no compression)...
+0: 2026-10-07 16:03:39,441 INFO __main__ Reference contraction took 0.143532198 s
+0: 2026-10-07 16:03:39,441 INFO __main__ Warming up the GPU...
+0: 2026-10-07 16:03:56,097 DEBUG src_method.stack Starting SRC: n_sites=4, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:03:57,085 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=4224 B, host peak=2432 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device'], batches (env, sketch, project)=[(2, 0, 2), (2, 2, 2), (2, 2, 2), (0, 2, 2)]
+0: 2026-10-07 16:04:11,566 DEBUG src_method._sweep Left-to-right sweep: 14.230 s
+0: 2026-10-07 16:04:23,004 DEBUG src_method._sweep Right-to-left sweep: 11.439 s
+0: 2026-10-07 16:04:23,004 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 16:04:23,004 DEBUG src_method._sweep Device pool: 48640 B
+0: 2026-10-07 16:04:23,005 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:04:23,005 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 16:04:23,005 DEBUG src_method.stack Starting SRC: n_sites=20, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:04:23,017 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=23350272 B, host peak=14089472 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(96, 0, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (0, 96, 96)]
+0: 2026-10-07 16:04:23,148 DEBUG src_method._sweep Left-to-right sweep: 0.131 s
+0: 2026-10-07 16:04:23,459 DEBUG src_method._sweep Right-to-left sweep: 0.311 s
+0: 2026-10-07 16:04:23,460 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 16:04:23,460 DEBUG src_method._sweep Device pool: 24724992 B
+0: 2026-10-07 16:04:23,460 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:04:23,460 INFO __main__  SRC's contraction-compression took 0.45528803300000004 s
+0: 2026-10-07 16:04:23,460 INFO __main__  - CuPy pool high-water mark: 0.02 GB
+0: 2026-10-07 16:04:23,978 INFO __main__  - Distance to reference: 2.1073424255447017e-08 (relative 2.107342425544703e-08)
+0: 2026-10-07 16:04:23,979 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626976     mpo_20_10+         32              00:01:14      0:0 
+59626976.ba+      batch         32              00:01:14      0:0 
+59626976.ex+     extern         32              00:01:14      0:0 
+59626976.0       python         32   00:00:33   00:01:10      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626976     mpo_20_10+                       
+59626976.ba+      batch                       
+59626976.ex+     extern                       
+59626976.0       python      1.22G   lrdn0473 

@@ -1,0 +1,22 @@
+NODE: lrdn2680, CPUS: 32, ARGS: --n-sites 25 --chi-out 1000 --compare no --run quimb
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 15:52:23,165 INFO __main__ benchmark_start: n_sites=25, chi_out=1000, chi_id=4, phys_dim=2, dtype=complex128, run=quimb, compare=no, device=cpu
+0: 2026-10-07 15:52:23,165 INFO __main__ Generating MPOs...
+0: 2026-10-07 15:52:28,198 INFO __main__ Computing Quimb's MPO-MPO contraction (with compression)...
+0: 2026-10-07 15:59:30,772 INFO __main__  Quimb's contraction-compression took 422.574737481 s
+0: 2026-10-07 15:59:30,773 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626117     mpo_25_10+         32              00:07:31      0:0 
+59626117.ba+      batch         32              00:07:31      0:0 
+59626117.ex+     extern         32              00:07:31      0:0 
+59626117.0       python         32   03:17:05   00:07:27      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626117     mpo_25_10+                       
+59626117.ba+      batch                       
+59626117.ex+     extern                       
+59626117.0       python     24.64G   lrdn2680 
