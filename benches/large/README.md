@@ -108,9 +108,11 @@ so the pools report the high-water mark of all the runs so far.
 Where the time goes:
 
 - The left-to-right pass needs no communication and scales by 1.95 and 3.49 on 2
-  and 4 GPUs. The site stalls shrink in proportion (13.5, 6.8, 3.6 s), as each GPU
-  uploads only its slice of every core: at this size the stalls are the host-to-device
-  upload, and the split upload parallelises it.
+  and 4 GPUs. The site stalls (the time a GPU thread waits for the loader to hand
+  over the next site's cores) shrink in proportion (13.5, 6.8, 3.6 s) and are close
+  to the left-to-right time. The timer stops before the upload, and the loader also
+  waits for the GPU to release a staging buffer, so a stall cannot tell a slow read
+  from a GPU-bound pass; the second is likely here, but it was not verified.
 - The right-to-left pass scales by 2.62 on 2 GPUs, which is superlinear, and by 3.35
   on 4. The superlinear part is not explained by the plan or the tiers, which are
   the same on every count; the sketch batch drops from 480 to 224 and 96 columns
