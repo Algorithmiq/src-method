@@ -21,13 +21,12 @@ from __future__ import annotations
 import json
 import logging
 import resource
-from pathlib import Path  # noqa: TC003  (cyclopts reads the annotations at runtime)
+from pathlib import Path
 from time import perf_counter
 from typing import Annotated
 
 import cyclopts
 import numpy as np
-
 import src_method._sweep as sweep_module
 from src_method import Resources, src
 from src_method._plan import make_plan
@@ -129,7 +128,7 @@ def _run(
     tiers = [site.tier for site in plan.sites]
     pools = []
     if device == "gpu":
-        import cupy  # noqa: PLC0415  (optional dependency)
+        import cupy
 
         devices = resources.devices or 1
         for gpu in range(devices) if isinstance(devices, int) else devices:
@@ -215,6 +214,31 @@ def _distance(a: list[np.ndarray], b: list[np.ndarray]) -> float:
     return float(np.sqrt(max((aa + bb - 2 * ab).real, 0.0) / aa.real))
 
 
+def _qr_distance(a: list[np.ndarray], b: list[np.ndarray]) -> float:
+    """Relative distance ``|a - b| / |a|`` from a QR sweep over the MPO ``a - b``.
+
+    `_distance` cancels down to about ``sqrt(eps)``. Here ``a - b`` is a direct sum
+    of the two trains, and the QR sweep keeps rounding relative to ``|a|``, which
+    resolves differences down to ``eps``. Gauge-free, unlike comparing cores.
+    """
+    n = len(a)
+    carry = np.ones((1, 1), dtype=np.result_type(a[0], b[0]))
+    for j, (x, y) in enumerate(zip(a, b)):
+        x = x[None] if j == 0 else x[:, None] if j == n - 1 else x
+        y = y[None] if j == 0 else y[:, None] if j == n - 1 else y
+        if j == 0:
+            site = np.concatenate([x, -y], axis=1)
+        elif j == n - 1:
+            site = np.concatenate([x, y], axis=0)
+        else:
+            (la, ra, *phys), (lb, rb, _, _) = x.shape, y.shape
+            site = np.zeros((la + lb, ra + rb, *phys), dtype=carry.dtype)
+            site[:la, :ra], site[la:, ra:] = x, y
+        site = np.tensordot(carry, site, axes=(1, 0)).transpose(0, 2, 3, 1)
+        carry = np.linalg.qr(site.reshape(-1, site.shape[-1]), mode="r")
+    return float(np.linalg.norm(carry) / np.sqrt(_inner(a, a).real))
+
+
 @app.command
 def scaling(
     directory: Path,
@@ -257,17 +281,20 @@ def scaling(
         out, seconds = _run(directory, chi_out, resources, seed, device)
         if reference is None:
             reference, ref_seconds, ref_devices = out, seconds, count
-            distance = 0.0
+            distance = qr_distance = 0.0
         else:
             distance = _distance(reference, out)
+            qr_distance = _qr_distance(reference, out)
         efficiency = ref_seconds * ref_devices / (seconds * count)
         logger.info(
-            "GPUs %d: %.1f s, speed-up %.2f, efficiency %.0f %%, distance %.3e",
+            "GPUs %d: %.1f s, speed-up %.2f, efficiency %.0f %%, distance %.3e, "
+            "QR distance %.3e",
             count,
             seconds,
             ref_seconds / seconds,
             100 * efficiency,
             distance,
+            qr_distance,
         )
         if results is not None:
             record = {
@@ -275,6 +302,7 @@ def scaling(
                 "seconds": seconds,
                 "efficiency": efficiency,
                 "distance": distance,
+                "qr_distance": qr_distance,
                 "chi_out": chi_out,
             }
             with results.open("a") as f:
