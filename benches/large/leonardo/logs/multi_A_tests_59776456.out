@@ -1,0 +1,70 @@
+NODE: lrdn0172, CPUS: 32, COMMIT: 7e7bdb9
+COMMAND: python -m pytest tests/test_gpu_backend.py -v -o log_cli=false -p no:randomly
+GPU 0: NVIDIA A100-SXM-64GB (UUID: GPU-49a582c5-5db4-49ce-ed6c-bff7283dd5bd)
+GPU 1: NVIDIA A100-SXM-64GB (UUID: GPU-eb681d88-e88f-a83e-fa2e-ec7a23f37a35)
+GPU 2: NVIDIA A100-SXM-64GB (UUID: GPU-01563636-9a99-60dd-a632-b0ffc18f4638)
+GPU 3: NVIDIA A100-SXM-64GB (UUID: GPU-71a4b225-e397-6550-84a9-77c5254110fb)
+	[4mGPU0	GPU1	GPU2	GPU3	NIC0	NIC1	NIC2	NIC3	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV4	NV4	NV4	PXB	NODE	NODE	NODE	0-15	0		N/A
+GPU1	NV4	 X 	NV4	NV4	NODE	PXB	NODE	NODE	0-15	0		N/A
+GPU2	NV4	NV4	 X 	NV4	NODE	NODE	PXB	NODE	0-15	0		N/A
+GPU3	NV4	NV4	NV4	 X 	NODE	NODE	NODE	PXB	0-15	0		N/A
+NIC0	PXB	NODE	NODE	NODE	 X 	NODE	NODE	NODE				
+NIC1	NODE	PXB	NODE	NODE	NODE	 X 	NODE	NODE				
+NIC2	NODE	NODE	PXB	NODE	NODE	NODE	 X 	NODE				
+NIC3	NODE	NODE	NODE	PXB	NODE	NODE	NODE	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+
+4 [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]]
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.1.0, pluggy-1.6.0 -- /leonardo_work/ALQ_prod2526/rpanades/src-multi-gpu/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.3.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /leonardo_work/ALQ_prod2526/rpanades/src-multi-gpu
+configfile: pyproject.toml
+plugins: markdown-docs-0.9.2, cov-7.1.0, benchmark-5.3.0
+collecting ... collected 19 items
+
+tests/test_gpu_backend.py::test_apply_mpo_mps_gpu_matches_cpu[cpu] PASSED [  5%]
+tests/test_gpu_backend.py::test_apply_mpo_mps_gpu_matches_cpu[gpu] PASSED [ 10%]
+tests/test_gpu_backend.py::test_apply_mpo_mpo_gpu_matches_cpu[cpu] PASSED [ 15%]
+tests/test_gpu_backend.py::test_apply_mpo_mpo_gpu_matches_cpu[gpu] PASSED [ 21%]
+tests/test_gpu_backend.py::test_compress_mpo_gpu_matches_cpu[cpu] PASSED [ 26%]
+tests/test_gpu_backend.py::test_compress_mpo_gpu_matches_cpu[gpu] PASSED [ 31%]
+tests/test_gpu_backend.py::test_apply_mpo_mpo_cpu_gpu_equivalent PASSED  [ 36%]
+tests/test_gpu_backend.py::test_compress_mpo_cpu_gpu_equivalent PASSED   [ 42%]
+tests/test_gpu_backend.py::test_invalid_device_raises PASSED             [ 47%]
+tests/test_gpu_backend.py::test_src_stack_gpu_matches_reference[cpu] PASSED [ 52%]
+tests/test_gpu_backend.py::test_src_stack_gpu_matches_reference[gpu] PASSED [ 57%]
+tests/test_gpu_backend.py::test_gpu_tiers_and_batches_match_cpu PASSED   [ 63%]
+tests/test_gpu_backend.py::test_gpu_pool_limit_is_restored PASSED        [ 68%]
+tests/test_gpu_backend.py::test_gpu_pool_cap_leaves_room_for_fragmentation PASSED [ 73%]
+tests/test_gpu_backend.py::test_two_gpus_match_one[split] PASSED         [ 78%]
+tests/test_gpu_backend.py::test_two_gpus_match_one[full] PASSED          [ 84%]
+tests/test_gpu_backend.py::test_two_gpus_take_device_inputs PASSED       [ 89%]
+tests/test_gpu_backend.py::test_two_gpus_raise_the_first_error PASSED    [ 94%]
+tests/test_gpu_backend.py::test_too_many_devices_raise PASSED            [100%]
+
+======================== 19 passed in 67.77s (0:01:07) =========================
+JobID           JobName    Elapsed     MaxRSS  MaxDiskRead MaxDiskWrite ExitCode 
+------------ ---------- ---------- ---------- ------------ ------------ -------- 
+59776456     multi_A_t+   00:01:49                                           0:0 
+59776456.ba+      batch   00:01:49                                           0:0 
+59776456.ex+     extern   00:01:49                                           0:0 
+59776456.0       python   00:01:17      0.90G        0.04G        0.02G      0:0 

@@ -1,0 +1,84 @@
+NODE: lrdn0028, CPUS: 32, COMMIT: 7e7bdb9
+COMMAND: python benches/large/bench_large.py --debug scaling /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 --chi-out 500 --devices 1 2 4 --scratch-dir /leonardo_scratch/large/userexternal/rpanades/src-large/scratch --results benches/large/leonardo/logs/scaling_m1000.jsonl
+GPU 0: NVIDIA A100-SXM-64GB (UUID: GPU-fcf6902e-a0ef-40a9-6931-80c446cd75c3)
+GPU 1: NVIDIA A100-SXM-64GB (UUID: GPU-a46d055d-c328-5951-b3d0-4ec9679ad407)
+GPU 2: NVIDIA A100-SXM-64GB (UUID: GPU-b4fed068-61ad-7900-b251-5dfed00586f8)
+GPU 3: NVIDIA A100-SXM-64GB (UUID: GPU-a3a2209b-5f79-d763-c4b9-ee2b24bdd2d5)
+	[4mGPU0	GPU1	GPU2	GPU3	NIC0	NIC1	NIC2	NIC3	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV4	NV4	NV4	PXB	NODE	NODE	NODE	0-15	0		N/A
+GPU1	NV4	 X 	NV4	NV4	NODE	PXB	NODE	NODE	0-15	0		N/A
+GPU2	NV4	NV4	 X 	NV4	NODE	NODE	PXB	NODE	0-15	0		N/A
+GPU3	NV4	NV4	NV4	 X 	NODE	NODE	NODE	PXB	0-15	0		N/A
+NIC0	PXB	NODE	NODE	NODE	 X 	NODE	NODE	NODE				
+NIC1	NODE	PXB	NODE	NODE	NODE	 X 	NODE	NODE				
+NIC2	NODE	NODE	PXB	NODE	NODE	NODE	 X 	NODE				
+NIC3	NODE	NODE	NODE	PXB	NODE	NODE	NODE	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+
+4 [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]]
+WARMED: /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 in 21 s
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0], prefetch=1, device peak=58841624576 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 23.849 s
+Right-to-left sweep: 102.518 s
+SRC stalls: sites 13.278 s, environments 0.000 s
+Device pool: 65230893056 B
+SRC complete
+Run complete: 131.4 s, pools [65230893056] B, host peak 16345255936 B, planned device peak 58841624576 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [480]
+GPUs 1: 131.4 s, speed-up 1.00, efficiency 100 %, distance 0.000e+00, QR distance 0.000e+00
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0, 1], prefetch=1, device peak=39047585792 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(224, 0, 480), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (0, 224, 224)]
+Device 0: Left-to-right sweep: 7.020 s
+Device 1: Left-to-right sweep: 7.019 s
+Device 1: Right-to-left sweep: 35.867 s
+Device 1: SRC stalls: sites 6.691 s, environments 0.000 s
+Device 1: Device pool: 63594745344 B
+Device 0: Right-to-left sweep: 36.400 s
+Device 0: SRC stalls: sites 6.758 s, environments 0.000 s
+Device 0: Device pool: 65230893056 B
+SRC complete
+Run complete: 43.6 s, pools [65230893056, 63594745344] B, host peak 19447209984 B, planned device peak 39047585792 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [224]
+GPUs 2: 43.6 s, speed-up 3.01, efficiency 151 %, distance 2.740e-08, QR distance 2.809e-13
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0, 1, 2, 3], prefetch=1, device peak=32289054720 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(96, 0, 480), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (0, 96, 96)]
+Device 1: Left-to-right sweep: 3.927 s
+Device 0: Left-to-right sweep: 3.928 s
+Device 3: Left-to-right sweep: 3.928 s
+Device 2: Left-to-right sweep: 3.928 s
+Device 1: Right-to-left sweep: 28.018 s
+Device 1: SRC stalls: sites 3.607 s, environments 0.000 s
+Device 1: Device pool: 63594745344 B
+Device 3: Right-to-left sweep: 28.017 s
+Device 3: SRC stalls: sites 3.589 s, environments 0.000 s
+Device 3: Device pool: 50227325440 B
+Device 2: Right-to-left sweep: 28.017 s
+Device 2: SRC stalls: sites 3.590 s, environments 0.000 s
+Device 2: Device pool: 50227325440 B
+Device 0: Right-to-left sweep: 28.473 s
+Device 0: SRC stalls: sites 3.605 s, environments 0.000 s
+Device 0: Device pool: 65230893056 B
+SRC complete
+Run complete: 32.7 s, pools [65230893056, 63594745344, 50227325440, 50227325440] B, host peak 19726442496 B, planned device peak 32289054720 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [96]
+GPUs 4: 32.7 s, speed-up 4.02, efficiency 101 %, distance 3.164e-08, QR distance 4.434e-13
+JobID           JobName    Elapsed     MaxRSS  MaxDiskRead MaxDiskWrite ExitCode 
+------------ ---------- ---------- ---------- ------------ ------------ -------- 
+59782618     multi_B_m+   00:07:10                                           0:0 
+59782618.ba+      batch   00:07:10                                           0:0 
+59782618.ex+     extern   00:07:10                                           0:0 
+59782618.0       python   00:06:11                                           0:0 

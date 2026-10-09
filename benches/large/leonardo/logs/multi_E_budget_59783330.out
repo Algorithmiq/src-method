@@ -1,0 +1,65 @@
+NODE: lrdn0148, CPUS: 32, COMMIT: 7e7bdb9
+COMMAND: bash -c python benches/large/bench_large.py --debug run /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 --chi-out 500 --scratch-dir /leonardo_scratch/large/userexternal/rpanades/src-large/scratch --gpu-memory 40GB; python benches/large/bench_large.py --debug run /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 --chi-out 500 --scratch-dir /leonardo_scratch/large/userexternal/rpanades/src-large/scratch --gpu-memory 60GB; python benches/large/bench_large.py --debug run /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 --chi-out 500 --scratch-dir /leonardo_scratch/large/userexternal/rpanades/src-large/scratch
+GPU 0: NVIDIA A100-SXM-64GB (UUID: GPU-82e8b7eb-b7a5-93eb-178f-1fce9ce12454)
+GPU 1: NVIDIA A100-SXM-64GB (UUID: GPU-3c426100-4c87-2b90-bd14-c660e6e143b0)
+GPU 2: NVIDIA A100-SXM-64GB (UUID: GPU-b5484b31-625f-d1ab-5dae-b6134f9e760b)
+GPU 3: NVIDIA A100-SXM-64GB (UUID: GPU-c941dd67-d3c3-2f3d-76dd-3cc19fdf6c43)
+	[4mGPU0	GPU1	GPU2	GPU3	NIC0	NIC1	NIC2	NIC3	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV4	NV4	NV4	PXB	NODE	NODE	NODE	0-15	0		N/A
+GPU1	NV4	 X 	NV4	NV4	NODE	PXB	NODE	NODE	0-15	0		N/A
+GPU2	NV4	NV4	 X 	NV4	NODE	NODE	PXB	NODE	0-15	0		N/A
+GPU3	NV4	NV4	NV4	 X 	NODE	NODE	NODE	PXB	0-15	0		N/A
+NIC0	PXB	NODE	NODE	NODE	 X 	NODE	NODE	NODE				
+NIC1	NODE	PXB	NODE	NODE	NODE	 X 	NODE	NODE				
+NIC2	NODE	NODE	PXB	NODE	NODE	NODE	 X 	NODE				
+NIC3	NODE	NODE	NODE	PXB	NODE	NODE	NODE	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+
+4 [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]]
+WARMED: /leonardo_scratch/large/userexternal/rpanades/src-large/m1000 in 19 s
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0], prefetch=1, device peak=39877144576 B, host peak=25326244864 B, disk=0 B, scratch=None, tiers=['device', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 36.566 s
+Right-to-left sweep: 110.318 s
+SRC stalls: sites 2.714 s, environments 23.577 s
+Device pool: 41381933056 B
+SRC complete
+Run complete: 153.3 s, pools [41381933056] B, host peak 35516395520 B, planned device peak 39877144576 B, planned host peak 25326244864 B, disk 0 B, tiers {'device': 12, 'host': 38, 'disk': 0}, sketch batches [480]
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0], prefetch=1, device peak=58841624576 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 13.737 s
+Right-to-left sweep: 95.224 s
+SRC stalls: sites 13.491 s, environments 0.000 s
+Device pool: 65230893056 B
+SRC complete
+Run complete: 109.7 s, pools [65230893056] B, host peak 16345219072 B, planned device peak 58841624576 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [480]
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0], prefetch=1, device peak=58841624576 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 13.742 s
+Right-to-left sweep: 95.410 s
+SRC stalls: sites 13.480 s, environments 0.000 s
+Device pool: 65230893056 B
+SRC complete
+Run complete: 109.9 s, pools [65230893056] B, host peak 16345010176 B, planned device peak 58841624576 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [480]
+JobID           JobName    Elapsed     MaxRSS  MaxDiskRead MaxDiskWrite ExitCode 
+------------ ---------- ---------- ---------- ------------ ------------ -------- 
+59783330     multi_E_b+   00:07:13                                           0:0 
+59783330.ba+      batch   00:07:13                                           0:0 
+59783330.ex+     extern   00:07:13                                           0:0 
+59783330.0         bash   00:06:23                                           0:0 
