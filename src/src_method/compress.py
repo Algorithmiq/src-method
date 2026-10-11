@@ -15,18 +15,23 @@ from .stack import src
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import DTypeLike, NDArray
+    import numpy as np
+    from numpy.typing import DTypeLike
+
+    from ._plan import Resources
+    from ._tensor_train import Site
 
 
 def compress(
-    tensor: Sequence[NDArray],
-    chi_out: int,
+    tensor: Sequence[Site],
+    chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
     to_host: bool = True,
+    resources: Resources | None = None,
 ) -> list[Any]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
@@ -53,6 +58,7 @@ def compress(
             the optional ``cupy`` dependency for GPU execution.
         to_host: If ``True`` (default), results are returned as numpy arrays on
             the host. Set to ``False`` to keep tensors on the compute device.
+        resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
         The site arrays of the compressed tensor network (MPS or MPO).
@@ -74,4 +80,5 @@ def compress(
         seed=seed,
         device=device,
         to_host=to_host,
+        resources=resources,
     )

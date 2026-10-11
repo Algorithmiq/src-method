@@ -1,0 +1,55 @@
+---
+title: src_method Documentation
+description: Successive Randomized Compression for matrix product states and operators.
+---
+
+`src_method` is a pure-Python implementation of Successive Randomized
+Compression (SRC) [@camano2026src], a randomized algorithm that contracts and
+compresses tensor trains in a single sweep. It extends the original MPO-MPS
+product to MPO-MPO products, plain compression of an MPS or MPO, and whole
+stacks of trains.
+
+The package has no tensor-network framework dependency: it takes and returns
+plain lists of per-site NumPy arrays, in the `quimb` layout [@gray2018quimb], and
+runs on GPUs through CuPy.
+
+<Callout title="Warning" type="warn">
+This package is under active development and follows [Semantic
+Versioning](https://semver.org/). While in `0.x.y`, breaking changes may occur in
+minor releases. Pin your version if you depend on it, and [open an
+issue](https://github.com/Algorithmiq/src-method/issues/new/choose) if you have
+feedback.
+</Callout>
+
+New here? Install the package and run the first example in [Getting
+Started](/getting-started), then read [Concepts](/concepts) for the algorithm and
+the array conventions.
+
+<Cards>
+  <Card title="Getting Started" href="/getting-started" description="Install src_method and compress your first product." />
+  <Card title="Concepts" href="/concepts" description="The SRC algorithm and the index and contraction conventions." />
+  <Card title="Features" href="/features" description="Stacks, adaptive truncation, precision, GPUs and logging." />
+  <Card title="Tutorials" href="/tutorials" description="Runnable notebooks on concrete problems." />
+  <Card title="Python API" href="/api" description="Reference generated from the docstrings." />
+</Cards>
+
+## How the documentation is organised
+
+**User guide** — use the library.
+
+- [Getting Started](/getting-started) — installation and a first example.
+- [Concepts](/concepts) — how SRC works, and the array layout and contraction
+  order every function expects.
+- [Features](/features) — one-sweep stacks, adaptive truncation, precision and
+  reproducibility, GPU execution and logging.
+- [Tutorials](/tutorials) — runnable notebooks.
+
+**Reference** — look up details.
+
+- [Python API](/api) — every public function and argument.
+- [Benchmarks](/benchmarks) — accuracy and timing measurements.
+- [References](/references) — the papers behind the method.
+
+**Contributing** — work on `src_method` itself.
+
+- [Contributing](/contributing) — workflow, quality gates, tests and docs.

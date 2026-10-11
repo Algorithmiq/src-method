@@ -4,9 +4,12 @@ import numpy as np
 import pytest
 
 from src_method._tensor_train import (
+    SwappedLegs,
     exact_stack,
     normalize_stack,
     pad,
+    pad_site,
+    padded_shape,
     transpose_mpo,
     unpad,
 )
@@ -174,3 +177,45 @@ def test_exact_stack_depth_three(kind, rng):
 
     want = dense_two_site(A) @ dense_two_site(B) @ dense_two_site(last)
     np.testing.assert_allclose(dense_two_site(out), want, atol=1e-10)
+
+
+# -------------------------------
+# --- padded_shape / pad_site ---
+# -------------------------------
+
+
+@pytest.mark.parametrize("kind", ["mps", "mpo"])
+@pytest.mark.parametrize("n_sites", [2, 3, 4])
+def test_padded_shape_matches_pad(kind, n_sites, rng):
+    train = (
+        random_mps(n_sites, 3, rng) if kind == "mps" else random_mpo(n_sites, 3, rng)
+    )
+    last = n_sites - 1
+
+    shapes = [padded_shape(t.shape, kind, i, last) for i, t in enumerate(train)]
+
+    assert shapes == [t.shape for t in pad(train)]
+    for i, site in enumerate(train):
+        np.testing.assert_array_equal(pad_site(site, kind, i, last), pad(train)[i])
+
+
+class LazySite:
+    """A site with shape and dtype but no array methods, read by ``np.asarray``."""
+
+    def __init__(self, data):
+        self.data = data
+        self.shape, self.dtype, self.ndim = data.shape, data.dtype, data.ndim
+
+    def __array__(self, dtype=None, copy=None):
+        return np.asarray(self.data, dtype=dtype)
+
+
+def test_transpose_mpo_of_lazy_sites(rng):
+    train = random_mpo(3, 2, rng, up=2, down=3)
+
+    transposed = transpose_mpo([LazySite(site) for site in train])
+
+    assert all(isinstance(site, SwappedLegs) for site in transposed)
+    assert [t.shape for t in transposed] == [(2, 3, 2), (2, 2, 3, 2), (2, 3, 2)]
+    np.testing.assert_array_equal(np.asarray(transposed[1]), train[1].swapaxes(-2, -1))
+    assert np.asarray(transposed[0], dtype=np.complex64).dtype == np.complex64

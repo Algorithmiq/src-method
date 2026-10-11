@@ -43,7 +43,7 @@ All of these must pass before a pull request can be merged;
 ```bash
 uv run ruff check src/ tests/       # lint
 uv run ruff format --check src/ tests/
-uv run ty check src/                # type check
+uv run ty check                     # type check src/ and tests/
 uv run pytest -m "not slow"         # fast test suite
 uv run pytest                       # full suite, including slow tests
 ```

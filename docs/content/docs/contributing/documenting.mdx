@@ -1,0 +1,55 @@
+---
+title: Documenting
+description: How this site is built, and how to add pages, API docs and tutorials.
+---
+
+This site is a [Fumadocs](https://fumadocs.dev) application under `docs/`, built
+with Next.js into a static export and deployed to GitHub Pages by the
+`Documentation` workflow. Pull requests build it too, so a broken page fails CI.
+
+## Building locally
+
+You need [Node.js](https://nodejs.org) 22 or later and the `docs` dependency
+group. From the repository root:
+
+```bash
+uv sync --group docs
+cd docs
+npm ci
+uv run python scripts/gen_api_dump.py src_method -d .   # docstrings -> JSON
+node scripts/generate-api.mjs                           # JSON -> content/docs/api
+uv run python scripts/notebooks_to_mdx.py               # notebooks -> content/docs/tutorials
+npm run dev                                             # http://localhost:3000
+```
+
+`npm run build` writes the static export to `docs/out`. The generated API pages,
+tutorials and `src_method.json` are ignored by git; regenerate them after
+changing a docstring or a notebook.
+
+## Writing pages
+
+Hand-written pages are MDX under `docs/content/docs/`; each folder's `meta.json`
+orders its sidebar entries. Besides Markdown you can use:
+
+- math with `$...$` and `$$...$$`, rendered by KaTeX;
+- citations with `[@key]`, resolved against `docs/bibliography.bib`; add the
+  formatted entry to the [References](/references) page too;
+- cross-references to the API with `[src][]` or `[text][src_method.stack.src]`;
+- Fumadocs components such as `<Callout>` and `<Cards>`.
+
+Python code blocks are executed by the `Documentation` workflow with
+`pytest --markdown-docs`, so every example must run on its own. Mark a block that
+cannot, for instance one that needs a GPU, with `python notest`.
+
+## API reference
+
+The [Python API](/api) pages are generated from the docstrings of the modules
+listed in `MODULES` in `docs/scripts/generate-api.mjs`. Write Google-style
+docstrings; `Args`, `Returns` and `Raises` sections are rendered as such.
+
+## Tutorials
+
+Each tutorial is a notebook at `docs/notebooks/<name>/<name>.ipynb`. The build
+executes it from top to bottom, failing on any cell error, and renders it to a
+page whose title is the notebook's first `#` heading. Keep tutorials quick to
+run: they execute on every documentation build.

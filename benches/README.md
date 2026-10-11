@@ -10,6 +10,9 @@ different SRC variants. They are grouped by the kind of workload exercised:
 - [`stack/`](stack/) — One-shot SRC over stacks of trains against sequential
   pairwise application, by stack depth: accuracy against dense references and
   wall time. See [`stack/README.md`](stack/README.md).
+- [`large/`](large/) — Out-of-core SRC of `N . V . M . U` with a large `M` read
+  from disk, on one GPU: plan, wall time, memory peaks and stall time. See
+  [`large/README.md`](large/README.md).
 
 The scripts need the `bench` dependency group (included in `dev`):
 

@@ -1,0 +1,78 @@
+---
+title: Contributing
+description: Workflow, quality gates and code style for working on src_method.
+---
+
+Bug reports, benchmarks on new hardware and algorithmic improvements are all
+welcome. The short version lives in
+[`CONTRIBUTING.md`](https://github.com/Algorithmiq/src-method/blob/main/CONTRIBUTING.md);
+the pages in this section go into detail.
+
+<Cards>
+  <Card title="Testing" href="/contributing/testing" description="Layout of the test suite, markers, warnings and logging in tests." />
+  <Card title="Documenting" href="/contributing/documenting" description="How this site is built, and how to add pages, API docs and tutorials." />
+  <Card title="Dependencies" href="/contributing/dependencies" description="Dependency groups, version floors and tool pins." />
+  <Card title="Versioning" href="/contributing/versioning" description="How version numbers are computed from git." />
+  <Card title="SonarCloud" href="/contributing/sonarcloud" description="Setting up the SonarCloud analysis." />
+</Cards>
+
+## Contributor License Agreement
+
+Before we can merge your contribution, you must sign the [Contributor License
+Agreement](https://github.com/Algorithmiq/src-method/blob/main/CLA.md). The CLA
+bot posts a one-time comment on your first pull request with instructions.
+
+## Reporting bugs
+
+[Open an issue](https://github.com/Algorithmiq/src-method/issues/new/choose) with:
+
+- the versions of `src_method`, `numpy` and, if relevant, `cupy`;
+- a minimal reproducer, ideally with a fixed `seed=`;
+- the observed and expected behaviour.
+
+For numerical-accuracy reports, include the bond dimensions, the number of sites,
+the `dtype` and the error metric you used.
+
+## Development setup
+
+The repository ships a [Dev Container](https://containers.dev/) configuration and
+a Nix flake that install every dependency for you. By hand, you need
+[`uv`](https://docs.astral.sh/uv/):
+
+```bash
+uv sync --all-groups --all-extras
+uv run prek install --prepare-hooks
+```
+
+## Quality gates
+
+All of these must pass before a pull request can be merged;
+[`prek`](https://github.com/j178/prek) runs the lint, format and type checks on
+every commit, and the `Lint` workflow runs the same hooks in CI.
+
+```bash
+uv run prek run --all-files     # lint, format, type check, lockfile
+uv run pytest -m "not slow"     # fast test suite
+uv run pytest                   # full suite, including slow tests
+```
+
+New behaviour needs a test. Numerical changes need a test that pins the accuracy,
+not just the shapes.
+
+## Pull requests
+
+- Keep pull requests focused on a single concern.
+- Use [Conventional Commits](https://www.conventionalcommits.org/), optionally
+  with a [gitmoji](https://gitmoji.dev/) after the colon, e.g.
+  `fix: 🐛 trim terminal bond on the left-to-right sweep`.
+- Update the documentation and the docstrings alongside the code.
+- If the change affects performance, include before and after numbers and the
+  hardware they were measured on.
+
+## Code style
+
+The project targets Python 3.11+, is checked with `ruff` under a strict rule set
+and type-checked with [`ty`](https://github.com/astral-sh/ty). Public functions
+carry type hints and Google-style docstrings without types in the argument list.
+The algorithms go through `src_method.utils._backend` rather than importing NumPy
+or CuPy directly, so the CPU and GPU paths stay in sync.

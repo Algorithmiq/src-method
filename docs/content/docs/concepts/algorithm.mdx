@@ -1,0 +1,56 @@
+---
+title: The algorithm
+description: How SRC contracts and compresses in one randomized sweep.
+---
+
+Successive Randomized Compression (SRC) [@camano2026src] computes a compressed
+approximation of a product of tensor trains, such as $A\,|\psi\rangle$ for an MPO
+$A$ and an MPS $|\psi\rangle$, without ever forming the exact product. The exact
+product of an MPO with bond dimension $\chi_A$ and an MPS with bond dimension
+$\chi_\psi$ has bond dimension $\chi_A \chi_\psi$; compressing it afterwards, as
+in the usual contract-then-truncate approach, pays for that intermediate size.
+SRC targets the output bond dimension $\chi_{\text{out}}$ directly.
+
+## Randomized range finding
+
+The building block is the randomized range finder [@halko2011finding]: to
+approximate the column space of a matrix $M$ with rank about $k$, multiply it by a
+random Gaussian matrix $\Omega$ with $k$ columns and orthonormalise the result,
+$Q = \operatorname{orth}(M\Omega)$. Then $M \approx Q Q^\dagger M$ with high
+probability, and the cost is dominated by the product $M\Omega$.
+
+SRC applies this idea one site at a time along the chain, with the matrix $M$
+being an unfolding of the (never formed) product network.
+
+## Two sweeps
+
+1. **Left to right: sketching.** At every site the open physical legs are
+   contracted with a Gaussian tensor $\Omega_j$ of sketch size
+   $\chi_{\text{out}}$. Accumulating these from the left gives the sketched
+   environments $C_j$, each of size $\chi_{\text{out}}$ times the product of the
+   input bond dimensions. The same sketch index is shared by every site, which
+   makes the sketch a Khatri-Rao product rather than a dense Gaussian matrix of
+   the full Hilbert space.
+2. **Right to left: orthonormalisation.** Starting from the last site, the
+   environment $C_j$ is contracted with the site tensors and the projected right
+   environment $S$, and a QR decomposition of the result gives the new site
+   tensor as an isometry. The isometry is then folded into $S$ for the next site.
+   The first site absorbs the remaining weight.
+
+The output is therefore in right-canonical form, with bond dimension at most
+$\chi_{\text{out}}$. Without a [cutoff](/features/cutoff) every inner bond is
+$\chi_{\text{out}}$ unless the physical dimensions near the ends of the chain
+force it lower.
+
+## Cost
+
+For an MPO with bond dimension $\chi_A$ applied to an MPS with bond dimension
+$\chi_\psi$, the dominant per-site cost grows like
+$\chi_{\text{out}}^2 \chi_A \chi_\psi$, compared with the $(\chi_A\chi_\psi)^3$ of
+an exact contraction followed by an SVD-based truncation. The same kernel handles
+MPO-MPO products and plain compression; for a [stack](/features/stacks) of trains,
+the product of all their bond dimensions replaces $\chi_A\chi_\psi$.
+
+Being randomized, SRC is not optimal: its error is somewhat above the best
+rank-$\chi_{\text{out}}$ truncation, with a gap that shrinks quickly as the
+spectrum decays. The [benchmarks](/benchmarks) quantify this on concrete cases.

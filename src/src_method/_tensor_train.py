@@ -16,16 +16,17 @@ exact SVD is both cheaper and more accurate than a randomized sketch.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
 import numpy as np
 from opt_einsum import contract
 
 from ._validation import validate_open_boundary
-from .utils import to_numpy
+from .utils import is_host, to_numpy
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from types import ModuleType
 
     from numpy.typing import NDArray
 
@@ -41,21 +42,58 @@ _MPO_BOUNDARY_NDIM = 3
 
 TrainKind = Literal["mps", "mpo"]
 
+
+class SiteLike(Protocol):
+    """A site tensor that may be read lazily, such as a zarr or HDF5 dataset.
+
+    Its shape, dtype and rank are known at once; the data is read only by
+    ``np.asarray``. NumPy and CuPy arrays and ``np.memmap`` all qualify.
+    """
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """The shape of the site."""
+        ...
+
+    @property
+    def dtype(self) -> np.dtype:
+        """The dtype of the site."""
+        ...
+
+    @property
+    def ndim(self) -> int:
+        """The rank of the site, known without reading it."""
+        ...
+
+    def __array__(self, dtype: Any = None, copy: bool | None = None) -> np.ndarray:  # noqa: ANN401, FBT001  (the NumPy array protocol)
+        """Read the site into a NumPy array."""
+        ...
+
+
+# A site as the public entry points accept it: an array or a lazily read array-like.
+Site: TypeAlias = "NDArray | SiteLike"
+
 __all__ = [
     "MIN_SRC_SITES",
+    "Site",
+    "SiteLike",
+    "SwappedLegs",
     "TrainKind",
     "check_exact_supported",
     "exact_compress",
     "exact_stack",
     "infer_kind",
+    "known_kind",
     "normalize_stack",
     "pad",
+    "pad_site",
+    "padded_shape",
     "transpose_mpo",
     "unpad",
 ]
 
 
-def infer_kind(arrays: Sequence[NDArray]) -> TrainKind | None:
+def infer_kind(arrays: Sequence[Site]) -> TrainKind | None:
     """Classify a tensor train from the rank of its first site tensor.
 
     A boundary site carries one bond index plus either a single physical
@@ -75,6 +113,25 @@ def infer_kind(arrays: Sequence[NDArray]) -> TrainKind | None:
     if ndim == _MPO_BOUNDARY_NDIM:
         return "mpo"
     return None
+
+
+def known_kind(arrays: Sequence[Site]) -> TrainKind:
+    """Classify a train already validated by `normalize_stack`; see `infer_kind`.
+
+    Args:
+        arrays: The site tensors of the train.
+
+    Returns:
+        ``"mps"`` or ``"mpo"``.
+
+    Raises:
+        TypeError: If the layout is unrecognised.
+    """
+    kind = infer_kind(arrays)
+    if kind is None:
+        msg = "Unrecognised train layout: expected an MPS or an MPO."
+        raise TypeError(msg)
+    return kind
 
 
 def check_exact_supported(n_sites: int) -> None:
@@ -97,8 +154,18 @@ def check_exact_supported(n_sites: int) -> None:
         raise ValueError(msg)
 
 
+def _to_backend(site: Site, xp: ModuleType) -> NDArray:
+    """Ensure a site tensor is an array on the backend ``xp``."""
+    if is_host(xp):
+        return to_numpy(site)
+    return site if isinstance(site, xp.ndarray) else xp.asarray(site)
+
+
 def exact_compress(
-    arrays: Sequence[NDArray], chi_out: int, kind: TrainKind
+    arrays: Sequence[Site],
+    chi_out: int,
+    kind: TrainKind,
+    xp: ModuleType = np,
 ) -> list[NDArray]:
     """Compress a two-site train exactly via a single truncated SVD.
 
@@ -108,22 +175,24 @@ def exact_compress(
         arrays: The two site tensors of the train.
         chi_out: The maximum bond dimension to keep.
         kind: Whether the train is an ``"mps"`` or an ``"mpo"``.
+        xp: Array module (``numpy`` or ``cupy``); defaults to numpy.
 
     Returns:
-        The compressed train, in right-canonical form, as numpy arrays.
+        The compressed train, in right-canonical form, as arrays of ``xp``.
     """
-    # The dense SVD is host-side, so accept device arrays like the sweep does.
-    arrays = [to_numpy(arr) for arr in arrays]
+    device_arrays = [_to_backend(arr, xp) for arr in arrays]
     if kind == "mps":
         # (b, p0) x (b, p1) -> (p0, p1)
-        theta = contract("ab,ac->bc", arrays[0], arrays[1])
-        left, right = _truncated_svd(theta, chi_out)
+        theta = contract("ab,ac->bc", device_arrays[0], device_arrays[1])
+        left, right = _truncated_svd(theta, chi_out, xp=xp)
         return [left.T, right]
 
     # (b, u0, d0) x (b, u1, d1) -> (u0, d0, u1, d1)
-    theta = contract("aij,akl->ijkl", arrays[0], arrays[1])
+    theta = contract("aij,akl->ijkl", device_arrays[0], device_arrays[1])
     up_l, down_l, up_r, down_r = theta.shape
-    left, right = _truncated_svd(theta.reshape(up_l * down_l, up_r * down_r), chi_out)
+    left, right = _truncated_svd(
+        theta.reshape(up_l * down_l, up_r * down_r), chi_out, xp=xp
+    )
     rank = left.shape[1]
     return [
         left.reshape(up_l, down_l, rank).transpose(2, 0, 1),
@@ -131,11 +200,56 @@ def exact_compress(
     ]
 
 
-def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
+def _truncated_svd(
+    theta: NDArray, chi_out: int, xp: ModuleType = np
+) -> tuple[NDArray, NDArray]:
     """Split a matrix as ``(U @ diag(S), Vh)``, keeping at most ``chi_out`` values."""
-    U, S, Vh = np.linalg.svd(theta, full_matrices=False)
+    U, S, Vh = xp.linalg.svd(theta, full_matrices=False)
     rank = min(chi_out, S.size)
     return U[:, :rank] * S[:rank], Vh[:rank]
+
+
+def padded_shape(
+    shape: tuple[int, ...], kind: TrainKind, i: int, last: int
+) -> tuple[int, int, int, int]:
+    """Return the bulk ``(l, r, u, d)`` shape that `pad_site` gives a site.
+
+    Args:
+        shape: The unpadded shape of site ``i``.
+        kind: The kind of the train the site belongs to.
+        i: The position of the site.
+        last: The position of the last site of the train.
+
+    Returns:
+        The padded shape.
+    """
+    dims = [*shape, 1] if kind == "mps" else list(shape)
+    if i == 0:
+        dims.insert(0, 1)
+    if i == last:
+        dims.insert(1, 1)
+    left, right, up, down = dims
+    return left, right, up, down
+
+
+def pad_site(site: NDArray, kind: TrainKind, i: int, last: int) -> NDArray:
+    """View one site as a bulk MPO tensor ``(l, r, u, d)``; see `pad`.
+
+    Args:
+        site: The site tensor at position ``i``.
+        kind: The kind of the train the site belongs to.
+        i: The position of the site.
+        last: The position of the last site of the train.
+
+    Returns:
+        The rank-4 view.
+    """
+    view = site[..., None] if kind == "mps" else site
+    if i == 0:
+        view = view[None]
+    if i == last:
+        view = view[:, None]
+    return view
 
 
 def pad(train: Sequence[NDArray]) -> list[NDArray]:
@@ -151,17 +265,9 @@ def pad(train: Sequence[NDArray]) -> list[NDArray]:
     Returns:
         The rank-4 views, one per site.
     """
-    kind = infer_kind(train)
+    kind = known_kind(train)
     last = len(train) - 1
-    padded = []
-    for i, site in enumerate(train):
-        view = site[..., None] if kind == "mps" else site
-        if i == 0:
-            view = view[None]
-        if i == last:
-            view = view[:, None]
-        padded.append(view)
-    return padded
+    return [pad_site(site, kind, i, last) for i, site in enumerate(train)]
 
 
 def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
@@ -186,14 +292,48 @@ def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
     return unpadded
 
 
-def transpose_mpo(train: Sequence[NDArray]) -> list[NDArray]:
-    """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site (views)."""
-    return [site.swapaxes(-2, -1) for site in train]
+class SwappedLegs:
+    """A site read lazily, with its ``u`` and ``d`` legs swapped on reading.
+
+    Stands in for ``site.swapaxes(-2, -1)`` when ``site`` is a lazily loaded
+    array-like (a zarr or HDF5 dataset) that has no ``swapaxes``: the shape is known
+    at once and the data is only read by ``np.asarray``.
+    """
+
+    def __init__(self, site: Site) -> None:
+        """Wrap a lazily loaded site.
+
+        Args:
+            site: The site to transpose.
+        """
+        self._site = site
+        shape = tuple(site.shape)
+        self.shape = (*shape[:-2], shape[-1], shape[-2])
+        self.dtype = np.dtype(site.dtype)
+        self.ndim = len(shape)
+
+    def __array__(self, dtype: Any = None, copy: bool | None = None) -> np.ndarray:  # noqa: ANN401, FBT001
+        """Read the site and swap its physical legs."""
+        del copy
+        swapped = np.asarray(self._site).swapaxes(-2, -1)
+        return swapped if dtype is None else swapped.astype(dtype)
+
+
+def transpose_mpo(train: Sequence[Site]) -> list[Site]:
+    """Transpose an MPO by swapping its ``u`` and ``d`` legs on every site.
+
+    Arrays give views; lazily loaded sites without ``swapaxes`` give `SwappedLegs`.
+    """
+    transposed: list[Site] = []
+    for site in train:
+        swapaxes = getattr(site, "swapaxes", None)
+        transposed.append(swapaxes(-2, -1) if callable(swapaxes) else SwappedLegs(site))
+    return transposed
 
 
 def normalize_stack(
-    trains: Sequence[Sequence[NDArray]],
-) -> tuple[list[Sequence[NDArray]], TrainKind]:
+    trains: Sequence[Sequence[Site]],
+) -> tuple[list[Sequence[Site]], TrainKind]:
     """Validate a stack and rewrite it in ket form.
 
     A stack ``T_1 . T_2 . ... . T_m`` is contracted along the physical legs, the
@@ -256,7 +396,7 @@ def _check_roles(kinds: Sequence[TrainKind | None]) -> None:
 
 
 def _check_physical_dims(
-    trains: Sequence[Sequence[NDArray]], kinds: Sequence[TrainKind | None]
+    trains: Sequence[Sequence[Site]], kinds: Sequence[TrainKind | None]
 ) -> None:
     """Check that the legs joined between adjacent trains agree at every site."""
     for i in range(len(trains) - 1):
@@ -272,7 +412,10 @@ def _check_physical_dims(
 
 
 def exact_stack(
-    layers: Sequence[Sequence[NDArray]], chi_out: int, kind: TrainKind
+    layers: Sequence[Sequence[Site]],
+    chi_out: int,
+    kind: TrainKind,
+    xp: ModuleType = np,
 ) -> list[NDArray]:
     """Contract and compress a two-site stack exactly.
 
@@ -284,15 +427,16 @@ def exact_stack(
         layers: A stack in ket form, as returned by `normalize_stack`.
         chi_out: The maximum bond dimension to keep.
         kind: The kind of the contracted train.
+        xp: Array module (``numpy`` or ``cupy``); defaults to numpy.
 
     Returns:
-        The compressed product, in right-canonical form, as numpy arrays.
+        The compressed product, in right-canonical form, as arrays of ``xp``.
     """
-    padded = [pad([to_numpy(site) for site in layer]) for layer in layers]
+    padded = [pad([_to_backend(site, xp) for site in layer]) for layer in layers]
     product = padded[-1]
     for layer in reversed(padded[:-1]):
         product = [_fuse(upper, lower) for upper, lower in zip(layer, product)]
-    return exact_compress(unpad(product, kind), chi_out, kind)
+    return exact_compress(unpad(product, kind), chi_out, kind, xp=xp)
 
 
 def _fuse(upper: NDArray, lower: NDArray) -> NDArray:

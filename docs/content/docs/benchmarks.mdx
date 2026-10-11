@@ -1,0 +1,53 @@
+---
+title: Benchmarks
+description: Accuracy and timing of SRC against quimb and against pairwise application.
+---
+
+The benchmark scripts live in
+[`benches/`](https://github.com/Algorithmiq/src-method/tree/main/benches) and need
+the `bench` dependency group. Each folder's README holds the full tables and the
+commands to reproduce them.
+
+## Primitives
+
+[`benches/primitives`](https://github.com/Algorithmiq/src-method/tree/main/benches/primitives)
+compares the MPO-MPO product against `quimb`'s contract-then-compress on the
+Leonardo supercomputer at CINECA. One MPO is random, the other a slightly
+perturbed identity, so the product is highly compressible.
+
+| Experiment | CPUs | quimb (s) | src (s) | Speedup |
+|---|---|---|---|---|
+| 50 sites, $\chi = 50$ | 32 | 164.97 | 11.92 | 13.8x |
+| 20 sites, $\chi = 100$ | 32 | 2004.52 | 94.83 | 21x |
+| 25 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 112 | 501.82 (rsvd) | 71.01 | 7x |
+| 50 sites, $\chi = 1000$, $\chi_{\text{id}} = 4$ | 112 | 1187.82 (rsvd) | 150.11 | 8x |
+
+At $\chi = 1000$, SRC also used about a sixth of the peak memory of `quimb`.
+
+## Stacks
+
+[`benches/stack`](https://github.com/Algorithmiq/src-method/tree/main/benches/stack)
+compares one sweep over a [stack](/features/stacks), `src(A_1, ..., A_k, psi)`,
+with pairwise application truncating after every product, as a function of the
+number of trains.
+
+- One sweep over the whole stack is at best moderately more accurate. For random
+  stacks ending in an MPS it has about 20 % lower median error at depth 4; for
+  random MPO products the gain is at most 8 %; for Trotter layers there is no
+  systematic difference.
+- Both methods sit 2-15x above the best possible error at the same bond
+  dimension, so the randomized sketch, not compounding across layers, dominates
+  the error.
+- The per-site cost grows with $\chi^2$ times the product of the layer bonds.
+  Thin Trotter layers run at 0.6-1.4x the pairwise time up to depth 5, while
+  random MPOs of bond 8 and 16 at depth 4 are 30x and 136x slower.
+
+| Stack | Depth | $\chi$ | one sweep (s) | pairwise (s) | ratio |
+|---|---|---|---|---|---|
+| Trotter, 1 layer + MPS | 2 | 64 | 0.0764 | 0.0642 | 1.19 |
+| Trotter, 2 layers + MPS | 3 | 64 | 0.0936 | 0.147 | 0.639 |
+| Trotter, 3 layers + MPS | 4 | 64 | 0.201 | 0.207 | 0.975 |
+| Trotter, 4 layers + MPS | 5 | 64 | 0.384 | 0.283 | 1.36 |
+| random $D=8$, 2 layers + MPS | 3 | 64 | 1.67 | 0.52 | 3.21 |
+| random $D=8$, 3 layers + MPS | 4 | 64 | 24.7 | 0.837 | 29.5 |
+| random $D=16$, 3 layers + MPS | 4 | 64 | 316 | 2.33 | 136 |

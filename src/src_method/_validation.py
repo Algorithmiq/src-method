@@ -14,18 +14,21 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import NDArray
+    from ._tensor_train import Site
 
 __all__ = ["validate_chi_out", "validate_cutoff", "validate_open_boundary"]
 
 
-def validate_chi_out(chi_out: int) -> None:
+def validate_chi_out(chi_out: object) -> int:
     """Reject a non-integer or non-positive output bond dimension.
 
     Any `numbers.Integral` is accepted, so NumPy integers pass; `bool` does not.
 
     Args:
         chi_out: The requested output bond dimension.
+
+    Returns:
+        ``chi_out`` as a plain `int`.
 
     Raises:
         TypeError: If `chi_out` is not an integer.
@@ -37,6 +40,7 @@ def validate_chi_out(chi_out: int) -> None:
     if chi_out < 1:
         msg = f"chi_out must be positive, got {chi_out!r}."
         raise ValueError(msg)
+    return int(chi_out)
 
 
 def validate_cutoff(cutoff: float) -> None:
@@ -57,7 +61,7 @@ def validate_cutoff(cutoff: float) -> None:
 
 
 def validate_open_boundary(
-    train: Sequence[NDArray], boundary_ndim: int, index: int
+    train: Sequence[Site], boundary_ndim: int, index: int
 ) -> None:
     """Check that a train has the layout of an open-boundary MPS or MPO.
 

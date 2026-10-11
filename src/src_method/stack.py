@@ -18,12 +18,16 @@ from ._tensor_train import (
     normalize_stack,
 )
 from ._validation import validate_chi_out, validate_cutoff
-from .utils import default_rng, get_xp, sketch_dtype
+from .utils import default_rng, get_xp, sketch_dtype, to_numpy
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import DTypeLike, NDArray
+    import numpy as np
+    from numpy.typing import DTypeLike
+
+    from ._plan import Resources
+    from ._tensor_train import Site
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +38,14 @@ LOG_WARN_SMALL = (
 
 
 def src(
-    *trains: Sequence[NDArray],
-    chi_out: int,
+    *trains: Sequence[Site],
+    chi_out: int | np.integer,
     cutoff: float = 0.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
     to_host: bool = True,
+    resources: Resources | None = None,
 ) -> list[Any]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
@@ -66,7 +71,10 @@ def src(
     two or three Trotter layers). Apply anything else pairwise.
 
     Args:
-        *trains: The site arrays of each train, in mathematical order.
+        *trains: The site arrays of each train, in mathematical order. A site may
+            also be any array-like with ``shape``, ``dtype``, ``ndim`` and
+            ``np.asarray`` support (`SiteLike`), such as ``np.memmap`` or a zarr or
+            HDF5 dataset; it is then read only when the sweep reaches it.
         chi_out: The desired maximum bond dimension of the output train.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
             When positive, bonds are trimmed to their effective rank by
@@ -83,6 +91,9 @@ def src(
             the optional ``cupy`` dependency for GPU execution.
         to_host: If ``True`` (default), results are returned as numpy arrays on
             the host. Set to ``False`` to keep tensors on the compute device.
+        resources: Memory budgets and scratch space for the sweep (see
+            `Resources`); every budget left unset is detected. Ignored for
+            two-site stacks.
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), in right-canonical
@@ -98,7 +109,7 @@ def src(
             not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
-    validate_chi_out(chi_out)
+    chi_out = validate_chi_out(chi_out)
     validate_cutoff(cutoff)
     xp = get_xp(device)
     prng = default_rng(seed)
@@ -108,8 +119,10 @@ def src(
     if n_sites < MIN_SRC_SITES:
         check_exact_supported(n_sites)
         logger.warning(LOG_WARN_SMALL)
-        result = exact_stack(layers, chi_out, kind)
-        return result if to_host else [xp.asarray(t) for t in result]
+        result = exact_stack(layers, chi_out, kind, xp=xp)
+        if to_host:
+            return [to_numpy(site) for site in result]
+        return list(result)
 
     logger.debug(
         "Starting SRC: n_sites=%d, depth=%d, output=%s, device=%s",
@@ -127,6 +140,7 @@ def src(
         cutoff=cutoff,
         dtype=sketch_dtype(dtype, *layers),
         to_host=to_host,
+        resources=resources,
     )
     logger.debug("SRC complete")
     return result

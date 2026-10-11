@@ -1,0 +1,37 @@
+---
+title: References
+description: The papers behind src_method.
+---
+
+The SRC algorithm for the compressed MPO-MPS product is introduced in
+[@camano2026src]; `src_method` extends it to MPO-MPO products, plain compression
+and stacks of trains. It builds on the randomized range finder of
+[@halko2011finding]. The array layout follows `quimb` [@gray2018quimb], which the
+tests and tutorials also use to build reference networks.
+
+## Bibliography
+
+<ol>
+  <li id="bib-camano2026src">
+    C. Camaño, E. N. Epperly, and J. A. Tropp,
+    "Successive randomized compression: A randomized algorithm for the
+    compressed MPO-MPS product,"
+    <em>Quantum</em>, vol. 10, p. 2022, 2026.
+    <a href="https://doi.org/10.22331/q-2026-03-10-2022">doi:10.22331/q-2026-03-10-2022</a>,
+    <a href="https://arxiv.org/abs/2504.06475">arXiv:2504.06475</a>
+  </li>
+  <li id="bib-halko2011finding">
+    N. Halko, P.-G. Martinsson, and J. A. Tropp,
+    "Finding structure with randomness: Probabilistic algorithms for
+    constructing approximate matrix decompositions,"
+    <em>SIAM Review</em>, vol. 53, no. 2, pp. 217–288, 2011.
+    <a href="https://doi.org/10.1137/090771806">doi:10.1137/090771806</a>
+  </li>
+  <li id="bib-gray2018quimb">
+    J. Gray,
+    "quimb: A python package for quantum information and many-body
+    calculations,"
+    <em>Journal of Open Source Software</em>, vol. 3, no. 29, p. 819, 2018.
+    <a href="https://doi.org/10.21105/joss.00819">doi:10.21105/joss.00819</a>
+  </li>
+</ol>

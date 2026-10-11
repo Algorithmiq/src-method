@@ -1,0 +1,69 @@
+---
+title: Conventions
+description: The array layout of MPS and MPO sites, and the contraction order.
+---
+
+## Index order
+
+The array layout follows the default `quimb` tensor indexing conventions
+[@gray2018quimb], so results round-trip through `quimb` without any permutation:
+
+```python
+import quimb.tensor as qtn
+
+from src_method import apply
+
+H1 = qtn.MPO_rand(6, bond_dim=4, seed=0)
+H2 = qtn.MPO_rand(6, bond_dim=4, seed=1)
+
+result = qtn.MatrixProductOperator(apply(H1.arrays, H2.arrays, chi_out=16))
+```
+
+- **MPO tensors:** bulk tensors have index order `('l', 'r', 'u', 'd')`. Boundary
+  tensors are rank 3, dropping the outer `'l'` or `'r'` index.
+- **MPS tensors:** bulk tensors have index order `('l', 'r', 'u')`. Boundary
+  tensors are rank 2, dropping the outer bond index.
+
+Here `'l'` and `'r'` are the left and right virtual bonds and `'u'` and `'d'` are
+the upper and lower physical legs. Keep this in mind when building or
+manipulating site arrays directly.
+
+The kind of a train is inferred from the rank of its first site: rank 2 is an
+MPS, rank 3 an MPO. Only open-boundary trains are supported; periodic ones are
+rejected with an error.
+
+## Contraction order
+
+[`src`](/api/stack#src) contracts a *stack* of trains, written in mathematical
+order:
+
+```python notest
+state = src(U3, U2, U1, psi, chi_out=64)  # U3 U2 U1 |psi>, U1 acts first
+```
+
+Each contraction joins the `'d'` leg of a train with the `'u'` leg (or the
+physical leg of an MPS) of the train to its right:
+
+| Stack | Contraction | Result |
+|---|---|---|
+| `src(A)`, `src(psi)` | none | compressed MPO or MPS |
+| `src(A, B, ...)` | `A.d` with `B.u` | MPO |
+| `src(A, ..., psi)` | `A.d` with `psi` | MPS on the `'u'` leg of `A` (a ket) |
+| `src(phi, A, ...)` | `phi` with `A.u` | MPS on the `'d'` leg of the last MPO (a bra) |
+
+An MPS may appear only first or last, and not both. `apply(A, B)` and
+`compress(A)` are the two- and one-train cases; `apply` accepts only an MPO on the
+left.
+
+## Bras are not conjugated
+
+A leading MPS is a row vector used **without conjugation**: `src(phi, A, B)`
+computes $\phi^T A B$, which equals `src(Bᵀ, Aᵀ, phi)` with $^T$ swapping the `'u'`
+and `'d'` legs. For the physical bra $\langle\psi| A B$, conjugate first:
+
+```python notest
+bra = src([t.conj() for t in psi], A, B, chi_out=64)
+```
+
+The result then pairs with a ket by plain contraction, with no further
+conjugation.
