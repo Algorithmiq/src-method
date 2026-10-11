@@ -22,6 +22,7 @@ from src_method._plan import (
     make_plan,
 )
 from src_method._sites import padded_shapes, site_bytes
+from src_method.utils import truncated_qr
 
 cupy = pytest.importorskip("cupy")
 
@@ -155,6 +156,92 @@ def test_compress_mpo_cpu_gpu_equivalent() -> None:
     )
 
     np.testing.assert_allclose(cpu_out.distance(gpu_out), 0.0, atol=1e-6)
+
+
+def test_apply_mpo_mps_cutoff_cpu_gpu_equivalent() -> None:
+    """CPU and GPU ``apply`` MPO @ MPS with positive cutoff must produce equivalent MPSs."""
+    n_sites, phys_dim, chi_out = 5, 2, 8
+    H = qtn.MPO_rand(n_sites, bond_dim=4, phys_dim=phys_dim, dtype=np.complex128)
+    psi = qtn.MPS_rand_state(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128
+    )
+
+    cpu_out = as_mps(
+        apply(
+            H.arrays,
+            psi.arrays,
+            chi_out=chi_out,
+            cutoff=1e-4,
+            dtype=np.complex128,
+            seed=42,
+            device="cpu",
+        )
+    )
+    gpu_out = as_mps(
+        apply(
+            H.arrays,
+            psi.arrays,
+            chi_out=chi_out,
+            cutoff=1e-4,
+            dtype=np.complex128,
+            seed=42,
+            device="gpu",
+        )
+    )
+
+    np.testing.assert_allclose(cpu_out.distance(gpu_out), 0.0, atol=1e-6)
+
+
+def test_compress_mpo_cutoff_cpu_gpu_equivalent() -> None:
+    """CPU and GPU ``compress`` with positive cutoff must produce equivalent MPOs."""
+    n_sites, phys_dim, chi_out = 8, 4, 32
+    A = qtn.MPO_rand(n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=np.complex128)
+
+    cpu_out = as_mpo(
+        compress(
+            A.arrays,
+            chi_out=chi_out,
+            cutoff=1e-4,
+            dtype=np.complex128,
+            seed=42,
+            device="cpu",
+        )
+    )
+    gpu_out = as_mpo(
+        compress(
+            A.arrays,
+            chi_out=chi_out,
+            cutoff=1e-4,
+            dtype=np.complex128,
+            seed=42,
+            device="gpu",
+        )
+    )
+
+    np.testing.assert_allclose(cpu_out.distance(gpu_out), 0.0, atol=1e-6)
+
+
+@pytest.mark.parametrize("shape", [(20, 10), (10, 20)])
+def test_truncated_qr_positive_cutoff_gpu_matches_cpu(shape: tuple[int, int]) -> None:
+    """``truncated_qr`` with positive cutoff on GPU must compute on device and match CPU."""
+    rng = np.random.default_rng(42)
+    matrix = rng.normal(size=shape) + 1j * rng.normal(size=shape)
+    gpu_matrix = cupy.asarray(matrix)
+
+    cpu_q = truncated_qr(matrix, cutoff=0.1, xp=np)
+    gpu_q = truncated_qr(gpu_matrix, cutoff=0.1, xp=cupy)
+
+    assert isinstance(gpu_q, cupy.ndarray)
+    assert gpu_q.shape == cpu_q.shape
+
+    # Both must be isometries: Q^H @ Q == I
+    identity = cupy.eye(gpu_q.shape[1], dtype=gpu_q.dtype)
+    cupy.testing.assert_allclose(gpu_q.conj().T @ gpu_q, identity, atol=1e-12)
+
+    # Subspaces must match: compare projectors P = Q @ Q^H
+    proj_cpu = cpu_q @ cpu_q.conj().T
+    proj_gpu = (gpu_q @ gpu_q.conj().T).get()
+    np.testing.assert_allclose(proj_gpu, proj_cpu, atol=1e-12)
 
 
 def test_invalid_device_raises() -> None:
