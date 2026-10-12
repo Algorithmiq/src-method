@@ -1,5 +1,6 @@
 """Test `src` over stacks of tensor trains, and the sweep behind it."""
 
+import logging
 import threading
 from functools import reduce
 
@@ -407,6 +408,52 @@ def test_compress_passes_resources(rng):
 
     with pytest.raises(MemoryError, match="working set exceeds the budget"):
         compress(A, chi_out=8, resources=Resources(host_memory="1kB"))
+
+
+def _rows_capped(monkeypatch, cap):
+    """Make every kernel run out of memory on batches of more than ``cap`` rows."""
+    rows_of = {
+        "env": lambda args: args[0].shape[0],
+        "sketch": lambda args: args[0].shape[0],
+        "project": lambda args: args[0].shape[0],
+        "first": lambda args: args[1].shape[0],
+    }
+    for name, rows in rows_of.items():
+        original = getattr(SiteKernels, name)
+
+        def kernel(self, *args, original=original, rows=rows):
+            if rows(args) > cap:
+                msg = "simulated out of memory"
+                raise MemoryError(msg)
+            return original(self, *args)
+
+        monkeypatch.setattr(SiteKernels, name, kernel)
+
+
+@pytest.mark.parametrize("devices", [None, 2])
+def test_out_of_memory_splits_the_batches(devices, rng, monkeypatch, caplog):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(3)]
+    resources = Resources(devices=devices)
+    reference = src(*stack, chi_out=16, seed=4, dtype=np.complex128)
+
+    _rows_capped(monkeypatch, 4)
+    with caplog.at_level(logging.DEBUG, logger="src_method"):
+        split = src(
+            *stack, chi_out=16, seed=4, dtype=np.complex128, resources=resources
+        )
+
+    assert [t.shape for t in split] == [t.shape for t in reference]
+    assert rel_error(split, dense(reference)) < 1e-10
+    for kernel in ("env", "sketch", "project", "first"):
+        assert f"Out of memory in a {kernel} batch" in caplog.text
+
+
+def test_out_of_memory_on_one_row_raises(rng, monkeypatch):
+    stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(3)]
+
+    _rows_capped(monkeypatch, 0)
+    with pytest.raises(MemoryError, match="simulated out of memory"):
+        src(*stack, chi_out=16, seed=4)
 
 
 # -------------------------------

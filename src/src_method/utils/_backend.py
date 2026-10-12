@@ -318,6 +318,16 @@ def device_pool_bytes(xp: ModuleType) -> int:
     return xp.get_default_memory_pool().total_bytes()
 
 
+def release_cached_blocks(xp: ModuleType) -> None:
+    """Return the free blocks cupy's pool caches on the current device to CUDA.
+
+    Blocks split for smaller allocations stay cached until all their parts are
+    free. No-op on the host.
+    """
+    if not is_host(xp):
+        xp.get_default_memory_pool().free_all_blocks()
+
+
 @contextmanager
 def device_pool_limit(xp: ModuleType, budget: int | None) -> Iterator[None]:
     """Cap cupy's default memory pool at ``budget`` bytes beyond its current use.

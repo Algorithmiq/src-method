@@ -13,6 +13,8 @@ through `truncated_qr` while carrying the projected environment ``S``.
 Every contraction runs in batches sized by `src_method._plan.make_plan` to the
 memory budgets. The cores are read one site at a time (`SiteSource`) and the
 environments live on the device, in host memory or on disk (`EnvironmentStore`).
+CuPy's pool can fragment beyond the margin the plan leaves for it; a batch that
+then runs out of memory is computed in smaller pieces (`_SplittingKernels`).
 
 With several devices (`DeviceGroup`), each owns a contiguous block of the sketch
 columns. The left-to-right pass needs no communication: the columns are
@@ -26,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from math import ceil
 from time import perf_counter_ns
 from typing import TYPE_CHECKING
 
@@ -42,12 +45,13 @@ from .utils import (
     device_pool_limit,
     gaussian_sketch,
     new_stream,
+    release_cached_blocks,
     to_numpy,
     truncated_qr,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Iterator, Sequence
     from types import ModuleType
 
     from numpy.typing import DTypeLike, NDArray
@@ -62,6 +66,85 @@ def _ranges(n: int, batch: int) -> Iterator[tuple[int, int]]:
     """Split ``range(n)`` into consecutive ``(lo, hi)`` batches."""
     for lo in range(0, n, batch):
         yield lo, min(lo + batch, n)
+
+
+class _SplittingKernels:
+    """The site kernels, computed in smaller pieces after running out of memory.
+
+    A batch that fails is split along its batch axis and its pieces joined, so
+    the batches read from and written to the store stay those of the plan. The
+    split of a kernel lasts for the rest of the sweep. One instance per device.
+
+    Args:
+        kernels: The kernels of the sweep.
+        xp: Array module (``numpy`` or ``cupy``).
+        tag: Prefix of the log messages.
+    """
+
+    def __init__(self, kernels: SiteKernels, xp: ModuleType, tag: str) -> None:
+        self._kernels, self._xp, self._tag = kernels, xp, tag
+        self._pieces: dict[str, int] = {}
+
+    def env(self, env: NDArray, omega: NDArray, cores: Sequence[NDArray]) -> NDArray:
+        """`SiteKernels.env`, split along the sketch columns."""
+        return self._split(
+            "env",
+            env.shape[0],
+            lambda a, b: self._kernels.env(env[a:b], omega[a:b], cores),
+            axis=0,
+        )
+
+    def sketch(self, env: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+        """`SiteKernels.sketch`, split along the sketch columns."""
+        return self._split(
+            "sketch",
+            env.shape[0],
+            lambda a, b: self._kernels.sketch(env[a:b], cores, proj),
+            axis=-1,
+        )
+
+    def project(self, eta: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+        """`SiteKernels.project`, split along the rows."""
+        return self._split(
+            "project",
+            eta.shape[0],
+            lambda a, b: self._kernels.project(eta[a:b], cores, proj),
+            axis=0,
+        )
+
+    def first(self, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+        """`SiteKernels.first`, split along the rows."""
+        return self._split(
+            "first",
+            proj.shape[0],
+            lambda a, b: self._kernels.first(cores, proj[a:b]),
+            axis=-3,
+        )
+
+    def _split(
+        self, kernel: str, n: int, compute: Callable[[int, int], NDArray], *, axis: int
+    ) -> NDArray:
+        parts, start = [], 0
+        while start < n:
+            pieces = self._pieces.get(kernel, 1)
+            stop = min(n, start + ceil(n / pieces))
+            try:
+                parts.append(compute(start, stop))
+            except MemoryError:
+                if stop - start == 1:
+                    raise
+                release_cached_blocks(self._xp)
+                self._pieces[kernel] = 2 * pieces
+                logger.debug(
+                    "%sOut of memory in a %s batch of %d rows; %d pieces from now on",
+                    self._tag,
+                    kernel,
+                    stop - start,
+                    2 * pieces,
+                )
+                continue
+            start = stop
+        return parts[0] if len(parts) == 1 else self._xp.concatenate(parts, axis=axis)
 
 
 def sweep(
@@ -203,7 +286,7 @@ class _Sweep:
         xp, tag = self.group.xp, self._tag(rank)
         lo, hi = self.columns[rank]
         env_shapes = [(hi - lo, *(s[0] for s in site)) for site in self.shapes]
-        kernels = SiteKernels(self.depth)
+        kernels = _SplittingKernels(SiteKernels(self.depth), xp, tag)
         with (
             device_pool_limit(xp, self.budgets.device_cap),
             EnvironmentStore(
@@ -237,7 +320,7 @@ class _Sweep:
     def _left_to_right(
         self,
         rank: int,
-        kernels: SiteKernels,
+        kernels: _SplittingKernels,
         source: SiteSource,
         store: EnvironmentStore,
     ) -> None:
@@ -260,7 +343,7 @@ class _Sweep:
     def _right_to_left(
         self,
         rank: int,
-        kernels: SiteKernels,
+        kernels: _SplittingKernels,
         source: SiteSource,
         store: EnvironmentStore,
     ) -> list[NDArray] | None:
