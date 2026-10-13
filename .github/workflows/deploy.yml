@@ -1,13 +1,6 @@
 name: Publish src_method Python sdist and wheels
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish-testpypi:
-        description: 'Upload artifacts to TestPyPI without a corresponding release'
-        required: false
-        default: false
-        type: boolean
   release:
     types:
       - published
@@ -55,40 +48,6 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.whl
-
-
-  upload_testpypi:
-    name: Upload to TestPyPI
-    needs:
-      - build-sdist-wheel
-    if: github.event.inputs.publish-testpypi
-
-    runs-on: ubuntu-latest
-
-    # Requires a `testpypi` environment (Settings > Environments) with a Trusted
-    # Publisher configured on https://test.pypi.org for this repo and workflow.
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/project/src_method/
-
-    permissions:
-      id-token: write  # for PyPI's trusted publishing (OIDC); no token is stored
-
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          # unpacks all CIBW artifacts into dist/
-          pattern: cibw-*
-          path: dist
-          merge-multiple: true
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          # TestPyPI is a shared sandbox: don't fail if this exact version is
-          # already there from a previous dry run.
-          skip-existing: true
 
 
   upload_pypi:
