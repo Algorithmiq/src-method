@@ -22,10 +22,11 @@ import numpy as np
 from opt_einsum import contract
 
 from ._validation import validate_open_boundary
-from .utils import to_numpy
+from .utils import is_host, to_numpy
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from types import ModuleType
 
     from numpy.typing import NDArray
 
@@ -153,8 +154,18 @@ def check_exact_supported(n_sites: int) -> None:
         raise ValueError(msg)
 
 
+def _to_backend(site: Site, xp: ModuleType) -> NDArray:
+    """Ensure a site tensor is an array on the backend ``xp``."""
+    if is_host(xp):
+        return to_numpy(site)
+    return site if isinstance(site, xp.ndarray) else xp.asarray(site)
+
+
 def exact_compress(
-    arrays: Sequence[NDArray], chi_out: int, kind: TrainKind
+    arrays: Sequence[Site],
+    chi_out: int,
+    kind: TrainKind,
+    xp: ModuleType = np,
 ) -> list[NDArray]:
     """Compress a two-site train exactly via a single truncated SVD.
 
@@ -164,22 +175,24 @@ def exact_compress(
         arrays: The two site tensors of the train.
         chi_out: The maximum bond dimension to keep.
         kind: Whether the train is an ``"mps"`` or an ``"mpo"``.
+        xp: Array module (``numpy`` or ``cupy``); defaults to numpy.
 
     Returns:
-        The compressed train, in right-canonical form, as numpy arrays.
+        The compressed train, in right-canonical form, as arrays of ``xp``.
     """
-    # The dense SVD is host-side, so accept device arrays like the sweep does.
-    arrays = [to_numpy(arr) for arr in arrays]
+    device_arrays = [_to_backend(arr, xp) for arr in arrays]
     if kind == "mps":
         # (b, p0) x (b, p1) -> (p0, p1)
-        theta = contract("ab,ac->bc", arrays[0], arrays[1])
-        left, right = _truncated_svd(theta, chi_out)
+        theta = contract("ab,ac->bc", device_arrays[0], device_arrays[1])
+        left, right = _truncated_svd(theta, chi_out, xp=xp)
         return [left.T, right]
 
     # (b, u0, d0) x (b, u1, d1) -> (u0, d0, u1, d1)
-    theta = contract("aij,akl->ijkl", arrays[0], arrays[1])
+    theta = contract("aij,akl->ijkl", device_arrays[0], device_arrays[1])
     up_l, down_l, up_r, down_r = theta.shape
-    left, right = _truncated_svd(theta.reshape(up_l * down_l, up_r * down_r), chi_out)
+    left, right = _truncated_svd(
+        theta.reshape(up_l * down_l, up_r * down_r), chi_out, xp=xp
+    )
     rank = left.shape[1]
     return [
         left.reshape(up_l, down_l, rank).transpose(2, 0, 1),
@@ -187,9 +200,11 @@ def exact_compress(
     ]
 
 
-def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
+def _truncated_svd(
+    theta: NDArray, chi_out: int, xp: ModuleType = np
+) -> tuple[NDArray, NDArray]:
     """Split a matrix as ``(U @ diag(S), Vh)``, keeping at most ``chi_out`` values."""
-    U, S, Vh = np.linalg.svd(theta, full_matrices=False)
+    U, S, Vh = xp.linalg.svd(theta, full_matrices=False)
     rank = min(chi_out, S.size)
     return U[:, :rank] * S[:rank], Vh[:rank]
 
@@ -397,7 +412,10 @@ def _check_physical_dims(
 
 
 def exact_stack(
-    layers: Sequence[Sequence[Site]], chi_out: int, kind: TrainKind
+    layers: Sequence[Sequence[Site]],
+    chi_out: int,
+    kind: TrainKind,
+    xp: ModuleType = np,
 ) -> list[NDArray]:
     """Contract and compress a two-site stack exactly.
 
@@ -409,15 +427,16 @@ def exact_stack(
         layers: A stack in ket form, as returned by `normalize_stack`.
         chi_out: The maximum bond dimension to keep.
         kind: The kind of the contracted train.
+        xp: Array module (``numpy`` or ``cupy``); defaults to numpy.
 
     Returns:
-        The compressed product, in right-canonical form, as numpy arrays.
+        The compressed product, in right-canonical form, as arrays of ``xp``.
     """
-    padded = [pad([to_numpy(site) for site in layer]) for layer in layers]
+    padded = [pad([_to_backend(site, xp) for site in layer]) for layer in layers]
     product = padded[-1]
     for layer in reversed(padded[:-1]):
         product = [_fuse(upper, lower) for upper, lower in zip(layer, product)]
-    return exact_compress(unpad(product, kind), chi_out, kind)
+    return exact_compress(unpad(product, kind), chi_out, kind, xp=xp)
 
 
 def _fuse(upper: NDArray, lower: NDArray) -> NDArray:

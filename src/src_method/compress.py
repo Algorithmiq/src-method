@@ -8,7 +8,7 @@ A thin wrapper around `src_method.stack.src` for one-train stacks:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .stack import src
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     import numpy as np
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import DTypeLike
 
     from ._plan import Resources
     from ._tensor_train import Site
@@ -30,8 +30,9 @@ def compress(
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
+    to_host: bool = True,
     resources: Resources | None = None,
-) -> list[NDArray]:
+) -> list[Any]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
     Equivalent to ``src(tensor, ...)``; see `src_method.stack.src` for the
@@ -55,6 +56,8 @@ def compress(
         seed: An optional seed for the random number generator.
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.
+        to_host: If ``True`` (default), results are returned as numpy arrays on
+            the host. Set to ``False`` to keep tensors on the compute device.
         resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
@@ -76,5 +79,6 @@ def compress(
         dtype=dtype,
         seed=seed,
         device=device,
+        to_host=to_host,
         resources=resources,
     )

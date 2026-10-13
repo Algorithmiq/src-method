@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from time import perf_counter_ns
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -64,8 +64,9 @@ def sweep(
     *,
     cutoff: float = 0.0,
     dtype: DTypeLike,
+    to_host: bool = True,
     resources: Resources | None = None,
-) -> list[NDArray]:
+) -> list[Any]:
     """Contract and compress a stack in ket form with one SRC sweep.
 
     Args:
@@ -80,11 +81,13 @@ def sweep(
         xp: Array module (``numpy`` or ``cupy``).
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
         dtype: The data type of the sketches.
+        to_host: If ``True`` (default), the result is copied to the host as numpy
+            arrays. If ``False``, it stays on the device of ``xp``.
         resources: Memory budgets and scratch space; detected when ``None``.
 
     Returns:
         The site arrays of the compressed train in right-canonical form, as numpy
-        arrays.
+        arrays if ``to_host`` is ``True``, otherwise as arrays of ``xp``.
     """
     shapes = padded_shapes(layers)
     # The dtype of the environments and the output: the sketches promoted by the
@@ -140,7 +143,12 @@ def sweep(
             store.stall_seconds,
         )
         logger.debug("Device pool: %d B", device_pool_bytes(xp))
-    return [to_numpy(site) for site in unpad(eta, kind)]
+
+    # La tua fix per il GPU round-trip applicata al nuovo codice:
+    sites_out = unpad(eta, kind)
+    if to_host:
+        return [to_numpy(site) for site in sites_out]
+    return list(sites_out)
 
 
 def _left_to_right(
@@ -211,10 +219,10 @@ def _right_to_left(
         for lo, hi in _ranges(Q.shape[1], site.project_batch):
             new_proj[lo:hi] = kernels.project(eta_j[lo:hi].conj(), cores, proj)
         proj = new_proj
-        eta_reversed.append(to_numpy(eta_j))
+        eta_reversed.append(eta_j)
     cores = source[0]
     up, down = cores[0].shape[2], cores[-1].shape[3]
     first = xp.empty((proj.shape[0], up, down), dtype=dtype)
     for lo, hi in _ranges(proj.shape[0], plan.sites[0].project_batch):
         first[lo:hi] = kernels.first(cores, proj[lo:hi]).reshape(hi - lo, up, down)
-    return [to_numpy(first)[None], *reversed(eta_reversed)]
+    return [first[None], *reversed(eta_reversed)]

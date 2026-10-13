@@ -40,16 +40,13 @@ def truncated_qr(
         return xp.linalg.qr(matrix)[0]
 
     Q, R = xp.linalg.qr(matrix.T if transpose else matrix)
-    R_np = R.get() if hasattr(R, "get") else np.asarray(R)
-    U, S, _ = np.linalg.svd(R_np.T if transpose else R_np, full_matrices=False)
+    U, S, _ = xp.linalg.svd(R.T if transpose else R, full_matrices=False)
     rank = max(1, int((cutoff * S[0] <= S).sum()))
 
     if transpose:
         Q_trunc = U[:, :rank]
     else:
-        U_trunc = xp.asarray(U[:, :rank]) if xp is not np else U[:, :rank]
+        U_trunc = U[:, :rank]
         Q_trunc = Q @ U_trunc
 
-    if xp is not np:
-        return xp.asarray(Q_trunc)
     return Q_trunc
