@@ -221,13 +221,17 @@ class SiteSource:
                 for layer, kind in zip(self._layers, self._kinds)
             ]
             return _Staged(padded, [None] * len(padded), [], 0, None)
-        # A core already on the device is used as it is by a single device; a group
-        # stages it like any other, since it lives on one device only.
+        # A core already on the sweep's device is used as it is by a single device;
+        # a group, or a core on another device, stages it like any other.
         keep_device = self._group.size == 1 and not is_host(self._xp)
         views, device, offsets, offset = [], [], [], 0
         for layer in self._layers:
             core = layer[j]
-            if keep_device and isinstance(core, self._xp.ndarray):
+            if (
+                keep_device
+                and isinstance(core, self._xp.ndarray)
+                and core.device.id == self._group.devices[0]
+            ):
                 views.append(None)
                 device.append(core)
                 offsets.append(offset)

@@ -398,6 +398,25 @@ def test_two_gpus_take_device_inputs() -> None:
 
 
 @pytest.mark.usefixtures("two_gpus")
+def test_one_gpu_takes_inputs_from_another() -> None:
+    """Cores given on GPU 1 are staged to GPU 0 when the sweep runs there alone."""
+    rng = np.random.default_rng(11)
+    stack = [random_mpo_arrays([2, 3, 3, 2], rng) for _ in range(2)]
+    with cupy.cuda.Device(1):
+        on_device = [[cupy.asarray(t) for t in train] for train in stack]
+
+    host = src(*stack, chi_out=8, seed=0, device="gpu")
+    other = src(
+        *on_device, chi_out=8, seed=0, device="gpu", resources=Resources(devices=[0])
+    )
+
+    reference = dense_mpo(host)
+    assert (
+        np.linalg.norm(dense_mpo(other) - reference) / np.linalg.norm(reference) < 1e-10
+    )
+
+
+@pytest.mark.usefixtures("two_gpus")
 def test_two_gpus_raise_the_first_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """An error on one GPU stops both, restores the pool limits and is raised."""
     rng = np.random.default_rng(11)
