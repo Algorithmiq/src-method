@@ -1,0 +1,29 @@
+NODE: lrdn2680, CPUS: 32, ARGS: --n-sites 25 --chi-out 1000 --compare no
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 16:00:06,993 INFO __main__ benchmark_start: n_sites=25, chi_out=1000, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=no, device=cpu
+0: 2026-10-07 16:00:06,993 INFO __main__ Generating MPOs...
+0: 2026-10-07 16:00:12,023 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 16:00:12,023 DEBUG src_method.stack Starting SRC: n_sites=25, depth=2, output=mpo, device=numpy
+0: 2026-10-07 16:00:12,045 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=4409414144 B, host peak=1728067072 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(992, 0, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (0, 992, 992)]
+0: 2026-10-07 16:00:31,730 DEBUG src_method._sweep Left-to-right sweep: 19.685 s
+0: 2026-10-07 16:01:12,496 DEBUG src_method._sweep Right-to-left sweep: 40.766 s
+0: 2026-10-07 16:01:12,496 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 16:01:12,496 DEBUG src_method._sweep Device pool: 0 B
+0: 2026-10-07 16:01:12,497 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:01:12,497 INFO __main__  SRC's contraction-compression took 60.47406152000001 s
+0: 2026-10-07 16:01:12,497 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626629     mpo_25_10+         32              00:01:30      0:0 
+59626629.ba+      batch         32              00:01:30      0:0 
+59626629.ex+     extern         32              00:01:30      0:0 
+59626629.0       python         32              00:01:26      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626629     mpo_25_10+                       
+59626629.ba+      batch                       
+59626629.ex+     extern                       
+59626629.0       python      3.85G   lrdn2680 

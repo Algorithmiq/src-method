@@ -1,0 +1,10 @@
+NODE: lrdn0954, CPUS: 32, ARGS: evolve --n-sites 50 --chis 64 --quimb-max-chi 64
+reference: chi=1024, 137.5 s, <Z>=0.667890
+done: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=1', 'seconds': 6.8661597250029445, 'infidelity': 0.06155440465779205, 'z_error': 0.01341688902307503}
+done: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=2', 'seconds': 4.19635803392157, 'infidelity': 0.062078732788092506, 'z_error': 0.012000585371298333}
+done: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=4', 'seconds': 2.8887054407969117, 'infidelity': 0.06313201831236248, 'z_error': 0.01346690615117696}
+done: {'n_sites': 50, 'chi': 64, 'method': 'quimb cpu', 'seconds': 730.9863200872205, 'infidelity': 0.03682896328621432, 'z_error': 0.004079586034429261}
+result: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=1', 'seconds': 6.8661597250029445, 'infidelity': 0.06155440465779205, 'z_error': 0.01341688902307503}
+result: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=2', 'seconds': 4.19635803392157, 'infidelity': 0.062078732788092506, 'z_error': 0.012000585371298333}
+result: {'n_sites': 50, 'chi': 64, 'method': 'src gpu k=4', 'seconds': 2.8887054407969117, 'infidelity': 0.06313201831236248, 'z_error': 0.01346690615117696}
+result: {'n_sites': 50, 'chi': 64, 'method': 'quimb cpu', 'seconds': 730.9863200872205, 'infidelity': 0.03682896328621432, 'z_error': 0.004079586034429261}
