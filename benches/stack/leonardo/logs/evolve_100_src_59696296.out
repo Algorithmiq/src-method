@@ -1,0 +1,26 @@
+NODE: lrdn3359, CPUS: 32, ARGS: evolve --n-sites 100 --quimb-max-chi 0
+reference: chi=1024, 308.4 s, <Z>=0.667891
+done: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=1', 'seconds': 13.123708908446133, 'infidelity': 0.13562671056129083, 'z_error': 0.012618184169088664}
+done: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=2', 'seconds': 7.625959983095527, 'infidelity': 0.1366349218135129, 'z_error': 0.015122156350154792}
+done: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=4', 'seconds': 5.22486006654799, 'infidelity': 0.13816995945577903, 'z_error': 0.014127674647360755}
+done: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=1', 'seconds': 15.661909165792167, 'infidelity': 0.04989325548928303, 'z_error': 0.005920579475230836}
+done: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=2', 'seconds': 8.773102682083845, 'infidelity': 0.05092744315540787, 'z_error': 0.006398354943719209}
+done: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=4', 'seconds': 5.613364351913333, 'infidelity': 0.051205208196916985, 'z_error': 0.006251898917556509}
+done: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=1', 'seconds': 28.242494146339595, 'infidelity': 0.01312509062975109, 'z_error': 0.001679279815550938}
+done: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=2', 'seconds': 15.410599228926003, 'infidelity': 0.013445609469341702, 'z_error': 0.0016643548594549307}
+done: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=4', 'seconds': 11.582731399685144, 'infidelity': 0.013731984082151039, 'z_error': 0.001786955239251764}
+done: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=1', 'seconds': 72.27939910441637, 'infidelity': 0.0017523314758546293, 'z_error': 0.00024527354217129815}
+done: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=2', 'seconds': 40.612829772755504, 'infidelity': 0.0018407681059465775, 'z_error': 0.0002543728000593548}
+done: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=4', 'seconds': 41.36851749941707, 'infidelity': 0.0018824815909065373, 'z_error': 0.0002470543323899177}
+result: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=1', 'seconds': 13.123708908446133, 'infidelity': 0.13562671056129083, 'z_error': 0.012618184169088664}
+result: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=2', 'seconds': 7.625959983095527, 'infidelity': 0.1366349218135129, 'z_error': 0.015122156350154792}
+result: {'n_sites': 100, 'chi': 64, 'method': 'src gpu k=4', 'seconds': 5.22486006654799, 'infidelity': 0.13816995945577903, 'z_error': 0.014127674647360755}
+result: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=1', 'seconds': 15.661909165792167, 'infidelity': 0.04989325548928303, 'z_error': 0.005920579475230836}
+result: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=2', 'seconds': 8.773102682083845, 'infidelity': 0.05092744315540787, 'z_error': 0.006398354943719209}
+result: {'n_sites': 100, 'chi': 128, 'method': 'src gpu k=4', 'seconds': 5.613364351913333, 'infidelity': 0.051205208196916985, 'z_error': 0.006251898917556509}
+result: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=1', 'seconds': 28.242494146339595, 'infidelity': 0.01312509062975109, 'z_error': 0.001679279815550938}
+result: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=2', 'seconds': 15.410599228926003, 'infidelity': 0.013445609469341702, 'z_error': 0.0016643548594549307}
+result: {'n_sites': 100, 'chi': 256, 'method': 'src gpu k=4', 'seconds': 11.582731399685144, 'infidelity': 0.013731984082151039, 'z_error': 0.001786955239251764}
+result: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=1', 'seconds': 72.27939910441637, 'infidelity': 0.0017523314758546293, 'z_error': 0.00024527354217129815}
+result: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=2', 'seconds': 40.612829772755504, 'infidelity': 0.0018407681059465775, 'z_error': 0.0002543728000593548}
+result: {'n_sites': 100, 'chi': 512, 'method': 'src gpu k=4', 'seconds': 41.36851749941707, 'infidelity': 0.0018824815909065373, 'z_error': 0.0002470543323899177}
