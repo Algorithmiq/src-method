@@ -18,42 +18,73 @@ logger = logging.getLogger(__name__)
 app = cyclopts.App(help="Run SRC benchmark.")
 
 
+def _log_distance(
+    H_ref: qtn.MatrixProductOperator, H: qtn.MatrixProductOperator
+) -> None:
+    # quimb expands the norm of the difference, so cancellation floors this at
+    # about sqrt(eps) of the dtype.
+    distance = H_ref.distance(H)
+    logger.info(
+        " - Distance to reference: %s (relative %s)",
+        distance,
+        distance / abs(H_ref.norm()),
+    )
+
+
 @app.default
 def main(
     n_sites: int = 50,
     chi_out: int = 20,
+    chi_id: int = 4,
     run: str = "src",
     compare: str = "yes",
+    device: str = "cpu",
+    dtype: str = "complex128",
+    seed: int = 0,
 ) -> None:
     """Main benchmarking function.
 
     Args:
         n_sites: Number of sites in the MPO chain.
-        chi_out: Output bond dimension for compression.
+        chi_out: Bond dimension of the random MPO and of the compressed output.
+        chi_id: Bond dimension of the perturbed identity MPO.
         run: Which library to run ('quimb', 'src').
         compare: Whether to compare results to a reference ('yes', 'no').
+        device: Where SRC runs ('cpu', 'gpu'); quimb always runs on the CPU.
+        dtype: Data type of the MPOs ('complex128', 'complex64').
+        seed: Seed of the inputs and of the SRC sketch.
     """
     phys_dim = 2
-    array_type = np.complex128
+    array_type = np.dtype(dtype)
 
     logger.info(
-        "benchmark_start: n_sites=%d, chi_out=%d, phys_dim=%d, dtype=complex128, "
-        "run=%s, compare=%s",
+        "benchmark_start: n_sites=%d, chi_out=%d, chi_id=%d, phys_dim=%d, dtype=%s, "
+        "run=%s, compare=%s, device=%s",
         n_sites,
         chi_out,
+        chi_id,
         phys_dim,
+        dtype,
         run,
         compare,
+        device,
     )
 
     # Generate a random MPO and a perturbed identity MPO
     logger.info("Generating MPOs...")
-    H1 = qtn.MPO_rand(n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type)
+    H1 = qtn.MPO_rand(
+        n_sites, bond_dim=chi_out, phys_dim=phys_dim, dtype=array_type, seed=seed
+    )
+    # The identity adds one to the bond: a near-identity, low-rank operator.
     H2 = qtn.MPO_identity(
         n_sites, phys_dim=phys_dim, dtype=array_type
     ) + 1e-8 * qtn.MPO_rand(
-        n_sites, bond_dim=3, phys_dim=phys_dim, dtype=array_type
-    )  # Total bond dimension is 4: a near-identity, low-rank operator
+        n_sites,
+        bond_dim=chi_id - 1,
+        phys_dim=phys_dim,
+        dtype=array_type,
+        seed=seed + 1,
+    )
 
     # Quimb's contraction reference
     if compare == "yes":
@@ -71,21 +102,33 @@ def main(
         tms = perf_counter_ns() - tms
         logger.info(" Quimb's contraction-compression took %s s", tms * 1e-9)
         if compare == "yes":
-            logger.info(" - Distance to reference: %s", H_ref.distance(H_quimb))
+            _log_distance(H_ref, H_quimb)
 
     # SRC's contraction compression
     if run == "src":
+        if device == "gpu":
+            # CUDA context, cuBLAS handles and kernel compilation stay out of the timing.
+            logger.info("Warming up the GPU...")
+            warm = qtn.MPO_rand(4, bond_dim=2, phys_dim=phys_dim, dtype=array_type)
+            apply(warm.arrays, warm.arrays, chi_out=2, device=device)
         logger.info("Computing SRC's MPO-MPO contraction (with compression)...")
         tms = perf_counter_ns()
         # src_method takes and returns plain lists of site arrays; quimb is only
         # used here to build the inputs and to measure the distance.
         H_src = qtn.MatrixProductOperator(
-            apply(H1.arrays, H2.arrays, chi_out=chi_out, dtype=array_type)
+            apply(H1.arrays, H2.arrays, chi_out=chi_out, seed=seed, device=device)
         )
         tms = perf_counter_ns() - tms
         logger.info(" SRC's contraction-compression took %s s", tms * 1e-9)
+        if device == "gpu":
+            import cupy  # noqa: PLC0415  (optional GPU dependency)
+
+            logger.info(
+                " - CuPy pool high-water mark: %.2f GB",
+                cupy.get_default_memory_pool().total_bytes() / 1e9,
+            )
         if compare == "yes":
-            logger.info(" - Distance to reference: %s", H_ref.distance(H_src))
+            _log_distance(H_ref, H_src)
 
     logger.info("benchmark_end")
 

@@ -1,10 +1,12 @@
 """One-shot SRC over a stack against sequential pairwise application, by depth.
 
-Two commands:
+Three commands:
 
 - ``accuracy``: relative error against the exact dense product on short chains,
   next to a lower bound on the error of any train with the same bond dimension.
 - ``timing``: wall time on longer chains, where no dense reference fits.
+- ``evolve``: quench dynamics of a mixed-field Ising chain of 50+ qubits, fusing
+  ``k`` Trotter steps per SRC sweep, against a reference at a larger bond.
 
 Each row is logged; ``--output`` also writes the table as Markdown.
 """
@@ -102,8 +104,49 @@ def make_stack(
 # ---------------------------------------------------------------------------
 
 
-def one_shot(stack: list[list[np.ndarray]], chi: int, seed: int) -> list[np.ndarray]:
-    return src(*stack, chi_out=chi, dtype=np.complex128, seed=seed)
+def ising_step(
+    n_sites: int, dt: float, J: float = 1.0, hx: float = 1.05, hz: float = 0.5
+) -> list[np.ndarray]:
+    """First-order Trotter step ``exp(-i dt h) exp(-i dt J sum ZZ)`` as a bond-2 MPO.
+
+    ``h = hx X + hz Z`` on every site; the defaults are the non-integrable point of
+    Banuls, Cirac and Hastings, PRL 106, 050405 (2011).
+    """
+    field = expm(-1j * dt * (hx * X + hz * Z))
+    a = J * dt
+    # exp(-i a ZZ) = sum_m P_m (x) P_m with P = (sqrt(cos a) I, sqrt(-i sin a) Z).
+    P = [np.sqrt(np.cos(a)) * I2, np.sqrt(-1j * np.sin(a)) * Z]
+    bulk = np.array([[field @ P[l] @ P[r] for r in range(2)] for l in range(2)])
+    first = np.array([field @ p for p in P])
+    return [first, *[bulk] * (n_sites - 2), first.copy()]
+
+
+def product_state(n_sites: int) -> list[np.ndarray]:
+    """``|0...0>`` as a bond-1 MPS."""
+    up = np.array([1, 0], dtype=complex)
+    return [up[None], *[up[None, None]] * (n_sites - 2), up[None]]
+
+
+def overlap(a: list[np.ndarray], b: list[np.ndarray]) -> complex:
+    """``<a|b>`` of two MPS."""
+    env = np.einsum("ru,su->rs", a[0].conj(), b[0])
+    for x, y in zip(a[1:-1], b[1:-1]):
+        env = np.einsum("rs,rtu,svu->tv", env, x.conj(), y, optimize=True)
+    return complex(np.einsum("rs,ru,su->", env, a[-1].conj(), b[-1]))
+
+
+def z_center(psi: list[np.ndarray]) -> float:
+    """``<Z>`` on the middle site."""
+    j = len(psi) // 2
+    z_psi = list(psi)
+    z_psi[j] = psi[j] * np.array([1, -1])
+    return overlap(psi, z_psi).real / overlap(psi, psi).real
+
+
+def one_shot(
+    stack: list[list[np.ndarray]], chi: int, seed: int, device: str = "cpu"
+) -> list[np.ndarray]:
+    return src(*stack, chi_out=chi, dtype=np.complex128, seed=seed, device=device)
 
 
 def sequential(stack: list[list[np.ndarray]], chi: int, seed: int) -> list[np.ndarray]:
@@ -183,6 +226,16 @@ class TimingRow:
     one_shot_s: float
     sequential_s: float
     ratio: float
+
+
+@dataclass
+class EvolveRow:
+    n_sites: int
+    chi: int
+    method: str
+    seconds: float
+    infidelity: float
+    z_error: float
 
 
 def write_table(rows: list, output: Path | None) -> None:
@@ -319,6 +372,92 @@ def timing(
         rows.append(
             TimingRow(name, len(stack), chi, times[0], times[1], times[0] / times[1])
         )
+    write_table(rows, output)
+
+
+def _evolve_src(
+    step: list[np.ndarray], steps: int, k: int, chi: int, device: str
+) -> tuple[list[np.ndarray], float]:
+    """``steps`` Trotter steps from ``|0...0>``, ``k`` of them per SRC sweep."""
+    psi = product_state(len(step))
+    start = perf_counter()
+    for sweep in range(steps // k):
+        psi = one_shot([*[step] * k, psi], chi, sweep, device)
+    return psi, perf_counter() - start
+
+
+def _evolve_quimb(
+    step: list[np.ndarray], steps: int, chi: int
+) -> tuple[list[np.ndarray], float]:
+    """The same evolution with quimb's MPO application and SVD truncation."""
+    import quimb.tensor as qtn  # noqa: PLC0415  (only this command needs quimb)
+
+    op = qtn.MatrixProductOperator(step)
+    psi = qtn.MatrixProductState(product_state(len(step)))
+    op.apply(psi, compress=True, max_bond=chi, cutoff=0.0)  # warm-up
+    start = perf_counter()
+    for _ in range(steps):
+        psi = op.apply(psi, compress=True, max_bond=chi, cutoff=0.0)
+    return list(psi.arrays), perf_counter() - start
+
+
+@app.command
+def evolve(
+    n_sites: int = 50,
+    steps: int = 80,
+    dt: float = 0.1,
+    chis: tuple[int, ...] = (64, 128, 256, 512),
+    steps_per_sweep: tuple[int, ...] = (1, 2, 4),
+    quimb_max_chi: int = 256,
+    reference_chi: int = 1024,
+    device: str = "gpu",
+    output: Path | None = None,
+) -> None:
+    """Quench of a mixed-field Ising chain, fusing several Trotter steps per sweep.
+
+    Every run starts from ``|0...0>`` and applies ``steps`` steps; the reference is
+    one step per sweep at ``reference_chi``. Rows report the wall time of
+    the evolution, the infidelity and the error of the middle ``<Z>`` against the
+    reference at the final time.
+
+    Args:
+        n_sites: Number of qubits.
+        steps: Number of Trotter steps; a multiple of every ``steps_per_sweep``.
+        dt: Trotter time step.
+        chis: Bond dimensions of the evolved state.
+        steps_per_sweep: Trotter steps fused into one SRC sweep (1 is pairwise).
+        quimb_max_chi: Largest ``chi`` also run with quimb on the CPU; 0 skips it.
+        reference_chi: Bond dimension of the reference evolution.
+        device: Where SRC runs (``cpu`` or ``gpu``).
+        output: Optional Markdown file for the table.
+    """
+    step = ising_step(n_sites, dt)
+    if device == "gpu":  # keep CUDA initialisation and kernel compilation out
+        small = ising_step(4, dt)
+        one_shot([small, small, product_state(4)], 2, 0, device)
+
+    reference, seconds = _evolve_src(step, steps, 1, reference_chi, device)
+    ref_norm = overlap(reference, reference).real
+    ref_z = z_center(reference)
+    logger.info("reference: chi=%d, %.1f s, <Z>=%.6f", reference_chi, seconds, ref_z)
+
+    def row(chi: int, method: str, psi: list[np.ndarray], seconds: float) -> None:
+        fidelity = abs(overlap(reference, psi)) ** 2 / (
+            ref_norm * overlap(psi, psi).real
+        )
+        rows.append(
+            EvolveRow(
+                n_sites, chi, method, seconds, 1 - fidelity, abs(z_center(psi) - ref_z)
+            )
+        )
+        logger.info("done: %s", vars(rows[-1]))
+
+    rows: list[EvolveRow] = []
+    for chi in chis:
+        for k in steps_per_sweep:
+            row(chi, f"src {device} k={k}", *_evolve_src(step, steps, k, chi, device))
+        if chi <= quimb_max_chi:
+            row(chi, "quimb cpu", *_evolve_quimb(step, steps, chi))
     write_table(rows, output)
 
 

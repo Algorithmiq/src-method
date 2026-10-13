@@ -1,0 +1,33 @@
+NODE: lrdn1912, CPUS: 32, ARGS: --n-sites 50 --chi-out 50
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 15:50:58,923 INFO __main__ benchmark_start: n_sites=50, chi_out=50, chi_id=4, phys_dim=2, dtype=complex128, run=src, compare=yes, device=cpu
+0: 2026-10-07 15:50:58,923 INFO __main__ Generating MPOs...
+0: 2026-10-07 15:50:59,079 INFO __main__ Computing reference contraction (no compression)...
+0: 2026-10-07 15:50:59,134 INFO __main__ Reference contraction took 0.054777736 s
+0: 2026-10-07 15:50:59,134 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 15:50:59,134 DEBUG src_method.stack Starting SRC: n_sites=50, depth=2, output=mpo, device=numpy
+0: 2026-10-07 15:50:59,149 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=18300544 B, host peak=8326272 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(32, 0, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 3
+0: 2), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (32, 32, 32), (0, 32, 32)]
+0: 2026-10-07 15:50:59,239 DEBUG src_method._sweep Left-to-right sweep: 0.090 s
+0: 2026-10-07 15:50:59,364 DEBUG src_method._sweep Right-to-left sweep: 0.125 s
+0: 2026-10-07 15:50:59,364 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 15:50:59,364 DEBUG src_method._sweep Device pool: 0 B
+0: 2026-10-07 15:50:59,365 DEBUG src_method.stack SRC complete
+0: 2026-10-07 15:50:59,366 INFO __main__  SRC's contraction-compression took 0.23186999500000002 s
+0: 2026-10-07 15:50:59,711 INFO __main__  - Distance to reference: 1.4901161193847656e-08 (relative 1.4901161193847712e-08)
+0: 2026-10-07 15:50:59,711 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59626058     mpo_50_50+         32              00:00:25      0:0 
+59626058.ba+      batch         32              00:00:25      0:0 
+59626058.ex+     extern         32              00:00:25      0:0 
+59626058.0       python         32              00:00:21      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59626058     mpo_50_50+                       
+59626058.ba+      batch                       
+59626058.ex+     extern                       
+59626058.0       python      0.57G   lrdn1912 

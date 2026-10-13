@@ -1,0 +1,45 @@
+NODE: lrdn0096, CPUS: 32, ARGS: --n-sites 50 --chi-out 1000 --compare no --device gpu --dtype complex64
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+NVIDIA A100-SXM-64GB, 535.274.02
+0: 2026-10-07 16:10:38,169 INFO __main__ benchmark_start: n_sites=50, chi_out=1000, chi_id=4, phys_dim=2, dtype=complex64, run=src, compare=no, device=gpu
+0: 2026-10-07 16:10:38,169 INFO __main__ Generating MPOs...
+0: /leonardo_work/ALQ_prod2526/rpanades/src-method/.venv/lib/python3.14/site-packages/autoray/autoray.py:96: RuntimeWarning: overflow encountered in matmul
+0:   return func(*args, **kwargs)
+0: /leonardo_work/ALQ_prod2526/rpanades/src-method/.venv/lib/python3.14/site-packages/autoray/autoray.py:96: RuntimeWarning: invalid value encountered in matmul
+0:   return func(*args, **kwargs)
+0: /leonardo_work/ALQ_prod2526/rpanades/src-method/.venv/lib/python3.14/site-packages/quimb/tensor/tensor_core.py:5119: RuntimeWarning: invalid value encountered in scalar power
+0:   return self.multiply_(other**-1)
+0: 2026-10-07 16:10:42,593 INFO __main__ Warming up the GPU...
+0: 2026-10-07 16:10:42,861 DEBUG src_method.stack Starting SRC: n_sites=4, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:10:42,960 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=2112 B, host peak=1216 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device'], batches (env, sketch, project)=[(2, 0, 2), (2, 2, 2), (2, 2, 2), (0, 2, 2)]
+0: 2026-10-07 16:10:43,041 DEBUG src_method._sweep Left-to-right sweep: 0.049 s
+0: 2026-10-07 16:10:43,069 DEBUG src_method._sweep Right-to-left sweep: 0.027 s
+0: 2026-10-07 16:10:43,069 DEBUG src_method._sweep SRC stalls: sites 0.000 s, environments 0.000 s
+0: 2026-10-07 16:10:43,069 DEBUG src_method._sweep Device pool: 27648 B
+0: 2026-10-07 16:10:43,069 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:10:43,069 INFO __main__ Computing SRC's MPO-MPO contraction (with compression)...
+0: 2026-10-07 16:10:43,069 DEBUG src_method.stack Starting SRC: n_sites=50, depth=2, output=mpo, device=cupy
+0: 2026-10-07 16:10:43,088 DEBUG src_method._sweep SRC plan: prefetch=1, device peak=2140673536 B, host peak=1664033536 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(992, 0, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (9
+0: 92, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (992, 992, 992), (0, 992, 992)]
+0: 2026-10-07 16:10:43,492 DEBUG src_method._sweep Left-to-right sweep: 0.385 s
+0: 2026-10-07 16:10:46,100 DEBUG src_method._sweep Right-to-left sweep: 2.608 s
+0: 2026-10-07 16:10:46,100 DEBUG src_method._sweep SRC stalls: sites 0.326 s, environments 0.000 s
+0: 2026-10-07 16:10:46,100 DEBUG src_method._sweep Device pool: 2540442112 B
+0: 2026-10-07 16:10:46,101 DEBUG src_method.stack SRC complete
+0: 2026-10-07 16:10:46,101 INFO __main__  SRC's contraction-compression took 3.032048248 s
+0: 2026-10-07 16:10:46,101 INFO __main__  - CuPy pool high-water mark: 2.54 GB
+0: 2026-10-07 16:10:46,101 INFO __main__ benchmark_end
+JobID           JobName      NCPUS     AveCPU    Elapsed ExitCode 
+------------ ---------- ---------- ---------- ---------- -------- 
+59627813     mpo_50_10+         32              00:00:13      0:0 
+59627813.ba+      batch         32              00:00:13      0:0 
+59627813.ex+     extern         32              00:00:13      0:0 
+59627813.0       python         32              00:00:10      0:0 
+JobID           JobName     MaxRSS MaxRSSNode 
+------------ ---------- ---------- ---------- 
+59627813     mpo_50_10+                       
+59627813.ba+      batch                       
+59627813.ex+     extern                       
+59627813.0       python                       
