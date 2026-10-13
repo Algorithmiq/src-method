@@ -127,5 +127,35 @@ Where the time goes:
 
 ### D_M = 4000, chi_out = 2000 (reference size)
 
-Pending: `scaling --devices 4 2` (job 59777837) and the single-GPU `run` for `T_1`
-(job 59777847) are queued on the default QoS, both with the stack read beforehand.
+50 sites, complex128, 184 GB of input on Lustre: 49 environments of 8.19 GB, 401 GB
+in all. The single-GPU `run` (job 60143214) read the stack beforehand; the
+`run --devices 4` (job 60137752) did not, so its site stalls include cold reads.
+
+| GPUs | Time (s) | Speed-up | Efficiency | Left-to-right (s) | Right-to-left (s) | Environment stalls (s) | Site stalls (s) | Environments device / host / disk |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3925.3 | 1.00 | 100% | 794.8 | 3112.1 | 2542.3 | 0.0 | 0 / 45 / 4 |
+| 4 | 1099.9 | 3.57 | 89% | 228.0-240.4 | 832.6-844.1 | 697.3-698.5 | 42.1-43.1 | 1 / 45 / 3 |
+
+Before 5fd4ecf, every run at this size failed with a CuPy out-of-memory error at a
+different point (job 59626785 of #59 on `main`, and jobs 59777837 and 59777847
+here). The live memory stayed within the plan, 52 GB against 56.7 GB planned, but
+the pool held up to 66.7 GB in split blocks and a 12.6-14.7 GB allocation did not
+fit under its 67.6 GB cap. Each of the four GPUs now split one sketch batch (192
+columns into two pieces) and finished; the single-GPU run did not need to.
+
+Where the time goes:
+
+- The right-to-left pass waits for environments read back from host memory and
+  disk: 82% of the pass on one GPU, 84% on four. Each GPU reads only its quarter
+  of every environment, so the wait shrinks 3.65 times. Site stalls are about 4%
+  of the run on four GPUs, and none on one, whose stack was read beforehand.
+- Four GPUs keep only one more environment on the device than one GPU. The plan
+  picks the largest batches that fit first, and their working set takes each
+  GPU's budget (59.0 GB planned peak), although a GPU holds only 2.05 GB of each
+  environment.
+- Three or four environments go to Lustre: the host budget, 90% of the available
+  memory (about 470 GB), falls short of the 487-496 GB that keeping them all in
+  host memory takes.
+- The efficiency on 4 GPUs is 89%, above the 80% target. The distance between the
+  outputs at this size, and the 2-GPU point, come from `scaling --devices 4 2`
+  (job 60143212), still queued.

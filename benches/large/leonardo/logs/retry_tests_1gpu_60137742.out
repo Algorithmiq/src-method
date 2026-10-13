@@ -1,0 +1,57 @@
+NODE: lrdn2971, CPUS: 32, COMMIT: 7aba85a
+COMMAND: bash sandbox/check_retry.sh /leonardo_scratch/large/userexternal/rpanades/src-large/m4000 /leonardo_scratch/large/userexternal/rpanades/src-large/scratch
+GPU 0: NVIDIA A100-SXM-64GB (UUID: GPU-afd284e5-b0d7-d36b-b60e-d898c11de63c)
+GPU 1: NVIDIA A100-SXM-64GB (UUID: GPU-fff9abdd-6ba9-f864-4719-150b644ac547)
+GPU 2: NVIDIA A100-SXM-64GB (UUID: GPU-d6f79703-1d0f-bde5-ebbf-f54f43314682)
+GPU 3: NVIDIA A100-SXM-64GB (UUID: GPU-9d34bb62-6f53-ba7d-2001-14034e6b5dc3)
+	[4mGPU0	GPU1	GPU2	GPU3	NIC0	NIC1	NIC2	NIC3	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV4	NV4	NV4	PXB	NODE	NODE	NODE	0-15	0		N/A
+GPU1	NV4	 X 	NV4	NV4	NODE	PXB	NODE	NODE	0-15	0		N/A
+GPU2	NV4	NV4	 X 	NV4	NODE	NODE	PXB	NODE	0-15	0		N/A
+GPU3	NV4	NV4	NV4	 X 	NODE	NODE	NODE	PXB	0-15	0		N/A
+NIC0	PXB	NODE	NODE	NODE	 X 	NODE	NODE	NODE				
+NIC1	NODE	PXB	NODE	NODE	NODE	 X 	NODE	NODE				
+NIC2	NODE	NODE	PXB	NODE	NODE	NODE	 X 	NODE				
+NIC3	NODE	NODE	NODE	PXB	NODE	NODE	NODE	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+
+4 [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]]
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 81%]
+................................................                         [100%]
+
+----------------------------------------------------------------------------------------------- benchmark: 2 tests -----------------------------------------------------------------------------------------------
+Name (time in ms)                          Min                   Max                  Mean             StdDev                Median                 IQR            Outliers      OPS            Rounds  Iterations
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+test_benchmark_src_stack_depth3        30.9926 (1.0)         50.9625 (1.0)         32.8501 (1.0)       4.3841 (1.0)         31.4636 (1.0)        1.0231 (1.0)           2;2  30.4413 (1.0)          22           1
+test_benchmark_src_mpo_mpo          1,688.9300 (54.49)    1,920.1036 (37.68)    1,787.6535 (54.42)    98.3613 (22.44)    1,751.1989 (55.66)    164.2709 (160.56)        2;0   0.5594 (0.02)          5           1
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+264 passed in 78.67s (0:01:18)
+Starting SRC: n_sites=50, depth=4, output=mpo, device=cupy
+SRC plan: devices=[0], prefetch=1, device peak=56729755648 B, host peak=455418404864 B, disk=40960000000 B, scratch=/leonardo_scratch/large/userexternal/rpanades/src-large/scratch, tiers=['device', 'disk', 'disk', 'disk', 'disk', 'disk', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host'], batches (env, sketch, project)=[(1984, 0, 1984), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (224, 192, 16), (0, 1984, 1984)]
+Left-to-right sweep: 873.060 s
+Out of memory in a sketch batch of 192 rows; 2 pieces from now on
+[2026-10-12T11:10:36.495] error: *** JOB 60137742 ON lrdn2971 CANCELLED AT 2026-10-12T11:10:36 DUE TO TIME LIMIT ***
+[2026-10-12T11:10:36.496] error: *** STEP 60137742.0 ON lrdn2971 CANCELLED AT 2026-10-12T11:10:36 DUE TO TIME LIMIT ***
+srun: Job step aborted: Waiting up to 182 seconds for job step to finish.
