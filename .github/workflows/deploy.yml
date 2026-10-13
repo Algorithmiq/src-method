@@ -1,13 +1,6 @@
-name: Publish src_method Python sdist and  wheels to Algorithmiq PyPI
+name: Publish src_method Python sdist and wheels
 
 on:
-  workflow_dispatch:
-    inputs:
-      force-upload:
-        description: 'Upload artifacts without a corresponding release'
-        required: false
-        default: false
-        type: boolean
   release:
     types:
       - published
@@ -57,17 +50,23 @@ jobs:
             dist/*.whl
 
 
-  upload_codeartifact:
-    name: Upload to AWS CodeArtifact
+  upload_pypi:
+    name: Upload to PyPI
     needs:
       - build-sdist-wheel
-    if: (github.event_name == 'release' && github.event.action == 'published') || github.event.inputs.force-upload
+    if: github.event_name == 'release' && github.event.action == 'published'
 
     runs-on: ubuntu-latest
 
+    # Requires a `pypi` environment (Settings > Environments) with a Trusted
+    # Publisher configured on https://pypi.org for this repo and workflow, and
+    # ideally required reviewers, since a release here cannot be undone.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/src_method/
+
     permissions:
-      id-token: write
-      contents: read
+      id-token: write  # for PyPI's trusted publishing (OIDC); no token is stored
 
     steps:
       - uses: actions/download-artifact@v8
@@ -77,14 +76,5 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::406960181794:role/github-actions-codeartifact-write-access
-          aws-region: eu-west-1
-
-      - name: Publish
-        run: |
-          export TWINE_USERNAME=aws
-          export TWINE_PASSWORD="$(aws codeartifact get-authorization-token --domain algorithmiq --domain-owner 406960181794 --region eu-west-1 --query authorizationToken --output text)"
-          export TWINE_REPOSITORY_URL="$(aws codeartifact get-repository-endpoint --domain algorithmiq --domain-owner 406960181794 --repository pypi --region eu-west-1 --format pypi --query repositoryEndpoint --output text)"
-          pipx run twine upload dist/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
