@@ -80,10 +80,12 @@ sbatch run.sh evolve --n-sites 50 --chis 64 --quimb-max-chi 64
 The references take 138 s (50 qubits) and 308 s (100 qubits) and agree on the
 middle `<Z>` to `1e-6` (0.667890 and 0.667891).
 
-- SRC on the GPU runs the 50-qubit quench 100-250x faster than `quimb` on 32
-  cores at `chi = 64`. Exact SVD truncation is more accurate at equal `chi`
-  (infidelity 0.037 against 0.062), but SRC at `chi = 128` beats it in 3-8 s
-  against 731 s, and at `chi = 512` reaches `7e-4` in 19-34 s.
+- Exact SVD truncation (`quimb`) is more accurate at equal `chi`: infidelity
+  0.037 against 0.062 at `chi = 64`. SRC at `chi = 128` is more accurate than
+  `quimb` at `chi = 64`, and at `chi = 512` reaches `7e-4`. The timings compare
+  SRC on one GPU (2.9-6.9 s) with `quimb` on 32 cores (731 s), and the `quimb`
+  time looks inflated by how it is called, so they are not a speed-up; a
+  comparison on the same hardware is still to do.
 - Fusing two or four Trotter steps per sweep is 1.8-2.8x faster than one step at
   a time and raises the infidelity by at most 7 %. At `chi = 512` four steps are
   no faster than two: the `chi**2` times `2**k` cost of the sweep takes over.

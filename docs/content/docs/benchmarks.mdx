@@ -45,9 +45,11 @@ reference.
 | 100 | 256 | src GPU, $k = 4$ | 11.6 | 0.014 |
 | 100 | 512 | src GPU, $k = 2$ | 40.6 | 1.8e-3 |
 
-- SRC on the GPU is 100-250x faster than `quimb` at equal $\chi$. Exact SVD
-  truncation is more accurate at equal $\chi$, but SRC at twice the bond
-  dimension beats it at a fraction of the time.
+- Exact SVD truncation (`quimb`) is more accurate at equal $\chi$, and SRC at
+  twice the bond dimension is more accurate than `quimb`. The timings compare a
+  GPU with 32 CPU cores, and the `quimb` time looks inflated by how it is
+  called, so they are not a speed-up; a comparison on the same hardware is still
+  to do.
 - Fusing two or four steps per sweep is 1.8-2.8x faster than one at a time, for
   at most 7 % more infidelity.
 
