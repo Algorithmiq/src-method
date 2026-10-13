@@ -12,6 +12,13 @@ uv pip install "src_method[gpu-nvidia]"   # CUDA 13.x, driver >= 580
 uv pip install "src_method[gpu-rocm]"     # ROCm
 ```
 
+On data-center GPUs behind an older driver, as on many clusters, NVIDIA's
+[forward-compatibility package](https://docs.nvidia.com/deploy/cuda-compatibility/)
+runs CUDA 13 without root: unpack `cuda-compat-13-x` and put its `compat/`
+folder first on `LD_LIBRARY_PATH`. The
+[Leonardo scripts](https://github.com/Algorithmiq/src-method/tree/main/benches/primitives)
+do this on driver 535.
+
 When adding `src_method` to another project's `pyproject.toml`:
 
 ```toml

@@ -31,3 +31,32 @@ memory and node-local NVMe:
    budget.
 3. The stall time is below 10% of the wall time.
 4. `compare` at `D_M = 1000`, `chi_out = 500` reports a distance below `1e-10`.
+
+## Leonardo
+
+The [`leonardo/`](leonardo/) folder holds the Slurm script and the logs; see the
+[Leonardo section](../README.md#leonardo) for the environment. Booster nodes have
+no local disk and a 10 GB `/tmp`, so the script points `TMPDIR` at
+`$CINECA_SCRATCH`, and the stacks live there too (Lustre, not NVMe):
+
+```bash
+D=$CINECA_SCRATCH/src-large
+sbatch run.sh generate $D/m4000 --bond-m 4000
+sbatch run.sh --debug run $D/m4000 --chi-out 2000 --scratch-dir $D/scratch
+sbatch run.sh generate $D/m1000 --bond-m 1000
+sbatch run.sh --debug compare $D/m1000 --chi-out 500 --small 4GB --large 60GB \
+    --scratch-dir $D/scratch
+```
+
+`generate` writes the `D_M = 1000` stack (12 GB) in 51 s.
+
+`compare` at `D_M = 1000`, `chi_out = 500`, complex128, on one A100-64GB:
+
+| GPU budget | Wall time (s) | Pool (GB) | Planned device peak (GB) | Host peak (GB) | Tiers (device/host/disk) |
+|---|---|---|---|---|---|
+| 4GB  | 129.8 | 5.46  | 3.86  | 40.6 | 1 / 49 / 0 |
+| 60GB | 109.9 | 60.81 | 58.84 | 40.6 | 50 / 0 / 0 |
+
+The two plans keep opposite tiers yet give bit-identical outputs (relative distance
+`0.000e+00`). Spilling 49 of 50 environments to the host costs 18 % of the wall
+time. Both pools stay within their caps (budget plus 10 % of the card, 6.9 GB).
