@@ -40,13 +40,13 @@ steps per sweep (`k = 1` is pairwise application), on one A100-64GB. The
 reference is `k = 1` at `chi = 1024`; rows give the wall time of the 80 steps,
 the infidelity of the final state and the error of `<Z>` on the middle qubit.
 `quimb` applies the same MPO with exact SVD truncation on the 32 cores of the
-node. The script and logs are in [`leonardo/`](leonardo/); see the
-[Leonardo section](../README.md#leonardo) for the environment.
+node. See [HPC clusters](https://algorithmiq.github.io/src-method/hpc/leonardo)
+for how to run on Leonardo.
 
 ```bash
-sbatch run.sh evolve --n-sites 50 --quimb-max-chi 0
-sbatch run.sh evolve --n-sites 100 --quimb-max-chi 0
-sbatch run.sh evolve --n-sites 50 --chis 64 --quimb-max-chi 64
+uv run python benches/stack/bench_depth.py evolve --n-sites 50 --quimb-max-chi 0
+uv run python benches/stack/bench_depth.py evolve --n-sites 100 --quimb-max-chi 0
+uv run python benches/stack/bench_depth.py evolve --n-sites 50 --chis 64 --quimb-max-chi 64
 ```
 
 | qubits | chi | method | seconds | infidelity | z_error |

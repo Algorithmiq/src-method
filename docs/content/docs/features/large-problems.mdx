@@ -51,10 +51,12 @@ The sweep is planned to fit the GPU budget, counting the bytes its arrays use.
 CuPy's memory pool also holds blocks that are split and only partly in use, so
 during the sweep the pool is capped at the GPU budget plus the margin of
 `max(10%, 1 GiB)` of the device. That margin is the one detection leaves free, so
-with a detected budget the cap is the free device memory. An estimate that falls
-short by more than the margin fails at once rather than when some other
-allocation does; the previous limit is restored afterwards. If a single site does not fit the
-budget even with batches of one column, `src` raises `MemoryError` naming the site.
+with a detected budget the cap is the free device memory; the previous limit is
+restored afterwards. When the pool fragments beyond the margin, which large
+batches can do, a batch that runs out of memory is computed in halves, and that
+kernel keeps the finer split for the rest of the sweep; the result does not change.
+If a single site does not fit the budget even with batches of one column, `src`
+raises `MemoryError` naming the site.
 
 ## Inputs on disk
 
