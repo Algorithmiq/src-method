@@ -246,7 +246,9 @@ def _truncate(
         if cutoff > 0:
             rank = min(rank, max(1, int(xp.count_nonzero(cutoff * S[0] <= S))))
         sites[j] = to_numpy(
-            U[:, :rank].reshape(left, up, down, rank).transpose(0, 3, 1, 2)
+            xp.ascontiguousarray(
+                U[:, :rank].reshape(left, up, down, rank).transpose(0, 3, 1, 2)
+            )
         )
         centre = xp.einsum(
             "ab,bcud->acud", S[:rank, None] * Vh[:rank], xp.asarray(sites[j + 1])

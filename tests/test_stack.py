@@ -355,6 +355,23 @@ def test_oversampled_zero_train(kind):
     np.testing.assert_array_equal(dense(out), dense(sites))
 
 
+@pytest.mark.parametrize("kind", ["mps", "mpo"])
+def test_oversampled_output_does_not_retain_discarded_columns(kind, rng):
+    train = (
+        random_mps([4, 4, 4], rng, phys=32)
+        if kind == "mps"
+        else random_mpo([4, 4, 4], rng, up=4, down=8)
+    )
+
+    out = compress(train, chi_out=1, seed=0)
+
+    for site in out[:-1]:
+        storage = site
+        while isinstance(storage.base, np.ndarray):
+            storage = storage.base
+        assert storage.nbytes == site.nbytes
+
+
 def test_src_does_not_mutate_bra_stack(rng):
     stack = make_stack("phi A B", rng)
     before = [[t.copy() for t in train] for train in stack]
