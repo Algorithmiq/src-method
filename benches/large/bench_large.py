@@ -27,6 +27,7 @@ from typing import Annotated
 
 import cyclopts
 import numpy as np
+
 import src_method._sweep as sweep_module
 from src_method import Resources, src
 from src_method._plan import make_plan
@@ -128,7 +129,7 @@ def _run(
     tiers = [site.tier for site in plan.sites]
     pools = []
     if device == "gpu":
-        import cupy
+        import cupy  # noqa: PLC0415  (optional dependency)
 
         devices = resources.devices or 1
         for gpu in range(devices) if isinstance(devices, int) else devices:

@@ -398,6 +398,7 @@ def test_two_gpus_take_device_inputs() -> None:
 
 
 @pytest.mark.usefixtures("two_gpus")
+@pytest.mark.usefixtures("two_gpus")
 def test_one_gpu_takes_inputs_from_another() -> None:
     """Cores given on GPU 1 are staged to GPU 0 when the sweep runs there alone."""
     rng = np.random.default_rng(11)
