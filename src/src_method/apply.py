@@ -29,6 +29,7 @@ def apply(
     chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
+    oversample: float | None = None,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
@@ -49,11 +50,15 @@ def apply(
         right_tensor: The site arrays of the right tensor network (MPO or MPS).
         chi_out: The desired maximum bond dimension of the output tensor network.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
-            When positive, bonds are trimmed to their effective rank by
-            discarding singular values below ``cutoff * sigma_max`` at each
-            site during the right-to-left sweep.  The SVD operates on the
-            small ``(chi_out, chi_out)`` R factor from QR, so overhead is
-            minimal.  Set to 0.0 (default) to keep all bonds at chi_out.
+            Discards singular values below ``cutoff * sigma_max`` in the final
+            SVD pass, or on the sketch's QR factor when ``oversample=1.0``.
+            Set to 0.0 (default) to disable cutoff trimming. Ignored for two sites.
+        oversample: Multiplicative sketch-size factor, finite and at least 1.0.
+            Defaults to ``None``, giving sketch size
+            ``max(ceil(1.5 * chi_out), chi_out + 10)``; an explicit factor gives
+            ``ceil(oversample * chi_out)``. Oversampling adds an exact SVD pass
+            to truncate to ``chi_out``. Set to ``1.0`` for the original behavior.
+            Ignored for two sites.
         dtype: Data type of the random sketches. Defaults to the promoted
             floating dtype of the inputs; an explicit dtype can promote the result.
         seed: An optional seed for the random number generator.
@@ -62,13 +67,16 @@ def apply(
         resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
-        The site arrays of the compressed tensor network (MPS or MPO).
+        The site arrays of the compressed tensor network (MPS or MPO), in
+        left-canonical form with oversampling, otherwise right-canonical form.
+        The two-site fallback is always right-canonical.
 
     Raises:
         TypeError: If ``chi_out`` is not an integer or the combination of input
             tensor types is unsupported.
         ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
-            in ``[0.0, 1.0)``, if a train is not open-boundary, if the two trains
+            in ``[0.0, 1.0)``, if ``oversample`` is not finite and at least 1.0,
+            if a train is not open-boundary, if the two trains
             differ in length or in the physical dimensions they join, if a
             sub-three-site train is not exactly two sites, or if ``device`` is not
             recognised.
@@ -88,6 +96,7 @@ def apply(
         right_tensor,
         chi_out=chi_out,
         cutoff=cutoff,
+        oversample=oversample,
         dtype=dtype,
         seed=seed,
         device=device,

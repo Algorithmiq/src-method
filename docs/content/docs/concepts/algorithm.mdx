@@ -9,7 +9,8 @@ $A$ and an MPS $|\psi\rangle$, without ever forming the exact product. The exact
 product of an MPO with bond dimension $\chi_A$ and an MPS with bond dimension
 $\chi_\psi$ has bond dimension $\chi_A \chi_\psi$; compressing it afterwards, as
 in the usual contract-then-truncate approach, pays for that intermediate size.
-SRC targets the output bond dimension $\chi_{\text{out}}$ directly.
+SRC targets a small oversampled bond dimension $\chi_{\text{os}}$ before a final
+SVD truncation to the requested $\chi_{\text{out}}$.
 
 ## Randomized range finding
 
@@ -22,12 +23,17 @@ probability, and the cost is dominated by the product $M\Omega$.
 SRC applies this idea one site at a time along the chain, with the matrix $M$
 being an unfolding of the (never formed) product network.
 
-## Two sweeps
+## Sketching and truncation
+
+By default, $\chi_{\text{os}} =
+\max(\lceil 1.5\chi_{\text{out}}\rceil, \chi_{\text{out}} + 10)$.
+An explicit `oversample` factor sets
+$\chi_{\text{os}} = \lceil \text{oversample}\,\chi_{\text{out}}\rceil$.
 
 1. **Left to right: sketching.** At every site the open physical legs are
    contracted with a Gaussian tensor $\Omega_j$ of sketch size
-   $\chi_{\text{out}}$. Accumulating these from the left gives the sketched
-   environments $C_j$, each of size $\chi_{\text{out}}$ times the product of the
+   $\chi_{\text{os}}$. Accumulating these from the left gives the sketched
+   environments $C_j$, each of size $\chi_{\text{os}}$ times the product of the
    input bond dimensions. The same sketch index is shared by every site, which
    makes the sketch a Khatri-Rao product rather than a dense Gaussian matrix of
    the full Hilbert space.
@@ -37,16 +43,22 @@ being an unfolding of the (never formed) product network.
    tensor as an isometry. The isometry is then folded into $S$ for the next site.
    The first site absorbs the remaining weight.
 
-The output is therefore in right-canonical form, with bond dimension at most
-$\chi_{\text{out}}$. Without a [cutoff](/features/cutoff) every inner bond is
-$\chi_{\text{out}}$ unless the physical dimensions near the ends of the chain
-force it lower.
+3. **Left to right: exact truncation.** The intermediate is already
+   right-canonical, so no re-orthogonalisation is needed. An SVD of each centre
+   tensor gives the Schmidt values at that cut. Keep at most $\chi_{\text{out}}$
+   values, apply the relative [cutoff](/features/cutoff), and absorb the remaining
+   weight into the next site. The output is **left-canonical**, with the norm on
+   the last site. The discarded weights add in quadrature, giving the usual
+   TT-SVD quasi-optimality bound for this intermediate.
+
+`oversample=1.0` recovers the original two sweeps without the final pass, including
+right-canonical output and cutoff on the sketch's QR factor.
 
 ## Cost
 
 For an MPO with bond dimension $\chi_A$ applied to an MPS with bond dimension
 $\chi_\psi$, the dominant per-site cost grows like
-$\chi_{\text{out}}^2 \chi_A \chi_\psi$, compared with the $(\chi_A\chi_\psi)^3$ of
+$\chi_{\text{os}}^2 \chi_A \chi_\psi$, compared with the $(\chi_A\chi_\psi)^3$ of
 an exact contraction followed by an SVD-based truncation. The same kernel handles
 MPO-MPO products and plain compression; for a [stack](/features/stacks) of trains,
 the product of all their bond dimensions replaces $\chi_A\chi_\psi$.

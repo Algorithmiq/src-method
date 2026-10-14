@@ -1,5 +1,7 @@
 """Test `src` over stacks of tensor trains, and the sweep behind it."""
 
+from __future__ import annotations
+
 import logging
 import threading
 from functools import reduce
@@ -8,10 +10,12 @@ import numpy as np
 import pytest
 
 import src_method._sweep as sweep_module
+import src_method.stack as stack_module
 from src_method import Resources, apply, compress, src
 from src_method._kernels import SiteKernels
 from src_method._plan import make_plan
 from src_method._sweep import sweep
+from src_method._tensor_train import pad
 
 # -------------
 # --- Utils ---
@@ -207,13 +211,148 @@ def test_src_truncation_is_near_optimal():
 
 @pytest.mark.parametrize("spec", ["A B C", "A B psi", "phi A B"])
 def test_src_output_is_right_canonical(spec, rng):
-    out = src(*make_stack(spec, rng), chi_out=3, seed=0)
+    out = src(*make_stack(spec, rng), chi_out=3, oversample=1.0, seed=0)
 
     for site in out[1:]:
         flat = site.reshape(site.shape[0], -1)
         np.testing.assert_allclose(
             flat @ flat.conj().T, np.eye(site.shape[0]), atol=1e-10
         )
+
+
+@pytest.mark.parametrize("spec", KET_STACKS + BRA_STACKS)
+@pytest.mark.parametrize("oversample", [None, 1.5, 2.0])
+def test_oversampled_output_is_left_canonical(spec, oversample, rng):
+    out = src(*make_stack(spec, rng), chi_out=3, oversample=oversample, seed=0)
+
+    for site in pad(out)[:-1]:
+        flat = site.transpose(0, 2, 3, 1).reshape(-1, site.shape[1])
+        np.testing.assert_allclose(
+            flat.conj().T @ flat, np.eye(site.shape[1]), atol=1e-10
+        )
+        assert site.shape[1] <= 3
+
+
+@pytest.mark.parametrize("spec", KET_STACKS)
+@pytest.mark.parametrize("cutoff", [0.0, 0.1])
+def test_oversample_one_matches_legacy_sweep(spec, cutoff, rng):
+    stack = make_stack(spec, rng)
+    kind = "mps" if stack[-1][0].ndim == 2 else "mpo"
+    expected = sweep(
+        stack,
+        kind,
+        3,
+        np.random.default_rng(0),
+        np,
+        cutoff=cutoff,
+        dtype=np.complex128,
+    )
+    out = src(*stack, chi_out=3, oversample=1.0, cutoff=cutoff, seed=0)
+
+    assert_same_trains(out, expected)
+
+
+@pytest.mark.parametrize(
+    ("chi", "oversample", "expected"),
+    [
+        (3, None, 13),
+        (21, None, 32),
+        (3, 1.0, 3),
+        (3, np.float32(1.5), 5),
+        (3, 2.0, 6),
+    ],
+)
+def test_oversampling_sets_sweep_size(chi, oversample, expected, rng, monkeypatch):
+    calls = []
+    original = stack_module.sweep
+
+    def spy(*args, **kwargs):
+        calls.append((args[2], kwargs["truncate_to"]))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(stack_module, "sweep", spy)
+    src(*make_stack("A B psi", rng), chi_out=chi, oversample=oversample, seed=0)
+
+    assert calls == [(expected, chi if expected > chi else None)]
+
+
+@pytest.mark.parametrize(
+    "oversample", [0.0, -1.0, 0.99, np.nan, np.inf, -np.inf, True, "2", 2j]
+)
+@pytest.mark.parametrize("spec", ["A psi", "A"])
+def test_invalid_oversample_raises(spec, oversample, rng):
+    trains = make_stack(spec, rng)
+    function = apply if len(trains) == 2 else compress
+
+    with pytest.raises(ValueError, match="oversample"):
+        function(*trains, chi_out=3, oversample=oversample)
+
+
+@pytest.mark.parametrize("spec", ["A B C", "A B psi", "phi A B"])
+def test_oversampling_improves_accuracy(spec):
+    errors = []
+    for seed in range(5):
+        trains = make_stack(spec, np.random.default_rng(seed))
+        reference = dense_stack(*trains)
+        errors.append(
+            [
+                rel_error(
+                    src(*trains, chi_out=2, oversample=factor, seed=seed),
+                    reference,
+                )
+                for factor in (1.0, 2.0, None)
+            ]
+        )
+
+    legacy, doubled, default = np.median(errors, axis=0)
+    assert doubled < legacy
+    assert default < legacy
+
+
+@pytest.mark.parametrize("cutoff", [0.0, 0.1])
+def test_oversampling_matches_exact_truncation_of_sketch(cutoff, rng):
+    qtn = pytest.importorskip("quimb.tensor")
+    trains = make_stack("A B C", rng)
+    intermediate = src(*trains, chi_out=8, oversample=1.0, seed=0)
+    reference = qtn.MatrixProductOperator(intermediate)
+    reference.compress(form="left", max_bond=3, cutoff=cutoff, cutoff_mode="rel")
+
+    out = src(*trains, chi_out=3, oversample=8 / 3, cutoff=cutoff, seed=0)
+
+    assert rel_error(out, reference.to_dense()) < 1e-10
+
+
+@pytest.mark.parametrize("kind", ["mps", "mpo"])
+@pytest.mark.parametrize("scale", [1.0, 1e-8, 1e8])
+def test_oversampled_cutoff_uses_schmidt_values(kind, scale):
+    sites = [
+        np.diag([scale, 0.05 * scale]),
+        np.einsum("ab,ac->abc", np.eye(2), np.eye(2)),
+        np.eye(2),
+    ]
+    if kind == "mpo":
+        sites = [site[..., None] for site in sites]
+    before = [site.copy() for site in sites]
+
+    out = compress(sites, chi_out=2, cutoff=0.1, seed=0)
+
+    assert all(site.shape[0] == 1 for site in out[1:])
+    reference = np.zeros_like(dense(sites))
+    reference[0, 0] = scale
+    np.testing.assert_allclose(dense(out), reference, atol=1e-12 * scale)
+    assert_same_trains(sites, before)
+
+
+@pytest.mark.parametrize("kind", ["mps", "mpo"])
+def test_oversampled_zero_train(kind):
+    sites = [np.zeros((2, 2)), np.zeros((2, 2, 2)), np.zeros((2, 2))]
+    if kind == "mpo":
+        sites = [site[..., None] for site in sites]
+
+    out = compress(sites, chi_out=2, cutoff=0.1, seed=0)
+
+    assert all(site.shape[0] >= 1 for site in out[1:])
+    np.testing.assert_array_equal(dense(out), dense(sites))
 
 
 def test_src_does_not_mutate_bra_stack(rng):
@@ -250,10 +389,11 @@ def test_src_seed_is_deterministic(rng):
 
 
 @pytest.mark.parametrize("spec", ["A B psi", "A B C", "phi A B"])
-def test_src_two_site_stack_falls_back(spec, rng, caplog):
+@pytest.mark.parametrize("oversample", [None, 1.0, 2.0])
+def test_src_two_site_stack_falls_back(spec, oversample, rng, caplog):
     stack = make_stack(spec, rng, n_sites=2)
 
-    out = src(*stack, chi_out=CHI_EXACT)
+    out = src(*stack, chi_out=CHI_EXACT, oversample=oversample)
 
     assert "Defaulting" in caplog.text
     assert rel_error(out, dense_stack(*stack)) < 1e-10
@@ -290,26 +430,44 @@ def assert_cutoff_trims(train, untrimmed):
     assert [t.shape for t in train] != [t.shape for t in untrimmed]
 
 
+@pytest.mark.parametrize("oversample", [None, 1.0, 1.5])
 @pytest.mark.parametrize("cutoff", [0.0, 0.5])
 @pytest.mark.parametrize("spec", ["A psi", "A B"])
-def test_apply_matches_src(spec, cutoff, rng):
+def test_apply_matches_src(spec, cutoff, oversample, rng):
     left, right = make_stack(spec, rng)
 
-    via_apply = apply(left, right, 4, cutoff=cutoff, dtype=np.complex128, seed=3)
-    via_src = src(left, right, chi_out=4, cutoff=cutoff, dtype=np.complex128, seed=3)
+    via_apply = apply(
+        left,
+        right,
+        4,
+        cutoff=cutoff,
+        oversample=oversample,
+        dtype=np.complex128,
+        seed=3,
+    )
+    via_src = src(
+        left,
+        right,
+        chi_out=4,
+        cutoff=cutoff,
+        oversample=oversample,
+        dtype=np.complex128,
+        seed=3,
+    )
 
     assert_same_trains(via_apply, via_src)
     if cutoff:
         assert_cutoff_trims(via_src, src(left, right, chi_out=4, seed=3))
 
 
+@pytest.mark.parametrize("oversample", [None, 1.0, 1.5])
 @pytest.mark.parametrize("cutoff", [0.0, 0.5])
 @pytest.mark.parametrize("spec", ["psi", "A"])
-def test_compress_matches_src(spec, cutoff, rng):
+def test_compress_matches_src(spec, cutoff, oversample, rng):
     (train,) = make_stack(spec, rng)
 
-    via_compress = compress(train, 4, cutoff=cutoff, seed=3)
-    via_src = src(train, chi_out=4, cutoff=cutoff, seed=3)
+    via_compress = compress(train, 4, cutoff=cutoff, oversample=oversample, seed=3)
+    via_src = src(train, chi_out=4, cutoff=cutoff, oversample=oversample, seed=3)
 
     assert_same_trains(via_compress, via_src)
     if cutoff:
@@ -375,14 +533,14 @@ def plans(monkeypatch):
 
 def test_tiny_budget_batches_and_spills(rng, tmp_path, plans):
     stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
-    tight = Resources(host_memory="1MB", scratch_dir=tmp_path)
+    tight = Resources(host_memory="1.5MB", scratch_dir=tmp_path)
 
     default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
     spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)
 
     assert all(site.tier == "device" for site in plans[0].sites)
     assert "disk" in {site.tier for site in plans[1].sites}
-    assert min(site.sketch_batch for site in plans[1].sites[1:]) < 16
+    assert min(site.sketch_batch for site in plans[1].sites[1:]) < 26
     # Rounding differs, and the output cores of an ill-conditioned sketch with it,
     # but not the operator they represent.
     assert rel_error(spilled, dense(default)) < 1e-10
@@ -501,7 +659,7 @@ def test_devices_with_cutoff_keep_the_bonds(rng):
 
 def test_devices_spill_and_clean_up(rng, tmp_path, plans):
     stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
-    tight = Resources(host_memory="1MB", scratch_dir=tmp_path, devices=2)
+    tight = Resources(host_memory="2MB", scratch_dir=tmp_path, devices=2)
 
     default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
     spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)
