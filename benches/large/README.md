@@ -157,34 +157,44 @@ Where the time goes:
 ### D_M = 4000, chi_out = 2000 (reference size)
 
 50 sites, complex128, 184 GB of input on Lustre: 49 environments of 8.19 GB, 401 GB
-in all. The single-GPU `run` (job 60143214) read the stack beforehand; the
+in all. The single-GPU `run` (job 60143214) read the stack beforehand; the first
 `run --devices 4` (job 60137752) did not, so its site stalls include cold reads.
+`scaling --devices 4 2` (job 60143212) read the stack beforehand, then ran four and
+two GPUs in one process; the QR distance between their outputs is `7.5e-13`.
+Speed-up and efficiency are against the single-GPU run.
 
 | GPUs | Time (s) | Speed-up | Efficiency | Left-to-right (s) | Right-to-left (s) | Environment stalls (s) | Site stalls (s) | Environments device / host / disk |
 |---|---|---|---|---|---|---|---|---|
 | 1 | 3925.3 | 1.00 | 100% | 794.8 | 3112.1 | 2542.3 | 0.0 | 0 / 45 / 4 |
+| 2 | 2348.8 | 1.67 | 84% | 729.3-730.6 | 1584.0-1606.3 | 1856.4-1895.6 | 87.1-87.5 | 1 / 35 / 14 |
 | 4 | 1099.9 | 3.57 | 89% | 228.0-240.4 | 832.6-844.1 | 697.3-698.5 | 42.1-43.1 | 1 / 45 / 3 |
+| 4 (job 60143212) | 1290.4 | 3.04 | 76% | 405.0-407.1 | 855.3-866.8 | 671.1-696.7 | 243.3-243.9 | 2 / 45 / 3 |
 
 Before 5fd4ecf, every run at this size failed with a CuPy out-of-memory error at a
 different point (job 59626785 of #59 on `main`, and jobs 59777837 and 59777847
 here). The live memory stayed within the plan, 52 GB against 56.7 GB planned, but
 the pool held up to 66.7 GB in split blocks and a 12.6-14.7 GB allocation did not
-fit under its 67.6 GB cap. Each of the four GPUs now split one sketch batch (192
-columns into two pieces) and finished; the single-GPU run did not need to.
+fit under its 67.6 GB cap. Each GPU of every multi-GPU run now split one sketch
+batch (192 columns into two pieces) and finished; the single-GPU run did not need to.
 
 Where the time goes:
 
-- The right-to-left pass waits for environments read back from host memory and
-  disk: 82% of the pass on one GPU, 84% on four. Each GPU reads only its quarter
-  of every environment, so the wait shrinks 3.65 times. Site stalls are about 4%
-  of the run on four GPUs, and none on one, whose stack was read beforehand.
-- Four GPUs keep only one more environment on the device than one GPU. The plan
+- Environment stalls are the time a GPU thread waits in the environment store, in
+  both passes. The store hands a buffer back only once the GPU has used it, so a
+  stall includes waiting for the GPU's own queue, and cannot tell slow transfers
+  from a GPU-bound pass; the transfers were not timed separately. They shrink with
+  the GPUs: 2542, 1856-1896 and 671-699 s on one, two and four.
+- The two 4-GPU runs share the plan but differ by 190 s, and the second has 200 s
+  more of site stalls, although it read the stack beforehand and the first did not.
+  The cause was not isolated; Lustre is shared, and its bandwidth varies between
+  jobs. The efficiency on four GPUs is 76-89% across the two jobs, around the 80%
+  target; on two GPUs it is 84%.
+- Four GPUs keep only one or two environments on the device, one GPU none. The plan
   picks the largest batches that fit first, and their working set takes each
   GPU's budget (59.0 GB planned peak), although a GPU holds only 2.05 GB of each
   environment.
-- Three or four environments go to Lustre: the host budget, 90% of the available
-  memory (about 470 GB), falls short of the 487-496 GB that keeping them all in
-  host memory takes.
-- The efficiency on 4 GPUs is 89%, above the 80% target. The distance between the
-  outputs at this size, and the 2-GPU point, come from `scaling --devices 4 2`
-  (job 60143212), still queued.
+- Three or four environments go to Lustre on one and four GPUs: the host budget,
+  90% of the available memory (about 470 GB), falls short of the 487-496 GB that
+  keeping them all in host memory takes. On two GPUs, 14 go to Lustre, with a
+  planned host peak of 381.7 GB against 462.6 GB on four; why the plan leaves that
+  host memory unused was not investigated.
