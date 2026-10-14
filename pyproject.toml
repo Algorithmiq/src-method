@@ -43,7 +43,7 @@ gpu-rocm = ["cupy>=14.1.1"]
 
 [project.urls]
 Homepage = "https://algorithmiq.fi"
-Documentation = "https://docs.algorithmiq.fi"
+Documentation = "https://algorithmiq.github.io/src-method/"
 Repository = "https://github.com/Algorithmiq/src-method"
 Changelog = "https://github.com/Algorithmiq/src-method/releases"
 "Bug Tracker" = "https://github.com/Algorithmiq/src-method/issues"
