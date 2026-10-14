@@ -168,6 +168,129 @@ def to_host_async(device: NDArray, out: np.ndarray, stream: Any) -> None:  # noq
     device.get(stream=stream, out=out, blocking=False)
 
 
+def current_device(xp: ModuleType) -> int:
+    """Return the id of the current device, or 0 on the host."""
+    if is_host(xp):
+        return 0
+    return xp.cuda.runtime.getDevice()
+
+
+def device_count(xp: ModuleType) -> int | None:
+    """Return the number of visible devices, or ``None`` on the host.
+
+    The host has no limit: its devices are simulated (see `use_device`).
+    """
+    if is_host(xp):
+        return None
+    return xp.cuda.runtime.getDeviceCount()
+
+
+@contextmanager
+def use_device(xp: ModuleType, device: int) -> Iterator[None]:
+    """Make ``device`` current in the calling thread for the duration of the block.
+
+    On the host backend the devices of a group are simulated: they share the host,
+    so this is a no-op.
+
+    Args:
+        xp: Array module (``numpy`` or ``cupy``).
+        device: The device id.
+
+    Yields:
+        Nothing.
+    """
+    if is_host(xp):
+        yield
+        return
+    with xp.cuda.Device(device):
+        yield
+
+
+# cudaErrorPeerAccessAlreadyEnabled: another library, or an earlier call, did it.
+_PEER_ALREADY_ENABLED = 704
+
+
+def enable_peer_access(xp: ModuleType, devices: Sequence[int]) -> bool:
+    """Enable direct access between every pair of ``devices``, where supported.
+
+    Peer copies work without it, but are then staged through the host.
+
+    Args:
+        xp: Array module (``numpy`` or ``cupy``).
+        devices: The device ids.
+
+    Returns:
+        Whether every pair has direct access; always true on the host.
+    """
+    if is_host(xp):
+        return True
+    runtime = xp.cuda.runtime
+    complete = True
+    for device in devices:
+        with xp.cuda.Device(device):
+            for peer in devices:
+                if peer == device:
+                    continue
+                if not runtime.deviceCanAccessPeer(device, peer):
+                    complete = False
+                    continue
+                try:
+                    runtime.deviceEnablePeerAccess(peer)
+                except runtime.CUDARuntimeError as err:
+                    if getattr(err, "status", None) != _PEER_ALREADY_ENABLED:
+                        raise
+    return complete
+
+
+def copy_into(dst: NDArray, src: NDArray, xp: ModuleType, stream: Any) -> None:  # noqa: ANN401
+    """Copy ``src`` into ``dst``, possibly on another device, on ``stream``.
+
+    Both arrays must be C-contiguous with the same shape and dtype. Across devices
+    the copy is a peer copy: over NVLink or PCIe peer-to-peer when enabled (see
+    `enable_peer_access`), staged through the host otherwise. ``stream`` must belong
+    to the device of ``dst``, and ``src`` must be ready on it (see
+    ``stream.wait_event``).
+
+    Args:
+        dst: The destination.
+        src: The source.
+        xp: Array module (``numpy`` or ``cupy``).
+        stream: The stream that performs the copy.
+    """
+    if dst.shape != src.shape or dst.dtype != src.dtype:
+        msg = f"Cannot copy {src.shape} {src.dtype} into {dst.shape} {dst.dtype}."
+        raise ValueError(msg)
+    if dst.nbytes == 0:
+        return
+    if is_host(xp):
+        np.copyto(dst, src)
+        return
+    if not (dst.flags.c_contiguous and src.flags.c_contiguous):
+        msg = "Device copies need C-contiguous arrays."
+        raise ValueError(msg)
+    # CuPy arrays: ``data`` is a memory pointer and ``device`` a CUDA device.
+    to: Any = dst
+    source: Any = src
+    runtime = xp.cuda.runtime
+    if to.device.id == source.device.id:
+        runtime.memcpyAsync(
+            to.data.ptr,
+            source.data.ptr,
+            to.nbytes,
+            runtime.memcpyDeviceToDevice,
+            stream.ptr,
+        )
+    else:
+        runtime.memcpyPeerAsync(
+            to.data.ptr,
+            to.device.id,
+            source.data.ptr,
+            source.device.id,
+            to.nbytes,
+            stream.ptr,
+        )
+
+
 def device_memory(xp: ModuleType) -> tuple[int, int]:
     """Return the device bytes available to the sweep and the device total.
 

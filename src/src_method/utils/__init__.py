@@ -5,11 +5,15 @@ from __future__ import annotations
 from ._backend import (
     NullEvent,
     NullStream,
+    copy_into,
+    current_device,
     current_stream,
     default_rng,
+    device_count,
     device_memory,
     device_pool_bytes,
     device_pool_limit,
+    enable_peer_access,
     gaussian_sketch,
     get_xp,
     host_memory_available,
@@ -20,17 +24,22 @@ from ._backend import (
     to_device_async,
     to_host_async,
     to_numpy,
+    use_device,
 )
 from .linalg import truncated_qr
 
 __all__ = [
     "NullEvent",
     "NullStream",
+    "copy_into",
+    "current_device",
     "current_stream",
     "default_rng",
+    "device_count",
     "device_memory",
     "device_pool_bytes",
     "device_pool_limit",
+    "enable_peer_access",
     "gaussian_sketch",
     "get_xp",
     "host_memory_available",
@@ -42,4 +51,5 @@ __all__ = [
     "to_host_async",
     "to_numpy",
     "truncated_qr",
+    "use_device",
 ]
