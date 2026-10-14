@@ -31,7 +31,6 @@ build*/
 # Executables
 *.exe
 *.out
-!benches/*/leonardo/logs/*.out
 *.app
 
 ### Python ###

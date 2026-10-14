@@ -1,0 +1,118 @@
+---
+title: Leonardo (CINECA)
+description: Run src_method on the Booster partition of Leonardo, on one GPU or all four of a node.
+---
+
+[Leonardo](https://docs.hpc.cineca.it/general/getting_started.html) is a EuroHPC
+pre-exascale system at CINECA. Its Booster nodes have 32 Xeon 8358 cores, 512 GB
+of memory and 4 A100-SXM-64GB, every pair connected by NVLink. Three things differ
+from a workstation:
+
+- **The driver predates CUDA 13.** The nodes run driver 535, while the
+  `gpu-nvidia` extra installs CuPy for CUDA 13. NVIDIA's forward-compatibility
+  package fills the gap without root.
+- **There is no local disk**, and `/tmp` is a small in-memory file system. Large
+  stacks, and the environments that the [out-of-core sweep](/features/large-problems)
+  spills, go to the Lustre scratch area, `$CINECA_SCRATCH`.
+- **The home directory has a small quota.** Keep the `uv` cache and Python
+  installations in the project's work area.
+
+## Setup
+
+Once, on a login node, from a clone of the repository in your work area (or from
+your own project that depends on `src_method[gpu-nvidia]`):
+
+```bash
+# Keep the uv cache and Python installations out of $HOME.
+export UV_CACHE_DIR=$PWD/.uv-cache UV_PYTHON_INSTALL_DIR=$PWD/.uv-python
+uv sync --extra gpu-nvidia
+
+# Unpack NVIDIA's forward-compatible libcuda for CUDA 13.
+mkdir -p .cuda-compat && cd .cuda-compat
+curl -sSfO https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-compat-13-4-615.71.09-1.el8.x86_64.rpm
+rpm2cpio cuda-compat-13-4-*.rpm | cpio -idm && cd ..
+```
+
+Add `--group bench` to `uv sync` to run the [benchmarks](/benchmarks). `saldo -b`
+lists the budgets you can charge jobs to.
+
+## Job script
+
+Save this as `job.sh` in the same folder, set your account, and submit any script
+with `sbatch job.sh my_script.py --its-options`. It runs from the folder you submit
+from, with the four GPUs of one node visible to a single process.
+
+```bash
+#!/usr/bin/env bash
+#SBATCH --job-name=src
+#SBATCH --account=<your_account>
+#SBATCH --partition=boost_usr_prod
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=32
+#SBATCH --gres=gpu:4
+#SBATCH --mem=0
+#SBATCH --exclusive
+#SBATCH --time=04:00:00
+#SBATCH --output=%x_%j.out
+
+set -euo pipefail
+cd "$SLURM_SUBMIT_DIR"
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK OMP_PLACES=cores OMP_PROC_BIND=spread
+# No local disk, and /tmp is small: temporary files go to Lustre scratch.
+export TMPDIR=$CINECA_SCRATCH/tmp
+mkdir -p "$TMPDIR"
+
+source .venv/bin/activate
+# CuPy compiles its kernels on first use; a persistent cache saves that next time.
+export CUPY_CACHE_DIR=$PWD/.cupy-cache
+# Driver 535 predates CUDA 13: load the forward-compatible libcuda first.
+export LD_LIBRARY_PATH=$PWD/.cuda-compat/usr/local/cuda-13.4/compat${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+
+srun python "$@"
+```
+
+For one GPU, use `--gres=gpu:1`.
+
+In the script, split the sweep among the four GPUs and spill to scratch:
+
+```python notest
+import os
+
+from src_method import Resources, src
+
+out = src(
+    *stack,
+    chi_out=2000,
+    device="gpu",
+    resources=Resources(
+        devices=4, scratch_dir=os.path.join(os.environ["CINECA_SCRATCH"], "src")
+    ),
+)
+```
+
+## Queues
+
+- **Short jobs:** for anything under 30 minutes, add
+  `--qos=boost_qos_dbg --time=00:30:00`. It starts quickly but runs at most two
+  jobs per user.
+- **Longer jobs:** the default QoS can queue for hours. Priority does not depend
+  on the time limit, but the scheduler backfills short jobs into gaps, so a tight
+  `--time` starts sooner. `scontrol update JobId=<id> TimeLimit=<t>` can lower the
+  limit of a queued job, never raise it.
+
+## Performance notes
+
+- **The first run of a job is slower:** CuPy compiles its kernels (about 50 s with
+  an empty cache, hence `CUPY_CACHE_DIR`), and in our runs the first SRC call of a
+  job took a further 20 s or so, for a reason not yet isolated.
+- **Lustre is shared.** Input stacks read from scratch, and environments spilled to
+  it, run at whatever bandwidth the file system has to spare; reading a stack once
+  before the sweep (e.g. `cat` its files to `/dev/null`) avoids paying for a cold
+  read inside the timed run.
+- **Host memory sets how much reaches the disk.** The sweep keeps 90% of the
+  available memory as its host budget; environments beyond it go to
+  `scratch_dir`. The
+  [out-of-core benchmark](https://github.com/Algorithmiq/src-method/tree/main/benches/large)
+  reports where the environments of its reference runs ended up.

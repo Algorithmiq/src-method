@@ -8,12 +8,16 @@ controlled bond dimension, and compare to a `quimb` reference.
 ## Leonardo
 
 The Leonardo [supercomputer](https://docs.hpc.cineca.it/general/getting_started.html) at CINECA is
-a pre-exascale Tier-0 EuroHPC system. The [`leonardo/`](leonardo/) folder holds the Slurm
-script and the logs; see the [Leonardo section](../README.md#leonardo) for the environment.
+a pre-exascale Tier-0 EuroHPC system; see
+[HPC clusters](https://algorithmiq.github.io/src-method/hpc/leonardo) for how to run there.
 
 ### MPO-MPO benchmark
 
 The benchmark contracts two length-`n_sites` matrix product operators (MPOs) whose initial bond dimension is `chi_out` (unless `chi_id` is specified for the second MPO), then compresses the resulting MPO back to bond dimension `chi_out`. One MPO is fully random; the other is an identity MPO perturbed by summing it with another random MPO with small elements, making the contraction highly compressible. The table below compares `quimb` (CPU, `rsvd` compression) with `src` on the CPU and on one GPU: wall time of the contraction-compression, peak host memory of the job (MaxRSS), speedup over `quimb`, and relative distance to the uncompressed product.
+
+```bash
+uv run python benches/primitives/bench_mpo_mpo.py --n-sites 25 --chi-out 1000 --compare no --device gpu
+```
 
 One Booster node (32 cores, A100-64GB), complex128 unless noted, `chi_id=4` at `chi=1000`:
 
@@ -60,7 +64,7 @@ Before the refactoring, on Booster (32 CPUs) and DCGP (112 CPUs) nodes:
 
 ### MPO-MPO strong scaling (v0.3.2, DCGP)
 
-For this benchmark, we fix the problem size to `n_sites=25`, `chi=1000` and `chi_id=4`, and vary the number of CPUs in a single node. We tweak the OpenMP environment variables in the `run.sh` script to optimize performance, for instance `OMP_PLACES` and `OMP_PROC_BIND`, so the NUMA domain is taken into account. We do this both manually and automatically.
+For this benchmark, we fix the problem size to `n_sites=25`, `chi=1000` and `chi_id=4`, and vary the number of CPUs in a single node. We tweak the OpenMP environment variables in the job script to optimize performance, for instance `OMP_PLACES` and `OMP_PROC_BIND`, so the NUMA domain is taken into account. We do this both manually and automatically.
 
 | CPUs | Time auto (s)   | Time maual (s)|
 |------|-----------------|---------------|
