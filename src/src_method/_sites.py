@@ -35,11 +35,10 @@ from .utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from types import ModuleType, TracebackType
-
-    from numpy.typing import NDArray
+    from types import TracebackType
 
     from ._tensor_train import Site
+    from .utils import Array
 
 # Byte alignment of each core inside a staging buffer.
 _ALIGN = 256
@@ -123,26 +122,24 @@ class SiteSource:
     Args:
         layers: A stack in ket form, each layer a sequence of array-likes with
             ``shape``, ``dtype``, ``ndim`` and ``np.asarray`` support.
-        xp: Array module (``numpy`` or ``cupy``).
         order: The sites, in the order they will be requested.
         depth: How many sites the loader may read ahead of the one in use.
-        group: The devices that share the cores; a single device by default.
+        group: The devices that share the cores.
     """
 
     def __init__(
         self,
         layers: Sequence[Sequence[Site]],
-        xp: ModuleType,
         order: Sequence[int],
         *,
         depth: int,
-        group: DeviceGroup | None = None,
+        group: DeviceGroup,
     ) -> None:
         self._layers = layers
         self._kinds = [known_kind(layer) for layer in layers]
         self._last = len(layers[0]) - 1
-        self._xp = xp
-        self._group = group or DeviceGroup(xp, [0])
+        self._xp = xp = group.xp
+        self._group = group
         self._order = list(order)
         self._staged: list[Future[_Staged]] = [Future() for _ in self._order]
         self._taken = [0] * len(self._order)
@@ -259,7 +256,7 @@ class SiteSource:
 
     # --- reading ---
 
-    def next(self, rank: int = 0) -> tuple[NDArray, ...]:
+    def next(self, rank: int = 0) -> tuple[Array, ...]:
         """Return the padded cores of the next site in order, on the rank's device.
 
         Args:
@@ -290,7 +287,7 @@ class SiteSource:
             for core, kind in zip(cores, self._kinds)
         )
 
-    def _upload(self, rank: int, k: int, staged: _Staged) -> list[NDArray]:
+    def _upload(self, rank: int, k: int, staged: _Staged) -> list[Array]:
         xp, stream = self._xp, current_stream(self._xp)
         if not self._group.split_uploads:
             cores = [
@@ -311,7 +308,7 @@ class SiteSource:
         ]
 
 
-def _read(core: Site) -> NDArray:
+def _read(core: Site) -> np.ndarray:
     """Bring a core into memory; memmaps are read now, not on first touch."""
     if isinstance(core, np.memmap) or not isinstance(core, np.ndarray):
         return np.array(core)

@@ -2,13 +2,13 @@
 
 from contextlib import contextmanager
 from pathlib import Path
-from types import ModuleType
 
 import numpy as np
 import pytest
 
 import src_method._plan as plan_module
 from src_method import Resources
+from src_method._group import DeviceGroup
 from src_method._plan import (
     GEMM_MULTIPLE,
     Budgets,
@@ -18,6 +18,7 @@ from src_method._plan import (
 )
 
 GB = 10**9
+HOST = DeviceGroup("cpu")
 
 
 @pytest.mark.parametrize(
@@ -53,7 +54,7 @@ def test_resources_validate_at_construction():
 
 
 def test_resolve_budgets_explicit_on_host(tmp_path):
-    budgets = resolve_budgets(Resources(host_memory="2GB", scratch_dir=tmp_path), np)
+    budgets = resolve_budgets(Resources(host_memory="2GB", scratch_dir=tmp_path), HOST)
 
     assert budgets.unified
     assert budgets.host == budgets.device == 2 * GB
@@ -64,7 +65,7 @@ def test_resolve_budgets_explicit_on_host(tmp_path):
 def test_resolve_budgets_detects_host_memory(monkeypatch, tmp_path):
     monkeypatch.setattr(plan_module, "host_memory_available", lambda: 10 * GB)
 
-    budgets = resolve_budgets(Resources(scratch_dir=tmp_path / "not" / "yet"), np)
+    budgets = resolve_budgets(Resources(scratch_dir=tmp_path / "not" / "yet"), HOST)
 
     assert budgets.host == 9 * GB
 
@@ -91,11 +92,7 @@ def fake_gpus(monkeypatch):
 
 @pytest.mark.usefixtures("fake_gpus")
 def test_resolve_budgets_detects_device_memory(tmp_path):
-    fake_xp = ModuleType("fake_xp")
-
-    budgets = resolve_budgets(
-        Resources(host_memory="1GB", scratch_dir=tmp_path), fake_xp
-    )
+    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), HOST)
 
     assert not budgets.unified
     assert budgets.device == 26 * GB  # minus max(10% of 40 GB, 1 GiB)
@@ -104,11 +101,8 @@ def test_resolve_budgets_detects_device_memory(tmp_path):
 
 @pytest.mark.usefixtures("fake_gpus")
 def test_resolve_budgets_caps_explicit_device_memory_with_margin(tmp_path):
-    fake_xp = ModuleType("fake_xp")
-
     budgets = resolve_budgets(
-        Resources(gpu_memory="10GB", host_memory="1GB", scratch_dir=tmp_path),
-        fake_xp,
+        Resources(gpu_memory="10GB", host_memory="1GB", scratch_dir=tmp_path), HOST
     )
 
     assert budgets.device == 10 * GB
@@ -119,9 +113,7 @@ def test_resolve_budgets_takes_the_smallest_device(fake_gpus, tmp_path):
     fake_gpus[1] = (20 * GB, 40 * GB)
 
     budgets = resolve_budgets(
-        Resources(host_memory="1GB", scratch_dir=tmp_path),
-        ModuleType("fake_xp"),
-        devices=(0, 1),
+        Resources(host_memory="1GB", scratch_dir=tmp_path), DeviceGroup("cpu", 2)
     )
 
     assert budgets.device == 16 * GB
@@ -130,7 +122,7 @@ def test_resolve_budgets_takes_the_smallest_device(fake_gpus, tmp_path):
 
 def test_resolve_budgets_splits_the_host_among_simulated_devices(tmp_path):
     budgets = resolve_budgets(
-        Resources(host_memory="8GB", scratch_dir=tmp_path), np, devices=(0, 1, 2, 3)
+        Resources(host_memory="8GB", scratch_dir=tmp_path), DeviceGroup("cpu", 4)
     )
 
     assert budgets.host == 8 * GB
@@ -138,7 +130,7 @@ def test_resolve_budgets_splits_the_host_among_simulated_devices(tmp_path):
 
 
 def test_resolve_budgets_leaves_the_host_uncapped(tmp_path):
-    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), np)
+    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), HOST)
 
     assert budgets.device_cap is None
 
@@ -147,7 +139,7 @@ def test_resolve_budgets_detects_disk(monkeypatch, tmp_path):
     usage = type("Usage", (), {"free": 100 * GB})
     monkeypatch.setattr(plan_module.shutil, "disk_usage", lambda _path: usage)
 
-    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), np)
+    budgets = resolve_budgets(Resources(host_memory="1GB", scratch_dir=tmp_path), HOST)
 
     assert budgets.disk == 95 * GB
 

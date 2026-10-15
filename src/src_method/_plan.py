@@ -23,19 +23,13 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from ._kernels import equations, peak_elements
-from .utils import (
-    current_device,
-    device_count,
-    device_memory,
-    host_memory_available,
-    is_host,
-    use_device,
-)
+from .utils import device_memory, host_memory_available, is_host, use_device
 
 if TYPE_CHECKING:
     import os
     from collections.abc import Callable
-    from types import ModuleType
+
+    from ._group import DeviceGroup
 
 Tier = Literal["device", "host", "disk"]
 Shape = tuple[int, ...]
@@ -137,10 +131,10 @@ class Resources:
         for value in (self.gpu_memory, self.host_memory):
             if value is not None:
                 parse_size(value)
-        _device_ids(self.devices)
+        device_ids(self.devices)
 
 
-def _device_ids(devices: object) -> tuple[int, ...] | None:
+def device_ids(devices: object) -> tuple[int, ...] | None:
     """Validate a device request and return its ids, or ``None`` for the default."""
     if devices is None:
         return None
@@ -162,29 +156,6 @@ def _device_ids(devices: object) -> tuple[int, ...] | None:
         msg = f"Expected distinct non-negative device ids, got {devices!r}."
         raise ValueError(msg)
     return tuple(ids)
-
-
-def resolve_devices(resources: Resources | None, xp: ModuleType) -> tuple[int, ...]:
-    """Return the device ids of a sweep, in rank order.
-
-    Args:
-        resources: The requested devices, or ``None`` for the current device.
-        xp: Array module (``numpy`` or ``cupy``).
-
-    Returns:
-        The device ids.
-
-    Raises:
-        ValueError: If a device does not exist.
-    """
-    ids = _device_ids(resources.devices if resources is not None else None)
-    if ids is None:
-        return (current_device(xp),)
-    count = device_count(xp)
-    if count is not None and max(ids) >= count:
-        msg = f"Requested devices {list(ids)}, but only {count} are visible."
-        raise ValueError(msg)
-    return ids
 
 
 @dataclass(frozen=True)
@@ -210,15 +181,12 @@ class Budgets:
     device_cap: int | None = None
 
 
-def resolve_budgets(
-    resources: Resources | None, xp: ModuleType, devices: Sequence[int] = (0,)
-) -> Budgets:
+def resolve_budgets(resources: Resources | None, group: DeviceGroup) -> Budgets:
     """Turn `Resources` into byte budgets, detecting those left unset.
 
     Args:
         resources: The requested budgets, or ``None`` to detect all of them.
-        xp: Array module (``numpy`` or ``cupy``).
-        devices: The devices of the sweep. The device budget is that of each of
+        group: The devices of the sweep. The device budget is that of each of
             them: the smallest detected one. Host memory and disk are those of the
             node; on the CPU the simulated devices split the host budget.
 
@@ -235,15 +203,15 @@ def resolve_budgets(
         host = parse_size(resources.host_memory)
     else:
         host = int(host_memory_available() * (1 - HOST_MARGIN_FRACTION))
-    unified = is_host(xp)
+    unified = is_host(group.xp)
     cap = None
     if unified:
-        device = max(host, 0) // len(devices)
+        device = max(host, 0) // group.size
     else:
         caps = []
-        for d in devices:
-            with use_device(xp, d):
-                available, total = device_memory(xp)
+        for d in group.devices:
+            with use_device(group.xp, d):
+                available, total = device_memory(group.xp)
             margin = max(int(GPU_MARGIN_FRACTION * total), GPU_MARGIN_MIN)
             caps.append((available - margin, margin))
         margin = min(m for _, m in caps)

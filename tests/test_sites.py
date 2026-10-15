@@ -67,7 +67,9 @@ def test_sites_come_in_the_given_order(depth):
     rng = np.random.default_rng(1)
     train = CountingTrain(random_mpo(4, 3, rng))
 
-    with SiteSource([train], np, [2, 3, 2], depth=depth) as source:
+    with SiteSource(
+        [train], [2, 3, 2], depth=depth, group=DeviceGroup("cpu")
+    ) as source:
         cores = [source.next() for _ in range(3)]
 
     assert train.reads == [0, 0, 2, 1]
@@ -80,10 +82,10 @@ def test_simulated_devices_share_one_read(depth):
     rng = np.random.default_rng(1)
     train = CountingTrain(random_mpo(4, 3, rng))
     mps = [t[..., 0] for t in random_mpo(4, 2, rng)]
-    group = DeviceGroup(np, [0, 1, 2])
+    group = DeviceGroup("cpu", [0, 1, 2])
     order = sweep_order(4)
 
-    with SiteSource([train, mps], np, order, depth=depth, group=group) as source:
+    with SiteSource([train, mps], order, depth=depth, group=group) as source:
         got = group.run(lambda rank: [source.next(rank) for _ in order])
 
     assert train.reads == [2, 2, 2, 1]
@@ -104,12 +106,12 @@ def test_a_failed_read_reaches_every_device():
             return Broken(self, j) if j == 1 else CountingSite(self, j)
 
     rng = np.random.default_rng(1)
-    group = DeviceGroup(np, [0, 1])
+    group = DeviceGroup("cpu", [0, 1])
     order = sweep_order(4)
 
     with (
         SiteSource(
-            [BrokenTrain(random_mpo(4, 3, rng))], np, order, depth=1, group=group
+            [BrokenTrain(random_mpo(4, 3, rng))], order, depth=1, group=group
         ) as source,
         pytest.raises(OSError, match="unreadable"),
     ):

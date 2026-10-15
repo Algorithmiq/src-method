@@ -13,6 +13,7 @@ from src_method.utils import (
     device_pool_bytes,
     device_pool_limit,
     enable_peer_access,
+    get_xp,
     host_memory_available,
     is_host,
     new_stream,
@@ -27,6 +28,7 @@ def test_host_streams_are_null():
     stream = new_stream(np)
 
     assert is_host(np)
+    assert is_host(get_xp("cpu"))
     assert isinstance(stream, NullStream)
     assert isinstance(current_stream(np), NullStream)
     event = stream.record()
@@ -91,13 +93,13 @@ def test_host_devices_are_simulated():
 def test_copy_into_on_host():
     dst = np.empty((2, 3), dtype=complex)
 
-    copy_into(dst, np.arange(6.0).reshape(2, 3).astype(complex), np, NullStream())
+    copy_into(dst, np.arange(6.0).reshape(2, 3).astype(complex), NullStream())
 
     np.testing.assert_array_equal(dst, np.arange(6.0).reshape(2, 3))
 
 
 def test_copy_into_rejects_mismatches():
     with pytest.raises(ValueError, match="Cannot copy"):
-        copy_into(np.empty(3), np.empty(4), np, NullStream())
+        copy_into(np.empty(3), np.empty(4), NullStream())
     with pytest.raises(ValueError, match="Cannot copy"):
-        copy_into(np.empty(3), np.empty(3, dtype=np.float32), np, NullStream())
+        copy_into(np.empty(3), np.empty(3, dtype=np.float32), NullStream())

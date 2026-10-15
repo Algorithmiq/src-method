@@ -7,8 +7,8 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/) and declared in
 `pyproject.toml`:
 
 - **Runtime dependencies** (`[project] dependencies`) are what users install:
-  NumPy and `opt_einsum`. Keep this list short; every entry is imposed on every
-  downstream project.
+  NumPy, `opt_einsum` and `array-api-compat`. Keep this list short; every entry is
+  imposed on every downstream project.
 - **Extras** (`[project.optional-dependencies]`) enable optional features in
   production: `gpu-nvidia` and `gpu-rocm` add CuPy.
 - **Dependency groups** (`[dependency-groups]`) are for development only and are

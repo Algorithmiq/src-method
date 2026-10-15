@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._backend import (
+    Array,
     NullEvent,
     NullStream,
     copy_into,
@@ -30,6 +31,7 @@ from ._backend import (
 from .linalg import truncated_qr
 
 __all__ = [
+    "Array",
     "NullEvent",
     "NullStream",
     "copy_into",

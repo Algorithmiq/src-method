@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     import numpy as np
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import DTypeLike
 
     from ._plan import Resources
     from ._tensor_train import Site
@@ -31,7 +31,7 @@ def compress(
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
-) -> list[NDArray]:
+) -> list[np.ndarray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
     Equivalent to ``src(tensor, ...)``; see `src_method.stack.src` for the

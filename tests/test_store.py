@@ -41,7 +41,6 @@ def open_store(tier, tmp_path, **batches):
         make_plan(tier, **batches),
         SHAPES,
         np.complex128,
-        np,
         tmp_path,
         copy_stream=NullStream(),
     )
