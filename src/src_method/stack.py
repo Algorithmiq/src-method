@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     import numpy as np
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import DTypeLike
 
     from ._plan import Resources
     from ._tensor_train import Site
@@ -45,7 +45,7 @@ def src(
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
-) -> list[NDArray]:
+) -> list[np.ndarray]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
     The stack ``src(T_1, T_2, ..., T_m)`` is the product ``T_1 T_2 ... T_m`` in
@@ -108,7 +108,7 @@ def src(
     """
     chi_out = validate_chi_out(chi_out)
     validate_cutoff(cutoff)
-    xp = get_xp(device)
+    get_xp(device)  # Reject an unknown device, or a missing cupy, at once.
     prng = default_rng(seed)
     layers, kind = normalize_stack(trains)
 
@@ -123,14 +123,14 @@ def src(
         n_sites,
         len(layers),
         kind,
-        xp.__name__,
+        device,
     )
     result = sweep(
         layers,
         kind,
         chi_out,
         prng,
-        xp,
+        device=device,
         cutoff=cutoff,
         dtype=sketch_dtype(dtype, *layers),
         resources=resources,

@@ -19,13 +19,21 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
-from .utils import copy_into, current_stream, enable_peer_access, use_device
+from ._plan import device_ids
+from .utils import (
+    copy_into,
+    current_device,
+    current_stream,
+    device_count,
+    enable_peer_access,
+    get_xp,
+    use_device,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from types import ModuleType
 
-    from numpy.typing import NDArray
+    from .utils import Array
 
 T = TypeVar("T")
 
@@ -60,17 +68,26 @@ class DeviceGroup:
     """The devices of one sweep and the collectives between them.
 
     Args:
-        xp: Array module (``numpy`` or ``cupy``).
-        devices: The device ids, in rank order; rank 0 is the root.
+        device: ``"cpu"`` or ``"gpu"``, as in `src_method.stack.src`.
+        devices: A count ``n`` for the first ``n`` visible devices, or the device
+            ids in rank order; rank 0 is the root. Defaults to the current device.
+
+    Raises:
+        ValueError: If a device does not exist.
     """
 
-    def __init__(self, xp: ModuleType, devices: Sequence[int]) -> None:
-        self.xp = xp
-        self.devices = tuple(devices)
+    def __init__(self, device: str, devices: int | Sequence[int] | None = None) -> None:
+        self.xp = get_xp(device)
+        ids = device_ids(devices) or (current_device(self.xp),)
+        count = device_count(self.xp)
+        if count is not None and max(ids) >= count:
+            msg = f"Requested devices {list(ids)}, but only {count} are visible."
+            raise ValueError(msg)
+        self.devices = ids
         self.size = len(self.devices)
         # Uploading 1/size of each core and gathering the rest pays off only when
         # the devices copy directly between them.
-        self.split_uploads = self.size > 1 and enable_peer_access(xp, self.devices)
+        self.split_uploads = self.size > 1 and enable_peer_access(self.xp, ids)
         self._barrier = threading.Barrier(self.size)
         # Two sets of slots, alternating between consecutive collectives: a rank may
         # publish into the next collective while slower ranks still read this one.
@@ -171,12 +188,12 @@ class DeviceGroup:
             stream.wait_event(event)
         self._parts[parity][rank] = None
 
-    def _pull(self, part: _Part, dst: NDArray) -> None:
+    def _pull(self, part: _Part, dst: Array) -> None:
         stream = current_stream(self.xp)
         stream.wait_event(part.ready)
-        copy_into(dst, part.array, self.xp, stream)
+        copy_into(dst, part.array, stream)
 
-    def allgather(self, rank: int, local: NDArray) -> NDArray:
+    def allgather(self, rank: int, local: Array) -> Array:
         """Concatenate the blocks of every rank along the first axis, on every rank.
 
         Args:
@@ -199,7 +216,7 @@ class DeviceGroup:
         self._settle(rank, parity)
         return full
 
-    def gather(self, rank: int, local: NDArray, root: int = 0) -> NDArray | None:
+    def gather(self, rank: int, local: Array, root: int = 0) -> Array | None:
         """Concatenate the blocks of every rank along the first axis, on ``root``.
 
         Args:
@@ -224,7 +241,7 @@ class DeviceGroup:
         self._settle(rank, parity)
         return full
 
-    def scatter(self, rank: int, full: NDArray | None, root: int = 0) -> NDArray:
+    def scatter(self, rank: int, full: Array | None, root: int = 0) -> Array:
         """Give every rank its block (see `blocks`) of the first axis of ``full``.
 
         Args:
@@ -246,7 +263,7 @@ class DeviceGroup:
         self._settle(rank, parity)
         return local
 
-    def _empty_like_parts(self, parts: Sequence[_Part]) -> NDArray:
+    def _empty_like_parts(self, parts: Sequence[_Part]) -> Array:
         first = parts[0].array
         rows = sum(part.array.shape[0] for part in parts)
         return self.xp.empty((rows, *first.shape[1:]), dtype=first.dtype)

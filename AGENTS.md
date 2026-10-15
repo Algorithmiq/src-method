@@ -20,9 +20,12 @@ tensor, so there is no wrapper type.
   `A`); that licence does not extend to anything else.
 - Comment invariants, contracts and non-obvious numerical choices only. Never
   narrate the code.
-- Backend-agnostic code: go through `src_method.utils._backend` instead of
-  importing `numpy` or `cupy` directly in the algorithms, so CPU and GPU paths
-  stay in sync.
+- Backend-agnostic code: use the array API standard, with the namespace taken
+  from the arrays (`array_api_compat.array_namespace`) or from the
+  `DeviceGroup`, never an `xp` parameter; annotate arrays as
+  `src_method.utils.Array`. What the standard lacks (streams, pinned memory,
+  CuPy's pool) goes through `src_method.utils._backend`. Never import `cupy`
+  in the algorithms, so CPU and GPU paths stay in sync.
 - Log with the standard library: `logger = logging.getLogger(__name__)` per
   module, lazy `%`-style arguments, never `print`. Never add handlers, levels
   or `basicConfig` in the package; progress messages go at `DEBUG`.

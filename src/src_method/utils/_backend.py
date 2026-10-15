@@ -1,11 +1,12 @@
-"""Array-module backend selection for CPU (numpy) and GPU (cupy).
+"""The seam between the algorithms and the array backends: NumPy and CuPy.
 
-A single resolver returns the appropriate array module, next to a PRNG factory,
-host-transfer helpers and the few stream and memory queries the out-of-core sweep
-needs. All hot-loop code paths receive an ``xp`` module and call ``xp.linalg.*`` /
-``xp.asarray`` directly, so backend selection adds zero per-op overhead. On the
-host backend the stream helpers are synchronous no-ops, so the same algorithm code
-runs on both.
+The algorithms speak the array API standard through `array_api_compat`, and take
+the namespace from their arrays (``array_namespace(x)``). Arrays stay plain ``numpy.ndarray`` or ``cupy.ndarray``,
+so `opt_einsum` dispatches on them as before. What the standard leaves out lives
+here: picking the namespace for a ``device``, streams and events, page-locked
+memory, CuPy's memory pool, and the host-side random draws. Functions that create
+arrays from nothing take the namespace ``xp``; on the host the stream helpers are
+synchronous no-ops, so the same algorithm code runs on both backends.
 """
 
 from __future__ import annotations
@@ -13,38 +14,43 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
+from array_api_compat import numpy as np_compat
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
     from types import ModuleType
 
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import DTypeLike
 
     from src_method._tensor_train import Site, SiteLike
 
+# An array of the active backend: a numpy.ndarray or a cupy.ndarray. CuPy ships no
+# type stubs, so to a type checker either is no narrower than Any.
+Array: TypeAlias = Any
+
 
 def get_xp(device: str) -> ModuleType:
-    """Return the array module for the requested device.
+    """Return the array API namespace for the requested device.
 
     Args:
         device: ``"cpu"`` for numpy or ``"gpu"`` for cupy.
 
     Returns:
-        The numpy or cupy module.
+        The `array_api_compat` namespace of numpy or cupy.
 
     Raises:
         ValueError: If ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     if device == "cpu":
-        return np
+        return np_compat
     if device == "gpu":
-        import cupy  # noqa: PLC0415  (lazy: optional dependency)
+        import array_api_compat.cupy as xp  # noqa: PLC0415  (optional dependency)
 
-        return cupy
+        return xp
     msg = f"Unknown device {device!r}; expected 'cpu' or 'gpu'."
     raise ValueError(msg)
 
@@ -61,7 +67,7 @@ def default_rng(
     return np.random.default_rng(seed)
 
 
-def to_numpy(arr: NDArray | SiteLike) -> np.ndarray:
+def to_numpy(arr: Array | SiteLike) -> np.ndarray:
     """Bring an array, or a lazily read site, onto the host as a numpy array.
 
     A no-op for numpy arrays.
@@ -96,7 +102,8 @@ class NullStream:
 
 def is_host(xp: ModuleType) -> bool:
     """Whether ``xp`` is the host backend (numpy)."""
-    return xp is np
+    # An identity check: the stream helpers call this several times per site.
+    return xp is np_compat or xp is np
 
 
 def new_stream(xp: ModuleType) -> Any:  # noqa: ANN401  (a cupy or null stream)
@@ -118,7 +125,7 @@ def pinned_empty(n_bytes: int, xp: ModuleType) -> np.ndarray:
 
     Args:
         n_bytes: The size of the buffer.
-        xp: Array module (``numpy`` or ``cupy``).
+        xp: The array namespace.
 
     Returns:
         A ``uint8`` host array of ``n_bytes`` elements.
@@ -130,7 +137,7 @@ def pinned_empty(n_bytes: int, xp: ModuleType) -> np.ndarray:
     return cupyx.empty_pinned(n_bytes, dtype=np.uint8)
 
 
-def to_device_async(host: np.ndarray, xp: ModuleType, stream: Any) -> NDArray:  # noqa: ANN401
+def to_device_async(host: np.ndarray, xp: ModuleType, stream: Any) -> Array:  # noqa: ANN401
     """Copy a host array to a new device array on ``stream``.
 
     On the host backend this is a plain copy, so the result never aliases a staging
@@ -138,7 +145,7 @@ def to_device_async(host: np.ndarray, xp: ModuleType, stream: Any) -> NDArray:  
 
     Args:
         host: The source; page-locked for the copy to be asynchronous.
-        xp: Array module (``numpy`` or ``cupy``).
+        xp: The array namespace of the device.
         stream: The stream that performs the copy.
 
     Returns:
@@ -151,7 +158,7 @@ def to_device_async(host: np.ndarray, xp: ModuleType, stream: Any) -> NDArray:  
     return device
 
 
-def to_host_async(device: NDArray, out: np.ndarray, stream: Any) -> None:  # noqa: ANN401
+def to_host_async(device: Array, out: np.ndarray, stream: Any) -> None:  # noqa: ANN401
     """Copy a device array into a host array on ``stream``.
 
     The copy is complete once an event recorded on ``stream`` afterwards is.
@@ -193,7 +200,7 @@ def use_device(xp: ModuleType, device: int) -> Iterator[None]:
     so this is a no-op.
 
     Args:
-        xp: Array module (``numpy`` or ``cupy``).
+        xp: The array namespace.
         device: The device id.
 
     Yields:
@@ -216,7 +223,7 @@ def enable_peer_access(xp: ModuleType, devices: Sequence[int]) -> bool:
     Peer copies work without it, but are then staged through the host.
 
     Args:
-        xp: Array module (``numpy`` or ``cupy``).
+        xp: The array namespace.
         devices: The device ids.
 
     Returns:
@@ -242,7 +249,7 @@ def enable_peer_access(xp: ModuleType, devices: Sequence[int]) -> bool:
     return complete
 
 
-def copy_into(dst: NDArray, src: NDArray, xp: ModuleType, stream: Any) -> None:  # noqa: ANN401
+def copy_into(dst: Array, src: Array, stream: Any) -> None:  # noqa: ANN401
     """Copy ``src`` into ``dst``, possibly on another device, on ``stream``.
 
     Both arrays must be C-contiguous with the same shape and dtype. Across devices
@@ -254,7 +261,6 @@ def copy_into(dst: NDArray, src: NDArray, xp: ModuleType, stream: Any) -> None: 
     Args:
         dst: The destination.
         src: The source.
-        xp: Array module (``numpy`` or ``cupy``).
         stream: The stream that performs the copy.
     """
     if dst.shape != src.shape or dst.dtype != src.dtype:
@@ -262,31 +268,31 @@ def copy_into(dst: NDArray, src: NDArray, xp: ModuleType, stream: Any) -> None: 
         raise ValueError(msg)
     if dst.nbytes == 0:
         return
-    if is_host(xp):
+    if isinstance(dst, np.ndarray):
         np.copyto(dst, src)
         return
     if not (dst.flags.c_contiguous and src.flags.c_contiguous):
         msg = "Device copies need C-contiguous arrays."
         raise ValueError(msg)
+    import cupy  # noqa: PLC0415  (optional dependency)
+
     # CuPy arrays: ``data`` is a memory pointer and ``device`` a CUDA device.
-    to: Any = dst
-    source: Any = src
-    runtime = xp.cuda.runtime
-    if to.device.id == source.device.id:
+    runtime = cupy.cuda.runtime
+    if dst.device.id == src.device.id:
         runtime.memcpyAsync(
-            to.data.ptr,
-            source.data.ptr,
-            to.nbytes,
+            dst.data.ptr,
+            src.data.ptr,
+            dst.nbytes,
             runtime.memcpyDeviceToDevice,
             stream.ptr,
         )
     else:
         runtime.memcpyPeerAsync(
-            to.data.ptr,
-            to.device.id,
-            source.data.ptr,
-            source.device.id,
-            to.nbytes,
+            dst.data.ptr,
+            dst.device.id,
+            src.data.ptr,
+            src.device.id,
+            dst.nbytes,
             stream.ptr,
         )
 
@@ -298,7 +304,7 @@ def device_memory(xp: ModuleType) -> tuple[int, int]:
     by cupy's default memory pool.
 
     Args:
-        xp: The cupy module.
+        xp: The array namespace of cupy.
 
     Returns:
         ``(available, total)`` in bytes.
@@ -337,7 +343,7 @@ def device_pool_limit(xp: ModuleType, budget: int | None) -> Iterator[None]:
     without a budget.
 
     Args:
-        xp: Array module (``numpy`` or ``cupy``).
+        xp: The array namespace.
         budget: The bytes the pool may allocate on top of those in use, or
             ``None`` for no cap.
 
@@ -396,32 +402,28 @@ def sketch_dtype(dtype: DTypeLike | None, *inputs: Sequence[Site]) -> np.dtype:
 
 
 def gaussian_sketch(
-    prng: np.random.Generator,
-    shape: tuple[int, ...],
-    dtype: DTypeLike,
-    xp: ModuleType,
-) -> NDArray:
-    """Draw a Gaussian test tensor of the given dtype on the device of ``xp``.
+    prng: np.random.Generator, shape: tuple[int, ...], dtype: DTypeLike
+) -> np.ndarray:
+    """Draw a Gaussian test tensor of the given dtype on the host.
 
     Real dtypes get i.i.d. standard normal entries. Complex dtypes get the complex
     Ginibre ensemble, ``(x + iy) / sqrt(2)`` with ``x, y`` i.i.d. standard normal,
     whose law is invariant under unitary transformations; a real sketch of a complex
     operator is not, and loses the guarantees of randomized range finding.
 
-    The draw is always made on the host in double precision and then cast, so a
-    seed gives the same sketch on every device and at every precision.
+    The draw is made in double precision and then cast, so a seed gives the same
+    sketch on every device and at every precision.
 
     Args:
         prng: Host-side random number generator.
         shape: Shape of the tensor.
         dtype: Dtype of the tensor.
-        xp: Array module (``numpy`` or ``cupy``).
 
     Returns:
-        The sketch as an array of ``xp``.
+        The sketch.
     """
     dtype = np.dtype(dtype)
     if dtype.kind == "c":
         re, im = prng.normal(size=(2, *shape)) / np.sqrt(2.0)
-        return xp.asarray(re + 1j * im).astype(dtype)
-    return xp.asarray(prng.normal(size=shape)).astype(dtype)
+        return (re + 1j * im).astype(dtype)
+    return prng.normal(size=shape).astype(dtype)

@@ -74,5 +74,9 @@ not just the shapes.
 The project targets Python 3.11+, is checked with `ruff` under a strict rule set
 and type-checked with [`ty`](https://github.com/astral-sh/ty). Public functions
 carry type hints and Google-style docstrings without types in the argument list.
-The algorithms go through `src_method.utils._backend` rather than importing NumPy
-or CuPy directly, so the CPU and GPU paths stay in sync.
+The algorithms speak the [array API standard](https://data-apis.org/array-api/)
+through `array-api-compat`: they take the namespace from their arrays
+(`array_namespace(x)`) instead of importing NumPy or CuPy, and annotate them as
+`src_method.utils.Array`. What the standard leaves out (streams, page-locked
+memory, CuPy's memory pool, host-side random draws) lives in
+`src_method.utils._backend`, so the CPU and GPU paths stay in sync.
