@@ -7,6 +7,7 @@ as an opaque shape error deep inside the sweep.
 from __future__ import annotations
 
 import numbers
+from math import ceil, isfinite
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,7 +17,39 @@ if TYPE_CHECKING:
 
     from ._tensor_train import Site
 
-__all__ = ["validate_chi_out", "validate_cutoff", "validate_open_boundary"]
+__all__ = [
+    "sketch_size",
+    "validate_chi_out",
+    "validate_cutoff",
+    "validate_open_boundary",
+]
+
+
+def sketch_size(chi_out: int, oversample: float | None) -> int:
+    """Resolve the sketch size from an optional multiplicative factor.
+
+    Args:
+        chi_out: The validated output bond dimension.
+        oversample: A finite factor of at least one, or ``None`` for the paper's
+            recommendation.
+
+    Returns:
+        The oversampled bond dimension.
+
+    Raises:
+        ValueError: If ``oversample`` is not a finite real number of at least one.
+    """
+    if oversample is None:
+        return max((3 * chi_out + 1) // 2, chi_out + 10)
+    if (
+        isinstance(oversample, bool)
+        or not isinstance(oversample, numbers.Real)
+        or not isfinite(oversample)
+        or oversample < 1.0
+    ):
+        msg = f"oversample must be a finite factor >= 1.0, got {oversample!r}."
+        raise ValueError(msg)
+    return ceil(oversample * chi_out)
 
 
 def validate_chi_out(chi_out: object) -> int:

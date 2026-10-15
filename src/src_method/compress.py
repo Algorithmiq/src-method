@@ -27,6 +27,7 @@ def compress(
     chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
+    oversample: float | None = 1.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
@@ -45,11 +46,12 @@ def compress(
         tensor: The site arrays of the tensor network to compress (MPS or MPO).
         chi_out: The desired maximum bond dimension of the output tensor network.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
-            When positive, bonds are trimmed to their effective rank by
-            discarding singular values below ``cutoff * sigma_max`` at each
-            site during the right-to-left sweep.  The SVD operates on the
-            small ``(chi_out, chi_out)`` R factor from QR, so overhead is
-            minimal.  Set to 0.0 (default) to keep all bonds at chi_out.
+            Discards singular values below ``cutoff * sigma_max``; see
+            `src_method.stack.src`. Set to 0.0 (default) to disable cutoff
+            trimming. Ignored for two sites.
+        oversample: Multiplicative sketch-size factor, finite and at least 1.0,
+            or ``None`` for the paper's recommendation; see
+            `src_method.stack.src`. Defaults to 1.0, no oversampling.
         dtype: Data type of the random sketches. Defaults to the promoted
             floating dtype of the inputs; an explicit dtype can promote the result.
         seed: An optional seed for the random number generator.
@@ -58,13 +60,16 @@ def compress(
         resources: Memory budgets and scratch space; see `src_method.stack.src`.
 
     Returns:
-        The site arrays of the compressed tensor network (MPS or MPO).
+        The site arrays of the compressed tensor network (MPS or MPO), in
+        right-canonical form, or left-canonical form when oversampling (three
+        sites or more).
 
     Raises:
         TypeError: If ``chi_out`` is not an integer or the input tensor type is
             unsupported.
         ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
-            in ``[0.0, 1.0)``, if the train is not open-boundary, if a
+            in ``[0.0, 1.0)``, if ``oversample`` is not finite and at least 1.0,
+            if the train is not open-boundary, if a
             sub-three-site train is not exactly two sites, or if ``device`` is not
             recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
@@ -73,6 +78,7 @@ def compress(
         tensor,
         chi_out=chi_out,
         cutoff=cutoff,
+        oversample=oversample,
         dtype=dtype,
         seed=seed,
         device=device,

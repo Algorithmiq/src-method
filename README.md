@@ -33,6 +33,22 @@ Whether a train is an MPS or an MPO is inferred from the rank of its first site 
 
 **NOTE**: the current implementation targets tensor networks with 3 or more sites. For smaller networks, an exact SVD-based fallback is dispatched, with a warning.
 
+### Oversampling and Truncation
+
+By default, `apply`, `compress` and `src` sketch at `chi_out` and return
+**right-canonical** output. For better accuracy at the same `chi_out`, pass
+`oversample`: a finite factor of at least `1.0` sketches at
+`ceil(oversample * chi_out)`, and `None` at the paper's
+`max(ceil(1.5 * chi_out), chi_out + 10)`. A final left-to-right SVD sweep then
+truncates to `chi_out`, and the result is **left-canonical**, with the norm on
+the last site. When positive, `cutoff` discards Schmidt values below
+`cutoff * sigma_max` at each cut in this final pass. Two-site trains keep the
+exact, right-canonical fallback and ignore both options.
+
+Larger sketches improve accuracy but increase time and memory costs, often
+several-fold; compare factors at the same `chi_out` when choosing an
+accuracy/runtime trade-off.
+
 ### Tensor Indexing Conventions
 
 The array layout follows the default `quimb` tensor indexing conventions, so results round-trip through [Quimb](https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/index.html) without any permutation:
@@ -81,7 +97,7 @@ bra = src([t.conj() for t in psi], A, B, chi_out=64)
 
 The result then pairs with a ket by plain contraction, with no further conjugation.
 
-**Cost.** The per-site cost of the sweep grows with `chi_out**2` times the product of the bond dimensions of the layers. Compressing a whole stack at once pays off for shallow stacks of thin layers, such as two or three Trotter layers; apply anything else pairwise. See [the stack depth benchmarks](benches/stack/README.md) for measurements.
+**Cost.** The per-site cost of the sweep grows with the sketch size squared times the product of the bond dimensions of the layers. Compressing a whole stack at once pays off for shallow stacks of thin layers, such as two or three Trotter layers; apply anything else pairwise. See [the stack depth benchmarks](benches/stack/README.md) for measurements.
 
 ### GPU Support
 

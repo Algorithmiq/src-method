@@ -49,6 +49,7 @@ from .utils import (
     release_cached_blocks,
     to_numpy,
     truncated_qr,
+    use_device,
 )
 
 if TYPE_CHECKING:
@@ -164,6 +165,7 @@ def sweep(
     *,
     device: str = "cpu",
     cutoff: float = 0.0,
+    truncate_to: int | None = None,
     dtype: DTypeLike,
     resources: Resources | None = None,
 ) -> list[np.ndarray]:
@@ -175,18 +177,21 @@ def sweep(
             array-likes with ``shape``, ``dtype``, ``ndim`` and ``np.asarray``
             support; each is read only when the sweep reaches it.
         kind: The kind of the contracted train.
-        chi_out: The sketch size, which is the maximum output bond dimension.
+        chi_out: The sketch size, which bounds the intermediate bond dimension.
         prng: The generator for the Gaussian sketches, always host-side so that a
             seed gives the same draws on every device.
         device: ``"cpu"`` or ``"gpu"``, as in `src_method.stack.src`.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
+        truncate_to: If set, truncate the right-canonical intermediate to this
+            bond dimension with a final left-to-right SVD pass, applying
+            ``cutoff`` there instead of to the sketch.
         dtype: The data type of the sketches.
         resources: Memory budgets, scratch space and devices; detected when
             ``None``.
 
     Returns:
-        The site arrays of the compressed train in right-canonical form, as numpy
-        arrays.
+        The site arrays of the compressed train as numpy arrays, right-canonical
+        unless ``truncate_to`` is set, in which case they are left-canonical.
     """
     shapes = padded_shapes(layers)
     # The dtype of the environments and the output: the sketches promoted by the
@@ -220,7 +225,7 @@ def sweep(
         budgets,
         shapes,
         chi_out=chi_out,
-        cutoff=cutoff,
+        cutoff=cutoff if truncate_to is None else 0.0,
         sketches=_Sketches(prng, chi_out, dtype, group.size),
         work=work,
         depth=len(layers),
@@ -230,7 +235,42 @@ def sweep(
     ) as source:
         eta = group.run(lambda rank: sweep_.run(rank, source))[0]
     assert eta is not None  # noqa: S101  (rank 0 returns the cores)
+    if truncate_to is not None:
+        xp = group.xp
+        with (
+            use_device(xp, group.devices[0]),
+            device_pool_limit(xp, budgets.device_cap),
+        ):
+            eta = _truncate(eta, truncate_to, cutoff, group)
     return [to_numpy(site) for site in unpad(eta, kind)]
+
+
+def _truncate(
+    sites: list[np.ndarray], chi_out: int, cutoff: float, group: DeviceGroup
+) -> list[np.ndarray]:
+    """Truncate a padded right-canonical train, staging one centre at a time."""
+    xp = group.xp
+    centre = xp.asarray(sites[0])
+    for j in range(len(sites) - 1):
+        left, right, up, down = centre.shape
+        matrix = centre.transpose(0, 2, 3, 1).reshape(left * up * down, right)
+        # A tall matrix is reduced by QR first, so the SVD sees a small square. It
+        # runs on the host, as in `truncated_qr`: device SVDs are slow at this size.
+        Q, R = xp.linalg.qr(matrix) if matrix.shape[0] > right else (None, matrix)
+        U, S, Vh = np.linalg.svd(to_numpy(R), full_matrices=False)
+        rank = min(chi_out, S.size)
+        if cutoff > 0:
+            rank = min(rank, max(1, int((cutoff * S[0] <= S).sum())))
+        U = xp.asarray(U[:, :rank])
+        U = U if Q is None else Q @ U
+        sites[j] = to_numpy(
+            xp.ascontiguousarray(U.reshape(left, up, down, rank).transpose(0, 3, 1, 2))
+        )
+        centre = xp.tensordot(
+            xp.asarray(S[:rank, None] * Vh[:rank]), xp.asarray(sites[j + 1]), axes=1
+        )
+    sites[-1] = to_numpy(centre)
+    return sites
 
 
 class _Sketches:

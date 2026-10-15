@@ -165,6 +165,31 @@ def test_invalid_device_raises() -> None:
         apply(H.arrays, psi.arrays, chi_out=4, device="tpu")
 
 
+@pytest.mark.parametrize("oversample", [None, 1.0, 2.0])
+@pytest.mark.parametrize("kind", ["mps", "mpo"])
+def test_oversampled_truncation_matches_cpu(
+    oversample: float | None, kind: str
+) -> None:
+    """The final truncation on the GPU agrees with the CPU one."""
+    make_train = qtn.MPS_rand_state if kind == "mps" else qtn.MPO_rand
+    train = make_train(5, bond_dim=4, dtype=np.complex128, seed=0)
+    cpu = compress(train.arrays, 2, oversample=oversample, cutoff=0.1, seed=1)
+    gpu = compress(
+        train.arrays,
+        2,
+        oversample=oversample,
+        cutoff=0.1,
+        seed=1,
+        device="gpu",
+        resources=Resources(devices=[0]),
+    )
+
+    assert all(isinstance(site, np.ndarray) for site in gpu)
+    np.testing.assert_allclose(
+        type(train)(cpu).to_dense(), type(train)(gpu).to_dense(), atol=1e-10
+    )
+
+
 @pytest.mark.parametrize("device", ["cpu", "gpu"])
 def test_src_stack_gpu_matches_reference(device: str) -> None:
     """A depth-3 ``src`` stack should match the exact product on both devices."""

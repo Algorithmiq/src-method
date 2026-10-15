@@ -1,11 +1,10 @@
 ---
 title: Adaptive truncation
-description: Trim bonds below chi_out with a relative singular-value cutoff.
+description: Trim bonds below chi_out with a relative cutoff, and oversample the sketch.
 ---
 
-By default every inner bond of the output has dimension `chi_out`, even if the
-product has lower rank across that cut. Set `cutoff` to trim each bond to its
-effective rank:
+`chi_out` is the maximum output bond dimension. Set `cutoff` to trim each bond
+further using a relative singular-value threshold:
 
 ```python
 import quimb.tensor as qtn
@@ -22,12 +21,41 @@ print([a.shape[0] for a in fixed[1:]])
 print([a.shape[0] for a in trimmed[1:]])
 ```
 
-During the right-to-left sweep, the QR factorisation at each site is followed by
-an SVD of its small `(chi_out, chi_out)` triangular factor, and singular values
-below `cutoff * sigma_max` are discarded. The extra cost is negligible next to the
-contractions.
+By default, the sketch size is `chi_out`. During the right-to-left sweep, the QR
+factorisation at each site is followed by an SVD of its small triangular factor,
+and singular values below `cutoff * sigma_max` are discarded. The output is
+**right-canonical**.
+
+## Oversampling
+
+Sketching at exactly `chi_out` lets the error of the randomized range finder
+dominate. Set `oversample` to a finite factor of at least `1.0` to sketch at
+`ceil(oversample * chi_out)`, or to `None` for the paper's recommendation,
+`max(ceil(1.5 * chi_out), chi_out + 10)`:
+
+```python
+import quimb.tensor as qtn
+
+from src_method import apply
+
+H = qtn.MPO_rand(8, bond_dim=4, phys_dim=2, seed=0)
+psi = qtn.MPS_rand_state(8, bond_dim=16, seed=0)
+
+out = apply(H.arrays, psi.arrays, chi_out=32, oversample=None, seed=1)
+```
+
+A final left-to-right SVD sweep then truncates the oversampled, right-canonical
+intermediate to `chi_out`, discarding singular values below `cutoff * sigma_max`
+at each cut. These are the Schmidt values of the intermediate train as truncated
+so far, not of the random sketch matrix. The result is **left-canonical**, with
+the norm on the last site.
+
+Oversampling improves accuracy at a fixed `chi_out` but costs more: the sweep
+runs at the larger sketch size, `cutoff` no longer trims bonds during the sweep,
+and the final pass adds one SVD per site. With `oversample=None`, expect a run
+time several times that of the default.
 
 - `cutoff` must lie in `[0.0, 1.0)`; `0.0` (the default) disables trimming.
 - `chi_out` remains the upper bound: the cutoff only ever lowers a bond.
-- Two-site trains use the exact fallback, which ignores `cutoff` and truncates to
-  `chi_out`.
+- Two-site trains use the exact fallback, which ignores `cutoff` and `oversample`,
+  truncates to `chi_out` and returns right-canonical output.
