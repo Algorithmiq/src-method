@@ -10,7 +10,7 @@ authors:
     given-names: "Ludmila"
     affiliation: "Algorithmiq Ltd."
 repository-code: "https://github.com/Algorithmiq/src-method"
-url: "https://docs.algorithmiq.fi/src-method"
+url: "https://algorithmiq.github.io/src-method/"
 abstract: >-
   An implementation of the Successive Randomized Compression (SRC) algorithm
   for matrix product states and matrix product operators, covering MPO-MPS and
