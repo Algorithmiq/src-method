@@ -20,8 +20,9 @@ from opt_einsum import contract_expression, get_symbol
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import NDArray
     from opt_einsum.contract import ContractExpression
+
+    from .utils import Array
 
 Shape = tuple[int, ...]
 
@@ -71,7 +72,7 @@ class _Contractions:
     def __init__(self) -> None:
         self._compiled: dict[tuple[str, tuple[Shape, ...]], ContractExpression] = {}
 
-    def __call__(self, eq: str, *operands: NDArray) -> NDArray:
+    def __call__(self, eq: str, *operands: Array) -> Array:
         shapes = tuple(op.shape for op in operands)
         expr = self._compiled.get((eq, shapes))
         if expr is None:
@@ -90,7 +91,7 @@ class SiteKernels:
         self.eqs = equations(depth)
         self._contract = _Contractions()
 
-    def env(self, env: NDArray, omega: NDArray, cores: Sequence[NDArray]) -> NDArray:
+    def env(self, env: Array, omega: Array, cores: Sequence[Array]) -> Array:
         """Advance a batch of sketch columns of the environment by one site.
 
         Args:
@@ -103,7 +104,7 @@ class SiteKernels:
         """
         return self._contract(self.eqs.ltr, env, omega, *cores)
 
-    def sketch(self, env: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def sketch(self, env: Array, cores: Sequence[Array], proj: Array) -> Array:
         """Sketch a batch of columns of the site's running core.
 
         Args:
@@ -116,7 +117,7 @@ class SiteKernels:
         """
         return self._contract(self.eqs.rtl_m, env, *cores, proj)
 
-    def project(self, eta: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def project(self, eta: Array, cores: Sequence[Array], proj: Array) -> Array:
         """Project a batch of rows of the new projected environment.
 
         Args:
@@ -129,7 +130,7 @@ class SiteKernels:
         """
         return self._contract(self.eqs.rtl_s, eta, *cores, proj)
 
-    def first(self, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def first(self, cores: Sequence[Array], proj: Array) -> Array:
         """Contract the first site with a batch of rows of ``S``.
 
         Args:

@@ -2,6 +2,8 @@
 
 [![Documentation](https://github.com/Algorithmiq/src-method/actions/workflows/docpages.yml/badge.svg)](https://algorithmiq.github.io/src-method/)
 [![Test src_method](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml/badge.svg)](https://github.com/Algorithmiq/src-method/actions/workflows/test.yml)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Algorithmiq_src-method&metric=coverage&token=ab544eca4948ef2f80dffa566c31a9c00026a825)](https://sonarcloud.io/summary/new_code?id=Algorithmiq_src-method)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=Algorithmiq_src-method&metric=alert_status&token=ab544eca4948ef2f80dffa566c31a9c00026a825)](https://sonarcloud.io/summary/new_code?id=Algorithmiq_src-method)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 An implementation of the SRC algorithm introduced in [Camaño, Epperly and Tropp, *Quantum* **10**, 2022 (2026)](https://doi.org/10.22331/q-2026-03-10-2022), extending the idea to other kinds of tensor networks.
@@ -125,21 +127,6 @@ On a node with several GPUs, `Resources(devices=4)` splits the sweep among four 
 
 See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory, several GPUs and how to read the logged plan.
 
-### Logging
-
-`src_method` logs through the standard library `logging` module, under the
-`src_method` logger, and stays silent by default: it adds only a `NullHandler`
-and never touches the root logger or its handlers. Progress and timing messages
-are emitted at `DEBUG`, the small-network fallback at `WARNING`. To see them,
-configure logging in your application:
-
-```python
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("src_method").setLevel(logging.DEBUG)
-```
-
 ## Installation
 
 ```bash
@@ -166,45 +153,9 @@ dependencies = ["src_method[gpu-nvidia]"]
 dependencies = ["src_method[gpu-rocm]"]
 ```
 
-## Setting up the development environment
+## Nix flake
 
-The code has a [DevContainer] configuration that will get you up and running
-with all dependencies installed and configured, including sane defaults for the
-editor.
-
-You will need:
-
-1. A working [Docker] installation:
-   - For macOS and Windows, install [Docker Desktop](https://docs.docker.com/get-docker/)
-   - For Linux, install [Docker Engine](https://docs.docker.com/engine/install/#server) following the instructions for your specific distro.
-2. The [Visual Studio Code] editor. A recent version is recommended, _e.g._ >=1.78
-3. The VSCode [DevContainers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
-4. The [GitHub CLI] tool.
-
-You can clone the repository with:
-
-```
-gh repo clone Algorithmiq/src-method
-```
-
-We recommend using a Git credential manager, such as [GitHub CLI], configured to
-use HTTPS as protocol for Git operations.
-
-Once the code is locally available, you can open its containing folder in
-[Visual Studio Code]. The editor will then set up the [DevContainer] for you.
-The first time you open the folder the startup will take a few minutes. Once the
-process is done, you will have _all_ project dependencies installed, including
-the git hooks.
-[Visual Studio Code] will be already configured with all the extensions helpful for Python development.
-
-> [!TIP]
-> The order in which Visual Studio Code loads the extensions in the
-> DevContainer is non-deterministic.  You might have to execute the *Reload Window*
-> command to get everything to work as expected after a fresh build of the container.
-
-### Alternative: Nix flake
-
-If you prefer [Nix] over Docker, the repository ships a `flake.nix` that provides
+The repository ships a `flake.nix` that provides
 a development shell with [uv], [Git] and the [GitHub CLI], plus the native
 libraries the binary wheels need at runtime. Python itself and all project
 dependencies remain managed by `uv`.
@@ -235,28 +186,9 @@ The documentation is a [Fumadocs] site under `docs/`, published [at this link].
 It covers concepts, features, tutorials, the API reference generated from the
 docstrings, and the developer guide.
 
-To preview it locally you need [Node.js] 22 or later:
-
-```bash
-uv sync --group docs
-cd docs
-npm ci
-uv run python scripts/gen_api_dump.py src_method -d .
-node scripts/generate-api.mjs
-uv run python scripts/notebooks_to_mdx.py
-npm run dev
-```
-
-and open http://localhost:3000. See [`docs/README.md`](docs/README.md) for details.
-
-[DevContainer]: https://containers.dev/
-[Docker]: https://docs.docker.com/get-docker/
-[Visual Studio Code]: https://code.visualstudio.com/
 [GitHub CLI]: https://cli.github.com/
 [Git]: https://git-scm.com/
-[Nix]: https://nixos.org/download/
 [direnv]: https://direnv.net/
 [uv]: https://docs.astral.sh/uv/
 [Fumadocs]: https://fumadocs.dev
-[Node.js]: https://nodejs.org
 [at this link]: https://algorithmiq.github.io/src-method/

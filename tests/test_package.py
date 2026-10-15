@@ -753,7 +753,7 @@ def test_stack_dtype_follows_inputs() -> None:
 @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
 def test_gaussian_sketch(dtype) -> None:
     prng = np.random.default_rng(0)
-    omega = gaussian_sketch(prng, (400, 400), dtype, np)
+    omega = gaussian_sketch(prng, (400, 400), dtype)
 
     assert omega.dtype == dtype
     assert omega.var() == pytest.approx(1.0, rel=0.05)
@@ -765,6 +765,6 @@ def test_gaussian_sketch(dtype) -> None:
 
 
 def test_gaussian_sketch_seed_is_precision_independent() -> None:
-    single = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex64, np)
-    double = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex128, np)
+    single = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex64)
+    double = gaussian_sketch(np.random.default_rng(3), (5, 5), np.complex128)
     np.testing.assert_allclose(single, double, rtol=1e-6)

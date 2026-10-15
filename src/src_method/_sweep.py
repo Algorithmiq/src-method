@@ -33,10 +33,11 @@ from time import perf_counter_ns
 from typing import TYPE_CHECKING
 
 import numpy as np
+from array_api_compat import array_namespace
 
 from ._group import DeviceGroup, blocks
 from ._kernels import SiteKernels
-from ._plan import make_plan, resolve_budgets, resolve_devices
+from ._plan import make_plan, resolve_budgets
 from ._sites import SiteSource, padded_shapes, site_bytes, sweep_order
 from ._store import EnvironmentStore
 from ._tensor_train import unpad
@@ -53,12 +54,12 @@ from .utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
-    from types import ModuleType
 
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import DTypeLike
 
     from ._plan import Budgets, Plan, Resources
     from ._tensor_train import Site, TrainKind
+    from .utils import Array
 
 logger = logging.getLogger(__name__)
 
@@ -78,53 +79,59 @@ class _SplittingKernels:
 
     Args:
         kernels: The kernels of the sweep.
-        xp: Array module (``numpy`` or ``cupy``).
         tag: Prefix of the log messages.
     """
 
-    def __init__(self, kernels: SiteKernels, xp: ModuleType, tag: str) -> None:
-        self._kernels, self._xp, self._tag = kernels, xp, tag
+    def __init__(self, kernels: SiteKernels, tag: str) -> None:
+        self._kernels, self._tag = kernels, tag
         self._pieces: dict[str, int] = {}
 
-    def env(self, env: NDArray, omega: NDArray, cores: Sequence[NDArray]) -> NDArray:
+    def env(self, env: Array, omega: Array, cores: Sequence[Array]) -> Array:
         """`SiteKernels.env`, split along the sketch columns."""
         return self._split(
             "env",
-            env.shape[0],
+            env,
             lambda a, b: self._kernels.env(env[a:b], omega[a:b], cores),
             axis=0,
         )
 
-    def sketch(self, env: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def sketch(self, env: Array, cores: Sequence[Array], proj: Array) -> Array:
         """`SiteKernels.sketch`, split along the sketch columns."""
         return self._split(
             "sketch",
-            env.shape[0],
+            env,
             lambda a, b: self._kernels.sketch(env[a:b], cores, proj),
             axis=-1,
         )
 
-    def project(self, eta: NDArray, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def project(self, eta: Array, cores: Sequence[Array], proj: Array) -> Array:
         """`SiteKernels.project`, split along the rows."""
         return self._split(
             "project",
-            eta.shape[0],
+            eta,
             lambda a, b: self._kernels.project(eta[a:b], cores, proj),
             axis=0,
         )
 
-    def first(self, cores: Sequence[NDArray], proj: NDArray) -> NDArray:
+    def first(self, cores: Sequence[Array], proj: Array) -> Array:
         """`SiteKernels.first`, split along the rows."""
         return self._split(
             "first",
-            proj.shape[0],
+            proj,
             lambda a, b: self._kernels.first(cores, proj[a:b]),
             axis=-3,
         )
 
     def _split(
-        self, kernel: str, n: int, compute: Callable[[int, int], NDArray], *, axis: int
-    ) -> NDArray:
+        self,
+        kernel: str,
+        batched: Array,
+        compute: Callable[[int, int], Array],
+        *,
+        axis: int,
+    ) -> Array:
+        """Compute ``compute`` over the first axis of ``batched``, in pieces."""
+        n = batched.shape[0]
         parts, start = [], 0
         while start < n:
             pieces = self._pieces.get(kernel, 1)
@@ -134,7 +141,7 @@ class _SplittingKernels:
             except MemoryError:
                 if stop - start == 1:
                     raise
-                release_cached_blocks(self._xp)
+                release_cached_blocks(array_namespace(batched))
                 self._pieces[kernel] = 2 * pieces
                 logger.debug(
                     "%sOut of memory in a %s batch of %d rows; %d pieces from now on",
@@ -145,7 +152,9 @@ class _SplittingKernels:
                 )
                 continue
             start = stop
-        return parts[0] if len(parts) == 1 else self._xp.concatenate(parts, axis=axis)
+        if len(parts) == 1:
+            return parts[0]
+        return array_namespace(batched).concat(parts, axis=axis)
 
 
 def sweep(
@@ -153,13 +162,13 @@ def sweep(
     kind: TrainKind,
     chi_out: int,
     prng: np.random.Generator,
-    xp: ModuleType,
     *,
+    device: str = "cpu",
     cutoff: float = 0.0,
     truncate_to: int | None = None,
     dtype: DTypeLike,
     resources: Resources | None = None,
-) -> list[NDArray]:
+) -> list[np.ndarray]:
     """Contract and compress a stack in ket form with one SRC sweep.
 
     Args:
@@ -171,7 +180,7 @@ def sweep(
         chi_out: The sketch size, which bounds the intermediate bond dimension.
         prng: The generator for the Gaussian sketches, always host-side so that a
             seed gives the same draws on every device.
-        xp: Array module (``numpy`` or ``cupy``).
+        device: ``"cpu"`` or ``"gpu"``, as in `src_method.stack.src`.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
         truncate_to: If set, truncate the right-canonical intermediate to this
             bond dimension with a final left-to-right SVD pass, applying
@@ -188,9 +197,8 @@ def sweep(
     # The dtype of the environments and the output: the sketches promoted by the
     # cores, as the contractions would.
     work = np.result_type(dtype, *(site.dtype for layer in layers for site in layer))
-    devices = resolve_devices(resources, xp)
-    group = DeviceGroup(xp, devices)
-    budgets = resolve_budgets(resources, xp, devices)
+    group = DeviceGroup(device, resources.devices if resources else None)
+    budgets = resolve_budgets(resources, group)
     plan = make_plan(
         shapes, site_bytes(layers), chi_out, work, budgets, devices=group.size
     )
@@ -199,7 +207,7 @@ def sweep(
         logger.debug(
             "SRC plan: devices=%s, prefetch=%s, device peak=%d B, host peak=%d B, "
             "disk=%d B, scratch=%s, tiers=%s, batches (env, sketch, project)=%s",
-            list(devices),
+            list(group.devices),
             plan.prefetch,
             plan.device_peak,
             plan.host_peak,
@@ -223,20 +231,25 @@ def sweep(
         depth=len(layers),
     )
     with SiteSource(
-        layers, xp, sweep_order(len(shapes)), depth=plan.prefetch, group=group
+        layers, sweep_order(len(shapes)), depth=plan.prefetch, group=group
     ) as source:
         eta = group.run(lambda rank: sweep_.run(rank, source))[0]
     assert eta is not None  # noqa: S101  (rank 0 returns the cores)
     if truncate_to is not None:
-        with use_device(xp, devices[0]), device_pool_limit(xp, budgets.device_cap):
-            eta = _truncate(eta, truncate_to, cutoff, xp)
+        xp = group.xp
+        with (
+            use_device(xp, group.devices[0]),
+            device_pool_limit(xp, budgets.device_cap),
+        ):
+            eta = _truncate(eta, truncate_to, cutoff, group)
     return [to_numpy(site) for site in unpad(eta, kind)]
 
 
 def _truncate(
-    sites: list[NDArray], chi_out: int, cutoff: float, xp: ModuleType
-) -> list[NDArray]:
+    sites: list[np.ndarray], chi_out: int, cutoff: float, group: DeviceGroup
+) -> list[np.ndarray]:
     """Truncate a padded right-canonical train, staging one centre at a time."""
+    xp = group.xp
     centre = xp.asarray(sites[0])
     for j in range(len(sites) - 1):
         left, right, up, down = centre.shape
@@ -244,14 +257,14 @@ def _truncate(
         U, S, Vh = xp.linalg.svd(matrix, full_matrices=False)
         rank = min(chi_out, S.size)
         if cutoff > 0:
-            rank = min(rank, max(1, int(xp.count_nonzero(cutoff * S[0] <= S))))
+            rank = min(rank, max(1, int(xp.sum(cutoff * S[0] <= S))))
         sites[j] = to_numpy(
             xp.ascontiguousarray(
                 U[:, :rank].reshape(left, up, down, rank).transpose(0, 3, 1, 2)
             )
         )
-        centre = xp.einsum(
-            "ab,bcud->acud", S[:rank, None] * Vh[:rank], xp.asarray(sites[j + 1])
+        centre = xp.tensordot(
+            S[:rank, None] * Vh[:rank], xp.asarray(sites[j + 1]), axes=1
         )
     sites[-1] = to_numpy(centre)
     return sites
@@ -276,9 +289,7 @@ class _Sketches:
         """Return the host tensor ``(chi, up, down)`` of site ``j``."""
         with self._lock:
             if j not in self._drawn:
-                omega = gaussian_sketch(
-                    self._prng, (self._chi, up, down), self._dtype, np
-                )
+                omega = gaussian_sketch(self._prng, (self._chi, up, down), self._dtype)
                 self._drawn[j] = (omega, [self._ranks])
             omega, left = self._drawn[j]
             left[0] -= 1
@@ -313,19 +324,18 @@ class _Sweep:
             return ""
         return f"Device {self.group.devices[rank]}: "
 
-    def run(self, rank: int, source: SiteSource) -> list[NDArray] | None:
+    def run(self, rank: int, source: SiteSource) -> list[np.ndarray] | None:
         """Run both passes on ``rank``; rank 0 returns the output cores."""
         xp, tag = self.group.xp, self._tag(rank)
         lo, hi = self.columns[rank]
         env_shapes = [(hi - lo, *(s[0] for s in site)) for site in self.shapes]
-        kernels = _SplittingKernels(SiteKernels(self.depth), xp, tag)
+        kernels = _SplittingKernels(SiteKernels(self.depth), tag)
         with (
             device_pool_limit(xp, self.budgets.device_cap),
             EnvironmentStore(
                 self.plan,
                 env_shapes,
                 self.work,
-                xp,
                 self.budgets.scratch_dir,
                 copy_stream=new_stream(xp),
             ) as store,
@@ -378,13 +388,13 @@ class _Sweep:
         kernels: _SplittingKernels,
         source: SiteSource,
         store: EnvironmentStore,
-    ) -> list[NDArray] | None:
+    ) -> list[np.ndarray] | None:
         """Build the output cores, host-side on rank 0, from the last site down."""
         xp, plan, group, dtype = self.group.xp, self.plan, self.group, self.work
         root = rank == 0
         col_lo, col_hi = self.columns[rank]
         n_local = col_hi - col_lo
-        eta_reversed: list[NDArray] = []
+        eta_reversed: list[np.ndarray] = []
         proj = xp.ones((1,) * (self.depth + 1), dtype=dtype)
         for j in range(len(source) - 1, 0, -1):
             cores = source.next(rank)
@@ -404,10 +414,12 @@ class _Sweep:
             if root:
                 assert sketch is not None  # noqa: S101  (gathered on rank 0)
                 rows = proj.shape[0] * up * down
-                Q = truncated_qr(sketch.reshape(self.chi_out, rows).T, self.cutoff, xp)
+                Q = truncated_qr(
+                    xp.reshape(sketch, (self.chi_out, rows)).T, self.cutoff
+                )
                 del sketch
-                eta_full = xp.ascontiguousarray(Q.T).reshape(
-                    -1, proj.shape[0], up, down
+                eta_full = xp.reshape(
+                    xp.ascontiguousarray(Q.T), (-1, proj.shape[0], up, down)
                 )
                 del Q
             eta_local = group.scatter(rank, eta_full)
@@ -418,7 +430,9 @@ class _Sweep:
                 (eta_local.shape[0], *(c.shape[0] for c in cores)), dtype=dtype
             )
             for lo, hi in _ranges(eta_local.shape[0], site.project_batch):
-                new_local[lo:hi] = kernels.project(eta_local[lo:hi].conj(), cores, proj)
+                new_local[lo:hi] = kernels.project(
+                    xp.conj(eta_local[lo:hi]), cores, proj
+                )
             del proj, eta_local
             proj = group.allgather(rank, new_local)
             del new_local
@@ -429,5 +443,7 @@ class _Sweep:
         up, down = cores[0].shape[2], cores[-1].shape[3]
         first = xp.empty((proj.shape[0], up, down), dtype=dtype)
         for lo, hi in _ranges(proj.shape[0], plan.sites[0].project_batch):
-            first[lo:hi] = kernels.first(cores, proj[lo:hi]).reshape(hi - lo, up, down)
+            first[lo:hi] = xp.reshape(
+                kernels.first(cores, proj[lo:hi]), (hi - lo, up, down)
+            )
         return [to_numpy(first)[None], *reversed(eta_reversed)]

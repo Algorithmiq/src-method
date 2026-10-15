@@ -21,7 +21,7 @@ def test_blocks_partition_in_rank_order(n, size):
 
 
 def test_a_group_of_one_runs_inline():
-    group = DeviceGroup(np, [0])
+    group = DeviceGroup("cpu", [0])
     local = np.arange(6.0).reshape(3, 2)
 
     def fn(rank):
@@ -37,7 +37,7 @@ def test_a_group_of_one_runs_inline():
 @pytest.mark.parametrize("size", [2, 3])
 @pytest.mark.parametrize("dtype", [np.float64, np.complex128])
 def test_collectives(size, dtype):
-    group = DeviceGroup(np, list(range(size)))
+    group = DeviceGroup("cpu", size)
     # Uneven blocks: rank r holds r + 1 rows.
     parts = [
         (np.arange((r + 1) * 6) + 100 * r).reshape(r + 1, 2, 3) for r in range(size)
@@ -65,7 +65,7 @@ def test_collectives(size, dtype):
 
 
 def test_many_collectives_in_a_row():
-    group = DeviceGroup(np, [0, 1, 2])
+    group = DeviceGroup("cpu", [0, 1, 2])
 
     def fn(rank):
         total = np.zeros(3)
@@ -78,7 +78,7 @@ def test_many_collectives_in_a_row():
 
 
 def test_a_failing_rank_releases_the_others():
-    group = DeviceGroup(np, [0, 1, 2])
+    group = DeviceGroup("cpu", [0, 1, 2])
 
     def fn(rank):
         if rank == 1:
@@ -93,7 +93,7 @@ def test_a_failing_rank_releases_the_others():
 
 
 def test_abort_wakes_registered_waiters():
-    group = DeviceGroup(np, [0, 1])
+    group = DeviceGroup("cpu", [0, 1])
     released = threading.Event()
     group.on_abort(released.set)
 

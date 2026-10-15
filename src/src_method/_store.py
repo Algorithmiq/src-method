@@ -21,6 +21,7 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
+from array_api_compat import array_namespace
 
 from .utils import current_stream, pinned_empty, to_device_async, to_host_async
 
@@ -29,9 +30,8 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import ModuleType, TracebackType
 
-    from numpy.typing import NDArray
-
     from ._plan import Plan
+    from .utils import Array
 
 # Page-locked buffers per direction: one in use, one in flight.
 RING_SIZE = 2
@@ -47,13 +47,13 @@ class EnvironmentStore:
     """Keep the environments ``C_j`` of a sweep, batch by batch.
 
     Use as a context manager: leaving it waits for pending writes, stops the
-    threads and removes the scratch files, also after an exception.
+    threads and removes the scratch files, also after an exception. The device
+    arrays it returns are of the backend of those it was given.
 
     Args:
         plan: The plan of the sweep, which fixes the tier and batches of each site.
         env_shapes: The shape ``(chi, *left_bonds)`` of ``C_j`` for every site.
         dtype: The data type of the environments.
-        xp: Array module (``numpy`` or ``cupy``).
         scratch_dir: Where the disk tier creates its per-process directory.
         copy_stream: The stream that performs the transfers.
     """
@@ -63,7 +63,6 @@ class EnvironmentStore:
         plan: Plan,
         env_shapes: Sequence[tuple[int, ...]],
         dtype: type | np.dtype,
-        xp: ModuleType,
         scratch_dir: Path,
         *,
         copy_stream: Any,  # noqa: ANN401  (a cupy or null stream)
@@ -72,9 +71,10 @@ class EnvironmentStore:
         self._tiers = [site.tier for site in plan.sites]
         self._shapes = [tuple(shape) for shape in env_shapes]
         self._dtype = np.dtype(dtype)
-        self._xp = xp
+        # The namespace of the staged arrays, known from the first staged put.
+        self._xp: ModuleType | None = None
         self._copy = copy_stream
-        self._device: dict[int, NDArray] = {}
+        self._device: dict[int, Array] = {}
         self._host: dict[int, np.ndarray] = {}
         self._fds: dict[int, int] = {}
         self._writes: dict[int, list[Future[None]]] = {}
@@ -98,11 +98,10 @@ class EnvironmentStore:
         self._reader = ThreadPoolExecutor(1, thread_name_prefix="src-env-reader")
         self._out: queue.Queue[Any] = queue.Queue()
         self._in: queue.Queue[tuple[Any, Any]] = queue.Queue()
-        if staged:
-            n_bytes = max(self._batch_rows(j) * self._row_bytes(j) for j in staged)
-            for _ in range(RING_SIZE):
-                self._out.put(pinned_empty(n_bytes, xp))
-                self._in.put((pinned_empty(n_bytes, xp), None))
+        # The page-locked rings are allocated by the first staged put.
+        self._ring_bytes = max(
+            (self._batch_rows(j) * self._row_bytes(j) for j in staged), default=0
+        )
 
     def _row_bytes(self, j: int) -> int:
         return prod(self._shapes[j][1:]) * self._dtype.itemsize
@@ -149,7 +148,7 @@ class EnvironmentStore:
 
     # --- writing ---
 
-    def put(self, j: int, lo: int, hi: int, x: NDArray) -> None:
+    def put(self, j: int, lo: int, hi: int, x: Array) -> None:
         """Store columns ``lo:hi`` of ``C_j``.
 
         Args:
@@ -160,17 +159,24 @@ class EnvironmentStore:
         """
         if self._tiers[j] == "device":
             if j not in self._device:
-                self._device[j] = self._xp.empty(self._shapes[j], dtype=self._dtype)
+                xp = array_namespace(x)
+                self._device[j] = xp.empty(self._shapes[j], dtype=self._dtype)
             self._device[j][lo:hi] = x
             return
+        xp = self._xp = array_namespace(x)
         self._raise_failed()
         self._open(j)
+        if self._ring_bytes:
+            for _ in range(RING_SIZE):
+                self._out.put(pinned_empty(self._ring_bytes, xp))
+                self._in.put((pinned_empty(self._ring_bytes, xp), None))
+            self._ring_bytes = 0
         start = perf_counter()
         buffer = self._out.get()
         self.stall_seconds += perf_counter() - start
         host = buffer[: x.nbytes].view(self._dtype).reshape(x.shape)
         # The copy starts once the kernel that wrote x is done.
-        self._copy.wait_event(current_stream(self._xp).record())
+        self._copy.wait_event(current_stream(xp).record())
         to_host_async(x, host, self._copy)
         done = self._copy.record()
         # x stays referenced by the task until the copy is complete.
@@ -195,7 +201,7 @@ class EnvironmentStore:
         self,
         j: int,
         lo: int,
-        x: NDArray,
+        x: Array,
         *,
         host: np.ndarray,
         done: Any,  # noqa: ANN401  (a cupy or null event)
@@ -283,7 +289,7 @@ class EnvironmentStore:
             )
         return buffer, host
 
-    def get(self, j: int, lo: int, hi: int) -> NDArray:
+    def get(self, j: int, lo: int, hi: int) -> Array:
         """Return columns ``lo:hi`` of ``C_j`` on the device.
 
         Args:
@@ -312,8 +318,10 @@ class EnvironmentStore:
         self.stall_seconds += perf_counter() - start
         # On the current stream, so that the copy is ordered with the kernels that
         # use it and with the ones that freed the memory it reuses.
-        stream = current_stream(self._xp)
-        device = to_device_async(host, self._xp, stream)
+        xp = self._xp
+        assert xp is not None  # noqa: S101  (C_j was put before it is read)
+        stream = current_stream(xp)
+        device = to_device_async(host, xp, stream)
         self._in.put((buffer, stream.record()))
         self._schedule()
         return device

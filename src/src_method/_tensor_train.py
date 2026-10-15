@@ -27,7 +27,7 @@ from .utils import to_numpy
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from numpy.typing import NDArray
+    from .utils import Array
 
 # Minimum number of sites for which the randomized SRC sweep is defined.
 MIN_SRC_SITES = 3
@@ -70,7 +70,7 @@ class SiteLike(Protocol):
 
 
 # A site as the public entry points accept it: an array or a lazily read array-like.
-Site: TypeAlias = "NDArray | SiteLike"
+Site: TypeAlias = "Array | SiteLike"
 
 __all__ = [
     "MIN_SRC_SITES",
@@ -154,8 +154,8 @@ def check_exact_supported(n_sites: int) -> None:
 
 
 def exact_compress(
-    arrays: Sequence[NDArray], chi_out: int, kind: TrainKind
-) -> list[NDArray]:
+    arrays: Sequence[Array], chi_out: int, kind: TrainKind
+) -> list[np.ndarray]:
     """Compress a two-site train exactly via a single truncated SVD.
 
     Site counts are validated by the caller via `check_exact_supported`.
@@ -187,7 +187,7 @@ def exact_compress(
     ]
 
 
-def _truncated_svd(theta: NDArray, chi_out: int) -> tuple[NDArray, NDArray]:
+def _truncated_svd(theta: np.ndarray, chi_out: int) -> tuple[np.ndarray, np.ndarray]:
     """Split a matrix as ``(U @ diag(S), Vh)``, keeping at most ``chi_out`` values."""
     U, S, Vh = np.linalg.svd(theta, full_matrices=False)
     rank = min(chi_out, S.size)
@@ -217,7 +217,7 @@ def padded_shape(
     return left, right, up, down
 
 
-def pad_site(site: NDArray, kind: TrainKind, i: int, last: int) -> NDArray:
+def pad_site(site: Array, kind: TrainKind, i: int, last: int) -> Array:
     """View one site as a bulk MPO tensor ``(l, r, u, d)``; see `pad`.
 
     Args:
@@ -237,7 +237,7 @@ def pad_site(site: NDArray, kind: TrainKind, i: int, last: int) -> NDArray:
     return view
 
 
-def pad(train: Sequence[NDArray]) -> list[NDArray]:
+def pad(train: Sequence[Array]) -> list[Array]:
     """View every site of a train as a bulk MPO tensor ``(l, r, u, d)``.
 
     Boundary sites gain a size-1 outer bond and MPS sites a size-1 ``d`` leg, so a
@@ -255,7 +255,7 @@ def pad(train: Sequence[NDArray]) -> list[NDArray]:
     return [pad_site(site, kind, i, last) for i, site in enumerate(train)]
 
 
-def unpad(train: Sequence[NDArray], kind: TrainKind) -> list[NDArray]:
+def unpad(train: Sequence[Array], kind: TrainKind) -> list[Array]:
     """Invert `pad`: drop the size-1 outer bonds and, for an MPS, the ``d`` leg.
 
     Args:
@@ -398,7 +398,7 @@ def _check_physical_dims(
 
 def exact_stack(
     layers: Sequence[Sequence[Site]], chi_out: int, kind: TrainKind
-) -> list[NDArray]:
+) -> list[np.ndarray]:
     """Contract and compress a two-site stack exactly.
 
     At each site the layers are folded into one, fusing their bonds, and the
@@ -420,7 +420,7 @@ def exact_stack(
     return exact_compress(unpad(product, kind), chi_out, kind)
 
 
-def _fuse(upper: NDArray, lower: NDArray) -> NDArray:
+def _fuse(upper: np.ndarray, lower: np.ndarray) -> np.ndarray:
     """Contract ``(l1, r1, u, x) . (l2, r2, x, d)`` into ``(l1 l2, r1 r2, u, d)``."""
     l1, r1, up, _ = upper.shape
     l2, r2, _, down = lower.shape
