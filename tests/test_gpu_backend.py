@@ -266,16 +266,15 @@ def test_gpu_tiers_and_batches_match_cpu(tmp_path, plans: list[Plan]) -> None:
     rng = np.random.default_rng(7)
     stack = [random_mpo_arrays([4, 8, 8, 8, 4], rng) for _ in range(4)]
     chi = 64
-    chi_sketch = 96
     shapes, sizes = padded_shapes(stack), site_bytes(stack)
     roomy = make_plan(
         shapes,
         sizes,
-        chi_sketch,
+        chi,
         np.complex128,
         Budgets(10**10, 10**10, 10**12, tmp_path, unified=False),
     )
-    env = chi_sketch * 8**4 * 16  # one bulk environment
+    env = chi * 8**4 * 16  # one bulk environment
     tight = Resources(
         gpu_memory=roomy.device_peak // 2,
         host_memory=roomy.host_peak + 5 * env,
@@ -288,7 +287,7 @@ def test_gpu_tiers_and_batches_match_cpu(tmp_path, plans: list[Plan]) -> None:
     )
 
     assert {site.tier for site in plans[-1].sites} == {"device", "host", "disk"}
-    assert min(site.sketch_batch for site in plans[-1].sites[1:]) < chi_sketch
+    assert min(site.sketch_batch for site in plans[-1].sites[1:]) < chi
     reference = dense_mpo(cpu)
     error = np.linalg.norm(dense_mpo(gpu) - reference) / np.linalg.norm(reference)
     assert error < 1e-10
@@ -369,7 +368,6 @@ def test_two_gpus_match_one(
     rng = np.random.default_rng(7)
     stack = [random_mpo_arrays([4, 8, 8, 8, 4], rng) for _ in range(4)]
     chi = 63
-    chi_sketch = 95
     if uploads == "full":
         monkeypatch.setattr(
             "src_method._group.enable_peer_access", lambda _xp, _devices: False
@@ -378,16 +376,17 @@ def test_two_gpus_match_one(
     roomy = make_plan(
         shapes,
         sizes,
-        chi_sketch,
+        chi,
         np.complex128,
         Budgets(10**10, 10**10, 10**12, tmp_path, unified=False),
         devices=2,
     )
-    env = (chi_sketch // 2 + 1) * 8**4 * 16  # one bulk environment on one GPU
-    # Checked with make_plan: the oversampled environments use every tier.
+    env = (chi // 2 + 1) * 8**4 * 16  # one bulk environment on one GPU
+    # Checked with make_plan: one environment per GPU on the device, two in host
+    # memory, the oldest two on disk.
     tight = Resources(
         gpu_memory=roomy.device_peak - 2 * env,
-        host_memory=roomy.host_peak + 10 * env,
+        host_memory=roomy.host_peak + 12 * env,
         scratch_dir=tmp_path,
         devices=2,
     )

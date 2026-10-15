@@ -275,6 +275,20 @@ def test_oversampling_sets_sweep_size(chi, oversample, expected, rng, monkeypatc
     assert calls == [(expected, chi if expected > chi else None)]
 
 
+def test_default_does_not_oversample(rng, monkeypatch):
+    calls = []
+    original = stack_module.sweep
+
+    def spy(*args, **kwargs):
+        calls.append((args[2], kwargs["truncate_to"]))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(stack_module, "sweep", spy)
+    src(*make_stack("A B psi", rng), chi_out=3, seed=0)
+
+    assert calls == [(3, None)]
+
+
 @pytest.mark.parametrize(
     "oversample", [0.0, -1.0, 0.99, np.nan, np.inf, -np.inf, True, "2", 2j]
 )
@@ -303,9 +317,9 @@ def test_oversampling_improves_accuracy(spec):
             ]
         )
 
-    legacy, doubled, default = np.median(errors, axis=0)
+    legacy, doubled, recommended = np.median(errors, axis=0)
     assert doubled < legacy
-    assert default < legacy
+    assert recommended < legacy
 
 
 @pytest.mark.parametrize("cutoff", [0.0, 0.1])
@@ -333,7 +347,7 @@ def test_oversampled_cutoff_uses_schmidt_values(kind, scale):
         sites = [site[..., None] for site in sites]
     before = [site.copy() for site in sites]
 
-    out = compress(sites, chi_out=2, cutoff=0.1, seed=0)
+    out = compress(sites, chi_out=2, cutoff=0.1, oversample=None, seed=0)
 
     assert all(site.shape[0] == 1 for site in out[1:])
     reference = np.zeros_like(dense(sites))
@@ -348,7 +362,7 @@ def test_oversampled_zero_train(kind):
     if kind == "mpo":
         sites = [site[..., None] for site in sites]
 
-    out = compress(sites, chi_out=2, cutoff=0.1, seed=0)
+    out = compress(sites, chi_out=2, cutoff=0.1, oversample=None, seed=0)
 
     assert all(site.shape[0] >= 1 for site in out[1:])
     np.testing.assert_array_equal(dense(out), dense(sites))
@@ -362,7 +376,7 @@ def test_oversampled_output_does_not_retain_discarded_columns(kind, rng):
         else random_mpo([4, 4, 4], rng, up=4, down=8)
     )
 
-    out = compress(train, chi_out=1, seed=0)
+    out = compress(train, chi_out=1, oversample=None, seed=0)
 
     for site in out[:-1]:
         storage = site
@@ -549,14 +563,14 @@ def plans(monkeypatch):
 
 def test_tiny_budget_batches_and_spills(rng, tmp_path, plans):
     stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
-    tight = Resources(host_memory="1.5MB", scratch_dir=tmp_path)
+    tight = Resources(host_memory="1MB", scratch_dir=tmp_path)
 
     default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
     spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)
 
     assert all(site.tier == "device" for site in plans[0].sites)
     assert "disk" in {site.tier for site in plans[1].sites}
-    assert min(site.sketch_batch for site in plans[1].sites[1:]) < 26
+    assert min(site.sketch_batch for site in plans[1].sites[1:]) < 16
     # Rounding differs, and the output cores of an ill-conditioned sketch with it,
     # but not the operator they represent.
     assert rel_error(spilled, dense(default)) < 1e-10
@@ -675,7 +689,7 @@ def test_devices_with_cutoff_keep_the_bonds(rng):
 
 def test_devices_spill_and_clean_up(rng, tmp_path, plans):
     stack = [random_mpo([3, 4, 4, 4, 3], rng) for _ in range(4)]
-    tight = Resources(host_memory="2MB", scratch_dir=tmp_path, devices=2)
+    tight = Resources(host_memory="1MB", scratch_dir=tmp_path, devices=2)
 
     default = src(*stack, chi_out=16, seed=3, dtype=np.complex128)
     spilled = src(*stack, chi_out=16, seed=3, dtype=np.complex128, resources=tight)

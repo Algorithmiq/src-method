@@ -29,7 +29,7 @@ def apply(
     chi_out: int | np.integer,
     *,
     cutoff: float = 0.0,
-    oversample: float | None = None,
+    oversample: float | None = 1.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
@@ -50,15 +50,12 @@ def apply(
         right_tensor: The site arrays of the right tensor network (MPO or MPS).
         chi_out: The desired maximum bond dimension of the output tensor network.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
-            Discards singular values below ``cutoff * sigma_max`` in the final
-            SVD pass, or on the sketch's QR factor when ``oversample=1.0``.
-            Set to 0.0 (default) to disable cutoff trimming. Ignored for two sites.
-        oversample: Multiplicative sketch-size factor, finite and at least 1.0.
-            Defaults to ``None``, giving sketch size
-            ``max(ceil(1.5 * chi_out), chi_out + 10)``; an explicit factor gives
-            ``ceil(oversample * chi_out)``. Oversampling adds an exact SVD pass
-            to truncate to ``chi_out``. Set to ``1.0`` for the original behavior.
-            Ignored for two sites.
+            Discards singular values below ``cutoff * sigma_max``; see
+            `src_method.stack.src`. Set to 0.0 (default) to disable cutoff
+            trimming. Ignored for two sites.
+        oversample: Multiplicative sketch-size factor, finite and at least 1.0,
+            or ``None`` for the paper's recommendation; see
+            `src_method.stack.src`. Defaults to 1.0, no oversampling.
         dtype: Data type of the random sketches. Defaults to the promoted
             floating dtype of the inputs; an explicit dtype can promote the result.
         seed: An optional seed for the random number generator.
@@ -68,8 +65,8 @@ def apply(
 
     Returns:
         The site arrays of the compressed tensor network (MPS or MPO), in
-        left-canonical form with oversampling, otherwise right-canonical form.
-        The two-site fallback is always right-canonical.
+        right-canonical form, or left-canonical form when oversampling (three
+        sites or more).
 
     Raises:
         TypeError: If ``chi_out`` is not an integer or the combination of input

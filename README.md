@@ -35,19 +35,19 @@ Whether a train is an MPS or an MPO is inferred from the rank of its first site 
 
 ### Oversampling and Truncation
 
-`apply`, `compress` and `src` sketch at
-`max(ceil(1.5 * chi_out), chi_out + 10)` by default, then use a left-to-right
-SVD sweep to truncate to `chi_out`. The result is **left-canonical**, with the
-norm on the last site. When positive, `cutoff` discards Schmidt values below
-`cutoff * sigma_max` at each cut in this final pass.
+By default, `apply`, `compress` and `src` sketch at `chi_out` and return
+**right-canonical** output. For better accuracy at the same `chi_out`, pass
+`oversample`: a finite factor of at least `1.0` sketches at
+`ceil(oversample * chi_out)`, and `None` at the paper's
+`max(ceil(1.5 * chi_out), chi_out + 10)`. A final left-to-right SVD sweep then
+truncates to `chi_out`, and the result is **left-canonical**, with the norm on
+the last site. When positive, `cutoff` discards Schmidt values below
+`cutoff * sigma_max` at each cut in this final pass. Two-site trains keep the
+exact, right-canonical fallback and ignore both options.
 
-Set `oversample` to a finite factor of at least `1.0` to use sketch size
-`ceil(oversample * chi_out)`. `oversample=1.0` recovers the original behavior,
-including right-canonical output and cutoff on the sketch's QR factor. Two-site
-trains keep the exact, right-canonical fallback and ignore both options.
-
-Larger sketches improve accuracy but increase the sweep's time and memory costs;
-compare factors at the same `chi_out` when choosing an accuracy/runtime trade-off.
+Larger sketches improve accuracy but increase time and memory costs, often
+several-fold; compare factors at the same `chi_out` when choosing an
+accuracy/runtime trade-off.
 
 ### Tensor Indexing Conventions
 

@@ -32,8 +32,10 @@ form.
 The per-site cost of the sweep grows with the sketch size squared times the
 *product* of the bond dimensions of all layers, so it grows exponentially with the
 depth of the stack. In exchange, a single sweep truncates once instead of once per
-layer. [Oversampling and exact truncation](/features/cutoff) reduce the error of
-the randomized sketch for both the one-shot and pairwise approaches.
+layer. In practice that buys at most a moderate gain in accuracy: the error of
+the randomized sketch dominates the error compounded across layers.
+[Oversampling](/features/cutoff#oversampling) reduces that error for both the
+one-shot and pairwise approaches.
 
 Compressing a whole stack at once pays off for shallow stacks of thin layers, such
 as two or three Trotter layers; apply anything else pairwise. The [stack

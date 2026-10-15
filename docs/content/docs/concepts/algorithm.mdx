@@ -9,8 +9,9 @@ $A$ and an MPS $|\psi\rangle$, without ever forming the exact product. The exact
 product of an MPO with bond dimension $\chi_A$ and an MPS with bond dimension
 $\chi_\psi$ has bond dimension $\chi_A \chi_\psi$; compressing it afterwards, as
 in the usual contract-then-truncate approach, pays for that intermediate size.
-SRC targets a small oversampled bond dimension $\chi_{\text{os}}$ before a final
-SVD truncation to the requested $\chi_{\text{out}}$.
+SRC targets the output bond dimension $\chi_{\text{out}}$ directly, or an
+oversampled sketch size $\chi_{\text{os}}$ followed by a final SVD truncation to
+$\chi_{\text{out}}$.
 
 ## Randomized range finding
 
@@ -25,10 +26,13 @@ being an unfolding of the (never formed) product network.
 
 ## Sketching and truncation
 
-By default, $\chi_{\text{os}} =
-\max(\lceil 1.5\chi_{\text{out}}\rceil, \chi_{\text{out}} + 10)$.
-An explicit `oversample` factor sets
-$\chi_{\text{os}} = \lceil \text{oversample}\,\chi_{\text{out}}\rceil$.
+By default, $\chi_{\text{os}} = \chi_{\text{out}}$ and only the first two sweeps
+run: the output is right-canonical, with bond dimension at most
+$\chi_{\text{out}}$. An `oversample` factor sets
+$\chi_{\text{os}} = \lceil \text{oversample}\,\chi_{\text{out}}\rceil$, and
+`oversample=None` the paper's
+$\max(\lceil 1.5\chi_{\text{out}}\rceil, \chi_{\text{out}} + 10)$; the third
+sweep then truncates to $\chi_{\text{out}}$.
 
 1. **Left to right: sketching.** At every site the open physical legs are
    contracted with a Gaussian tensor $\Omega_j$ of sketch size
@@ -43,16 +47,14 @@ $\chi_{\text{os}} = \lceil \text{oversample}\,\chi_{\text{out}}\rceil$.
    tensor as an isometry. The isometry is then folded into $S$ for the next site.
    The first site absorbs the remaining weight.
 
-3. **Left to right: exact truncation.** The intermediate is already
-   right-canonical, so no re-orthogonalisation is needed. An SVD of each centre
-   tensor gives the Schmidt values at that cut. Keep at most $\chi_{\text{out}}$
-   values, apply the relative [cutoff](/features/cutoff), and absorb the remaining
-   weight into the next site. The output is **left-canonical**, with the norm on
-   the last site. The discarded weights add in quadrature, giving the usual
-   TT-SVD quasi-optimality bound for this intermediate.
-
-`oversample=1.0` recovers the original two sweeps without the final pass, including
-right-canonical output and cutoff on the sketch's QR factor.
+3. **Left to right: exact truncation (oversampling only).** The intermediate is
+   already right-canonical, so no re-orthogonalisation is needed. An SVD of each
+   centre tensor gives the Schmidt values at that cut. Keep at most
+   $\chi_{\text{out}}$ values, apply the relative [cutoff](/features/cutoff), and
+   absorb the remaining weight into the next site. The output is
+   **left-canonical**, with the norm on the last site. The discarded weights add
+   in quadrature, giving the usual TT-SVD quasi-optimality bound for this
+   intermediate.
 
 ## Cost
 

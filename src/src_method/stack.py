@@ -41,7 +41,7 @@ def src(
     *trains: Sequence[Site],
     chi_out: int | np.integer,
     cutoff: float = 0.0,
-    oversample: float | None = None,
+    oversample: float | None = 1.0,
     dtype: DTypeLike | None = None,
     seed: int | None = None,
     device: str = "cpu",
@@ -77,16 +77,17 @@ def src(
             HDF5 dataset; it is then read only when the sweep reaches it.
         chi_out: The desired maximum bond dimension of the output train.
         cutoff: Relative singular-value cutoff for adaptive bond truncation.
-            Discards singular values below ``cutoff * sigma_max`` in the final
-            left-to-right SVD pass. With ``oversample=1.0``, applies instead to
-            the sketch's QR factor during the right-to-left sweep, as before.
-            Set to 0.0 (default) to disable cutoff trimming. Ignored for two-site
-            stacks, which are contracted and truncated to ``chi_out`` exactly.
+            Discards singular values below ``cutoff * sigma_max``: on the
+            sketch's QR factor during the right-to-left sweep or, when
+            oversampling, in the final left-to-right SVD pass. Set to 0.0
+            (default) to disable cutoff trimming. Ignored for two-site stacks,
+            which are contracted and truncated to ``chi_out`` exactly.
         oversample: Multiplicative sketch-size factor, finite and at least 1.0.
-            The sketch size is ``ceil(oversample * chi_out)``. By default (``None``),
-            uses ``max(ceil(1.5 * chi_out), chi_out + 10)``. An oversampled sweep
-            is followed by an exact SVD truncation to ``chi_out``; ``1.0`` recovers
-            the original sweep without the final pass. Ignored for two-site stacks.
+            The sketch size is ``ceil(oversample * chi_out)``; ``None`` uses the
+            paper's ``max(ceil(1.5 * chi_out), chi_out + 10)``. An oversampled
+            sweep is followed by an exact SVD truncation to ``chi_out``, which
+            improves accuracy at a higher cost. Defaults to 1.0, no
+            oversampling. Ignored for two-site stacks.
         dtype: Data type of the random sketches. Defaults to the promoted
             floating dtype of the inputs, so single precision stays single and
             complex inputs get complex Ginibre sketches. An explicit dtype
@@ -100,8 +101,8 @@ def src(
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), as numpy arrays
-        (host-side, whatever the ``device``). Oversampling returns left-canonical
-        form; ``oversample=1.0`` and the two-site fallback return right-canonical form.
+        (host-side, whatever the ``device``), in right-canonical form, or
+        left-canonical form when oversampling (three sites or more).
 
     Raises:
         TypeError: If ``chi_out`` is not an integer, if a train has an unrecognised
