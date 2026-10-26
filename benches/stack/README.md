@@ -92,6 +92,33 @@ middle `<Z>` to `1e-6` (0.667890 and 0.667891).
 - The time grows linearly with the number of qubits; the infidelity of a fixed
   `chi` grows with it, while the local error does not.
 
+## Leonardo: Heisenberg operator evolution
+
+`bench_heisenberg.py` evolves `Z` on the central site of an open spin-1/2
+Heisenberg chain, `O <- U^dag O U`, where `U` is an exact MPO of `m` Trotter
+steps (`D = 4` for `m = 1`, up to 16 for `m = 2`). It compares one sweep over
+the sandwich (`src(Udag, O, U)`, with and without oversampling) against
+pairwise SRC, with the intermediate truncated to `chi` or kept at `D * chi`.
+The reference is dense for 12 sites and, for 24 sites, a gate-by-gate canonical
+SVD evolution at bond 1024, checked against bond 512. Every job fits the
+30-minute debug QoS on one A100; from the repository root:
+
+```bash
+sbatch benches/stack/leonardo/job.sh check
+sbatch benches/stack/leonardo/job.sh run --n 12 --m 2
+sbatch benches/stack/leonardo/job.sh reference --n 24 --m 2  # resumable
+sbatch benches/stack/leonardo/job.sh run --n 24 --m 2
+python benches/stack/bench_heisenberg.py report
+```
+
+Results, plots and conclusions are in
+[`leonardo/summary.md`](leonardo/summary.md), and the per-step rows in
+`leonardo/results.jsonl`. In short: at equal `chi` the stack is 1.1-1.3x more
+accurate than truncated pairs and matches the untruncated pairwise ceiling, but
+for `D = 16` it costs up to 16x the time, so truncated pairs win at equal time.
+For `D = 4` the stack costs no more than pairs and wins narrowly. These timings
+predate the fixed contraction paths in `_kernels.py`.
+
 ## Small-scale results (laptop)
 
 Measured on an AMD Ryzen 7 7840U, 16 threads, with light background load.
