@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src_method._kernels import SiteKernels, equations, peak_elements
+from src_method._kernels import SiteKernels, _path_optimizer, equations, peak_elements
 
 
 def cores(rng, dtype, *, left=(3, 2), right=(4, 3), up=2, mid=3, down=2):
@@ -80,3 +80,22 @@ def test_peak_elements_of_a_matrix_chain():
     shapes = ((2, 3), (3, 4), (4, 5))
 
     assert peak_elements("ab,bc,cd->ad", shapes) == 46
+
+
+def test_path_optimizer_defaults_to_dp(monkeypatch):
+    monkeypatch.delenv("SRC_EINSUM_OPTIMIZE", raising=False)
+
+    assert _path_optimizer() == "dp"
+
+
+def test_path_optimizer_reads_the_environment(monkeypatch):
+    monkeypatch.setenv("SRC_EINSUM_OPTIMIZE", "auto")
+
+    assert _path_optimizer() == "auto"
+
+
+def test_path_optimizer_rejects_unknown_names(monkeypatch):
+    monkeypatch.setenv("SRC_EINSUM_OPTIMIZE", "fastest")
+
+    with pytest.raises(ValueError, match="SRC_EINSUM_OPTIMIZE"):
+        _path_optimizer()

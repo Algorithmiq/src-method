@@ -148,3 +148,14 @@ It then logs the time of each pass and, at the end, `SRC stalls`: the seconds
 the sweep waited for input cores and for environments. If they are a large
 fraction of the run, the disk is too slow for the compute. With several devices,
 these lines start with the device they refer to.
+
+## Contraction paths
+
+Every kernel contracts its operands along the cheapest path that opt_einsum's
+`dp` optimizer finds, and the plan sizes batches for that same path. The
+environment variable `SRC_EINSUM_OPTIMIZE` selects another opt_einsum optimizer,
+such as `auto`. It is read once, when `src_method` is imported, and an unknown
+name raises `ValueError` at import. On an A100, `auto` took 1.9x as long over a
+full sweep, and at large bonds its projection path needs an intermediate too big
+for batches above 16 rows; see the
+[out-of-core benchmark](https://github.com/Algorithmiq/src-method/tree/main/benches/large).
