@@ -2,7 +2,7 @@
 
 ## Provenance
 
-src-method 0.5.2.dev3+gf8d0f6f76, quimb 1.15.0, CuPy 14.2.0, NumPy 2.4.4, CUDA runtime 13020, driver 13040, NVIDIA A100-SXM-64GB, TeNPy 1.1.1. `SRC_EINSUM_OPTIMIZE` unset (src-method's default `dp` paths). Jobs: 62438530, 62439612, 62442407, 62442408.
+src-method 0.5.2.dev3+gf8d0f6f76, quimb 1.15.0, CuPy 14.2.0, NumPy 2.4.4, CUDA runtime 13020, driver 13040, NVIDIA A100-SXM-64GB, TeNPy 1.1.1. `SRC_EINSUM_OPTIMIZE` unset (src-method's default `dp` paths). Jobs: 62438530, 62439612, 62442407, 62442408, 62444886, 62444887, 62447531, 62447668, 62449018.
 
 ## Checks
 
@@ -74,17 +74,20 @@ DMRG E0 -8.682473334363; <psi0|H|psi0> with the sparse H -8.682473334363. Error 
 
 ## chain L = 100 (MPO bond D = 5)
 
-### q = 0.4950 pi, 144 moments
+### q = 0.4950 pi, 200 moments
 
-Reference: src-method chi = 512, seed 0. Against chi = 256: max moment difference 1.1e-02 (of mu_0), S(q, w) difference 1.0e-04 (relative L2 over w in [0, 4]).
+Reference: src-method chi = 1024, seed 0. Against chi = 512: max moment difference 1.3e-03 (of mu_0), S(q, w) difference 9.8e-06 (relative L2 over w in [0, 4]).
 
-Physics check: edges 1.571 and 2.204; with the kernel width pi a / N = 0.761, 98.8% of the reference weight lies in [0.810, 2.965].
+Physics check: edges 1.571 and 2.204; with the kernel width pi a / N = 0.548, 98.4% of the reference weight lies in [1.023, 2.752].
 
-| method | chi | seeds | steps | apply s | compress s | s / moment | time for 144 moments s | pool GB | max moment error | S error |
+Runs shorter than the reference are timing-only (errors `-`).
+
+| method | chi | seeds | steps | apply s | compress s | s / moment | time for 200 moments s | pool GB | max moment error | S error |
 |---|---|---|---|---|---|---|---|---|---|---|
-| src-method | 128 | 3 | 100 | 0.231 | 0.245 | 0.238 | 34 | 0.8 | 2.6e-01 | 7.2e-03 |
-| src-method | 256 | 3 | 100 | 0.352 | 0.709 | 0.530 | 76 | 1.6 | 1.2e-02 | 1.1e-04 |
-| src-method | 512 | 1 | 72 | 0.915 | 2.551 | 1.733 | 250 | 5.2 | ref | ref |
+| src-method | 128 | 3 | 100 | 0.231 | 0.245 | 0.238 | 48 | 0.8 | 4.8e-01 | 1.8e-02 |
+| src-method | 256 | 3 | 100 | 0.352 | 0.709 | 0.530 | 106 | 1.6 | 4.8e-02 | 3.3e-04 |
+| src-method | 512 | 3 | 100 | 0.916 | 2.543 | 1.729 | 346 | 5.2 | 1.3e-03 | 9.8e-06 |
+| src-method | 1024 | 1 | 100 | 4.977 | 13.478 | 9.228 | 1846 | 18.5 | ref | ref |
 
 ![chain_L100_half_time.png](chain_L100_half_time.png)
 
@@ -92,16 +95,26 @@ Physics check: edges 1.571 and 2.204; with the kernel width pi a / N = 0.761, 98
 
 ### q = 0.9901 pi, 200 moments
 
-Reference: src-method chi = 512, seed 0. Against chi = 256: max moment difference 1.6e-01 (of mu_0), S(q, w) difference 5.1e-04 (relative L2 over w in [0, 4]).
+Reference: src-method chi = 1024, seed 0. Against chi = 512: max moment difference 1.1e-02 (of mu_0), S(q, w) difference 6.0e-06 (relative L2 over w in [0, 4]).
 
 Physics check: edges 0.049 and 3.141; with the kernel width pi a / N = 0.548, 100.0% of the reference weight lies in [0.000, 3.689].
 
+Runs shorter than the reference are timing-only (errors `-`).
+
 | method | chi | seeds | steps | apply s | compress s | s / moment | time for 200 moments s | pool GB | max moment error | S error |
 |---|---|---|---|---|---|---|---|---|---|---|
-| src-method | 128 | 3 | 100 | 0.230 | 0.245 | 0.238 | 48 | 0.8 | 7.1e-01 | 8.8e-03 |
-| src-method | 256 | 3 | 100 | 0.347 | 0.708 | 0.528 | 106 | 1.6 | 1.6e-01 | 5.1e-04 |
-| src-method | 512 | 1 | 100 | 0.915 | 2.593 | 1.754 | 351 | 5.2 | ref | ref |
-| quimb-zipup | 128 | 1 | 92 | 2.259 | 2.311 | 2.285 | 457 | 3.8 | - | - |
+| src-method | 128 | 3 | 100 | 0.230 | 0.245 | 0.238 | 48 | 0.8 | 7.2e-01 | 8.8e-03 |
+| src-method | 256 | 3 | 100 | 0.347 | 0.708 | 0.528 | 106 | 1.6 | 1.7e-01 | 5.1e-04 |
+| src-method | 512 | 3 | 100 | 0.915 | 2.539 | 1.733 | 347 | 5.2 | 1.2e-02 | 8.3e-06 |
+| src-method | 1024 | 1 | 100 | 5.040 | 13.669 | 9.355 | 1871 | 18.5 | ref | ref |
+| quimb-zipup | 128 | 1 | 100 | 2.261 | 2.311 | 2.286 | 457 | 3.8 | 2.8e+00 | 2.0e-02 |
+| quimb-zipup | 256 | 1 | 89 | 5.381 | 5.657 | 5.519 | 1104 | 7.6 | - | - |
+| quimb-zipup-first | 128 | 1 | 100 | 6.303 | 5.130 | 5.717 | 1143 | 3.7 | 4.6e-03 | 8.5e-05 |
+| quimb-src | 128 | 1 | 100 | 1.037 | 1.031 | 1.034 | 207 | 1.5 | 3.8e+01 | 4.6e-01 |
+| quimb-src | 256 | 1 | 89 | 2.150 | 2.142 | 2.146 | 429 | 4.3 | - | - |
+| quimb-src | 512 | 1 | 15 | 4.223 | 4.436 | 4.330 | 866 | 8.0 | - | - |
+| quimb-fit | 128 | 1 | 100 | 1.875 | 1.637 | 1.756 | 351 | 2.2 | 8.1e-03 | 3.2e-05 |
+| quimb-fit | 256 | 1 | 100 | 2.472 | 2.363 | 2.417 | 483 | 4.8 | 2.4e-04 | 1.2e-06 |
 
 ![chain_L100_pi_time.png](chain_L100_pi_time.png)
 

@@ -1198,6 +1198,8 @@ def report(
                 )
                 lines.append("")
             lines += [
+                "Runs shorter than the reference are timing-only (errors `-`).",
+                "",
                 "| method | chi | seeds | steps | apply s | compress s | s / moment"
                 f" | time for {nm} moments s | pool GB | max moment error | S error |",
                 "|---|---|---|---|---|---|---|---|---|---|---|",
