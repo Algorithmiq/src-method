@@ -418,9 +418,11 @@ class Quimb:
 
     def apply(self, t: Any, n: int) -> Any:  # noqa: ANN401, ARG002
         if self.method == "zipup":
-            # Zip-up assumes a left-canonical input: fed the right-canonical
-            # output of a compression, it lost 22% of H|t> at a bond holding the
-            # whole state (8e-15 when left-canonical). The QR sweep is timed.
+            # quimb's zipup is not exact even at a bond holding the whole state
+            # (diagnose). Left-canonical input helps: in the 12-site recursion at
+            # full bond the error after 11 steps drops from 1e-1 to 4e-2, and at
+            # L = 20 the moments converge with chi instead of diverging
+            # (quimb-zipup-rightcanon runs). The QR sweep is timed.
             t = t.copy()
             t.left_canonize()
         tn = self.qtn.tensor_network_apply_op_vec(self.H, t, contract=False)
@@ -949,7 +951,12 @@ def _runs(folder: Path) -> list[dict[str, Any]]:
     """Every run: its configuration, per-step rows and moments."""
     runs = []
     for path in sorted(folder.glob("*.jsonl")):
-        lines = [json.loads(x) for x in path.read_text().splitlines()]
+        lines = []
+        for x in path.read_text().splitlines():
+            try:
+                lines.append(json.loads(x))
+            except json.JSONDecodeError:  # a line still being written
+                continue
         head = next((r["meta"] for r in lines if "meta" in r), None)
         rows = [r for r in lines if "meta" not in r]
         if head is None or not rows:
