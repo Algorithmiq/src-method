@@ -20,7 +20,6 @@ import logging
 import os
 import re
 import socket
-import subprocess
 import sys
 from importlib.metadata import version
 from math import prod
@@ -55,21 +54,10 @@ COMPLEX_FLOPS = 4
 
 
 def provenance() -> dict[str, Any]:
-    """Commit, versions, job and GPU of this process."""
+    """Versions (``src_method`` carries the commit), job and GPU of this process."""
     import cupy  # noqa: PLC0415  (GPU only)
 
-    def git(*args: str) -> str:
-        return subprocess.run(  # noqa: S603
-            ["git", *args],  # noqa: S607
-            cwd=HERE,
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout.strip()
-
     return {
-        "commit": git("rev-parse", "HEAD"),
-        "src_dirty": bool(git("status", "--porcelain", "--", "src")),
         "optimize_env": os.environ.get("SRC_EINSUM_OPTIMIZE"),
         "optimize_module": kernels_module.OPTIMIZE,
         "src_method": src_method.__version__,
