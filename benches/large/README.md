@@ -116,3 +116,52 @@ Speed-up and efficiency are against the single-GPU run:
   memory unused was not investigated.
 - The stall times the sweep logs include waiting for the GPU's own queue, so they
   cannot tell slow transfers from a GPU-bound pass.
+
+### Einsum paths: `auto` against `dp`
+
+`SRC_EINSUM_OPTIMIZE` selects the opt_einsum path optimizer of the kernels, and
+the planner sizes batches for the same path. It is read at import and defaults
+to `dp` since these measurements; the results above ran with `auto`.
+`bench_einsum_dp.py` compares the two: `kernels` times `SiteKernels.env`,
+`.sketch` and `.project` on random arrays of the reference shapes, and `sweep`
+with `distance` runs the `D_M = 1000` stack, `chi_out = 500`, under the 60 GB
+budget, three times per optimizer and compares the outputs. Run on A100-SXM-64GB
+(CuPy 14.2.0, NumPy 2.4.4, opt_einsum 3.4.0), complex128.
+
+Full sweep, median of 3 (range), every environment on the device:
+
+| GPUs | `auto` (s) | `dp` (s) | Speed-up | Right-to-left `auto` / `dp` (s) | Planned peak `auto` / `dp` (GB) | QR distance |
+|---|---|---|---|---|---|---|
+| 1 | 109.7 (109.6-130.6) | 56.2 (56.2-74.1) | 1.95x | 95.4 / 42.3 | 58.8 / 50.3 | 2.7e-13 |
+| 4 | 32.4 (32.3-51.7) | 17.4 (17.4-40.1) | 1.86x | 28.6 / 13.6 | 32.3 / 12.2 per GPU | 4.0e-13 |
+
+- The gain is in the right-to-left pass; the left-to-right pass takes the same
+  time (14.3 against 13.9 s on one GPU). At these shapes `auto`'s sketch and
+  projection paths cost 3.9x and 2.0x `dp`'s flops. Both optimizers give the
+  same planned batches.
+- The first sweep of each job is 18-23 s slower with either optimizer (the
+  first-run effect noted above), and is left out of the medians. `dp`'s path
+  search takes about 1 ms per shape: 0.03-0.10 s per sweep.
+
+Kernels at the reference shapes, `D = (4, 4, 4000, 4)`, physical legs 4,
+`eta = 2000`, median of 5 after 2 warm-ups (ms per row or column):
+
+| Kernel | Batch | `auto` | `dp` | Flops `auto` / `dp` |
+|---|---|---|---|---|
+| project | 8 | 25.2 | 11.8 | 7.9e11 / 4.0e11 |
+| project | 16 | 22.1 | 11.0 | 1.6e12 / 7.9e11 |
+| project | 32, 64, 128 | over 50 GB | 10.6, 10.5, 10.5 | 9.7e12 / 1.6e12 at 32 |
+| sketch | 96 | 10.27 | 10.65 | 4.78e12 / 4.76e12 |
+| sketch | 192 | 10.14 | 10.53 | 9.56e12 / 9.51e12 |
+| env | 224 | 7.17 | 7.18 | 7.4e12 / 7.4e12 |
+
+- The projection runs at 16-19 TFLOP/s with either optimizer, so the time follows
+  the flops. From 32 rows `auto` plans an 8.19e9-element intermediate (265-283
+  GB), which is why it cannot leave 16 rows; `dp` needs 10-25 GB up to 128 rows.
+- 384 sketch columns (75 GB) and 256 projection rows with `dp` (50.3 GB) exceed
+  the 50 GB limit and were not run.
+- `dp` is 3.7-3.8% slower on the sketch, where its path has 0.5% fewer flops.
+- The outputs of the two optimizers agree to 1.6e-14 or better.
+- The reference-size sweep (over an hour) was not run. Taking these per-row and
+  per-column times for each site predicts its right-to-left pass at about 2060 s
+  with `dp`, 1.5x faster than the 3112 s measured with `auto`.
