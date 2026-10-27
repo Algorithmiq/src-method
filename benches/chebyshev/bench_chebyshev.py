@@ -51,7 +51,7 @@ HERE = Path(__file__).parent
 OUT = HERE / "leonardo"
 SCRATCH = Path(os.environ.get("CINECA_SCRATCH", "/tmp")) / "chebyshev"
 W_PRIME = 0.9875
-METHODS = ("src-method", "quimb-zipup", "quimb-src", "quimb-fit")
+METHODS = ("src-method", "quimb-zipup", "quimb-zipup-first", "quimb-src", "quimb-fit")
 
 SX = np.array([[0, 0.5], [0.5, 0]], dtype=complex)
 SY = np.array([[0, -0.5j], [0.5j, 0]], dtype=complex)
@@ -417,6 +417,12 @@ class Quimb:
         return out
 
     def apply(self, t: Any, n: int) -> Any:  # noqa: ANN401, ARG002
+        if self.method == "zipup":
+            # Zip-up assumes a left-canonical input: fed the right-canonical
+            # output of a compression, it lost 22% of H|t> at a bond holding the
+            # whole state (8e-15 when left-canonical). The QR sweep is timed.
+            t = t.copy()
+            t.left_canonize()
         tn = self.qtn.tensor_network_apply_op_vec(self.H, t, contract=False)
         return self._compress(tn)
 
@@ -690,6 +696,68 @@ def exact(n: int = 20, moments: int = 200) -> None:
     logger.info("exact moments: E0 dmrg %.12f, sparse %.12f", e0, e_dense)
 
 
+@app.command
+def diagnose(output: Path = OUT / "diagnose_zipup.json") -> None:
+    """Why quimb's ``zipup`` fails here: exactness at full bond, on the CPU.
+
+    On 12 sites ``chi = 64`` holds any state exactly, so every apply and every
+    recursion step should be exact to rounding.
+
+    Args:
+        output: JSON file for the errors.
+    """
+    import quimb.tensor as qtn  # noqa: PLC0415
+
+    n, chi = 12, 64
+    H = chain_mpo(n)
+    Hq, Hd = qtn.MatrixProductOperator(H), dense_operator(H)
+    methods = ("zipup", "zipup-first", "src", "fit")
+    out: dict[str, Any] = {"n": n, "chi": chi, "apply_by_gauge": {}, "recursion": {}}
+    x = qtn.MPS_rand_state(n, 64, dtype="complex128", seed=7)
+    ref = Hd @ x.to_dense().ravel()
+    for form in ("as-built", "right-canonical", "left-canonical"):
+        xx = x.copy()
+        if form == "right-canonical":
+            xx.right_canonize()
+        elif form == "left-canonical":
+            xx.left_canonize()
+        out["apply_by_gauge"][form] = {}
+        for m in methods:
+            tn = qtn.tensor_network_apply_op_vec(Hq, xx, contract=False)
+            o = qtn.tensor_network_1d_compress(tn, max_bond=chi, cutoff=0.0, method=m)
+            err = np.linalg.norm(o.to_dense().ravel() - ref) / np.linalg.norm(ref)
+            out["apply_by_gauge"][form][m] = float(err)
+    x = qtn.MPS_rand_state(n, 8, dtype="complex128", seed=3)
+    a, e0 = 6.0, -5.0
+
+    def hp(v: np.ndarray) -> np.ndarray:
+        return (Hd @ v - e0 * v) / a - W_PRIME * v
+
+    for m in methods:
+
+        def comp(tn: Any, m: str = m) -> Any:  # noqa: ANN401
+            return qtn.tensor_network_1d_compress(
+                tn, max_bond=chi, cutoff=0.0, method=m
+            )
+
+        y = comp(qtn.tensor_network_apply_op_vec(Hq, x, contract=False))
+        cur, prev = comp((1 / a) * y + (-(e0 / a + W_PRIME)) * x), x
+        pe, ce = x.to_dense().ravel(), hp(x.to_dense().ravel())
+        errs = []
+        for _ in range(1, 12):
+            y = comp(qtn.tensor_network_apply_op_vec(Hq, cur, contract=False))
+            nxt = comp((2 / a) * y + (-2 * (e0 / a + W_PRIME)) * cur + (-1.0) * prev)
+            pe, ce = ce, 2 * hp(ce) - pe
+            prev, cur = cur, nxt
+            errs.append(
+                float(np.linalg.norm(cur.to_dense().ravel() - ce) / np.linalg.norm(ce))
+            )
+        out["recursion"][m] = errs
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(out, indent=2) + "\n")
+    logger.info("diagnose: %s", json.dumps(out))
+
+
 def _warmup(methods: Sequence[str]) -> None:
     """Compile the CuPy kernels of every method before timing."""
     rng = np.random.default_rng(1)
@@ -863,10 +931,17 @@ def _checkpoint(
 COLORS = {
     "src-method": "#2a78d6",
     "quimb-zipup": "#eb6834",
+    "quimb-zipup-first": "#e87ba4",
     "quimb-src": "#1baf7a",
     "quimb-fit": "#eda100",
 }
-MARKERS = {"src-method": "o", "quimb-zipup": "s", "quimb-src": "^", "quimb-fit": "D"}
+MARKERS = {
+    "src-method": "o",
+    "quimb-zipup": "s",
+    "quimb-zipup-first": "v",
+    "quimb-src": "^",
+    "quimb-fit": "D",
+}
 OMEGA = np.linspace(0.0, 4.0, 801)
 
 
@@ -1087,7 +1162,8 @@ def report(
                 key=lambda r: r["chi"],
             )
             ref = ref_runs[-1] if ref_runs else None
-            nm = n_moments or min(len(r["mu"]) for r in tg)
+            # Runs with fewer moments (timing-only) show times but no errors.
+            nm = n_moments or (len(ref["mu"]) if ref else min(len(r["mu"]) for r in tg))
             lines += [
                 f"### q = {q / np.pi:.4f} pi, {nm} moments",
                 "",
