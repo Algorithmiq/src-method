@@ -1,0 +1,53 @@
+{
+  "model": "chain",
+  "n": 100,
+  "D": 5,
+  "E0": -44.127739892915635,
+  "Emax": 24.75,
+  "a": 34.8748050090712,
+  "W_prime": 0.9875,
+  "dmrg_ground": {
+    "converged": true,
+    "sweeps": 7,
+    "seconds": 393.02046490926296,
+    "rel_change": 6.229861209206631e-11,
+    "bond": 182
+  },
+  "dmrg_top": {
+    "converged": true,
+    "sweeps": 2,
+    "seconds": 0.4075684752315283,
+    "rel_change": 0.0,
+    "bond": 1,
+    "start": "|up...up>"
+  },
+  "provenance": {
+    "src_method": "0.5.2.dev3+gf8d0f6f76",
+    "quimb": "1.15.0",
+    "autoray": "0.11.0",
+    "numpy": "2.4.4",
+    "cupy": "14.2.0",
+    "cuda_runtime": 13020,
+    "cuda_driver": 13040,
+    "gpu": "NVIDIA A100-SXM-64GB",
+    "python": "3.14.2",
+    "host": "lrdn1111.leonardo.local",
+    "slurm_job": "62439180",
+    "SRC_EINSUM_OPTIMIZE": null,
+    "tenpy": "1.1.1"
+  },
+  "probes": {
+    "half": {
+      "k": 50,
+      "q": 1.5552438879157393,
+      "bond": 364,
+      "mu0": 0.15652164213646974
+    },
+    "pi": {
+      "k": 100,
+      "q": 3.1104877758314786,
+      "bond": 364,
+      "mu0": 1.4832657985315918
+    }
+  }
+}
