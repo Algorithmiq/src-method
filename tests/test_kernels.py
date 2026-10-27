@@ -1,9 +1,10 @@
 """Test the batched site kernels and the peak-memory walk."""
 
 import numpy as np
+import opt_einsum as oe
 import pytest
 
-from src_method._kernels import SiteKernels, _path_optimizer, equations, peak_elements
+from src_method._kernels import SiteKernels, equations, peak_elements
 
 
 def cores(rng, dtype, *, left=(3, 2), right=(4, 3), up=2, mid=3, down=2):
@@ -82,20 +83,19 @@ def test_peak_elements_of_a_matrix_chain():
     assert peak_elements("ab,bc,cd->ad", shapes) == 46
 
 
-def test_path_optimizer_defaults_to_dp(monkeypatch):
-    monkeypatch.delenv("SRC_EINSUM_OPTIMIZE", raising=False)
+class FixedPath(oe.paths.PathOptimizer):
+    """Always return the same contraction path."""
 
-    assert _path_optimizer() == "dp"
+    def __init__(self, path):
+        self.path = path
 
-
-def test_path_optimizer_reads_the_environment(monkeypatch):
-    monkeypatch.setenv("SRC_EINSUM_OPTIMIZE", "auto")
-
-    assert _path_optimizer() == "auto"
+    def __call__(self, inputs, output, size_dict, memory_limit=None):  # noqa: ARG002
+        return self.path
 
 
-def test_path_optimizer_rejects_unknown_names(monkeypatch):
-    monkeypatch.setenv("SRC_EINSUM_OPTIMIZE", "fastest")
+def test_peak_elements_follows_the_optimizer():
+    # Contracting (3x4)(4x5) first holds its operands (12 + 20) and a 3x5
+    # intermediate (15): 47, one more than the default path's 46.
+    shapes = ((2, 3), (3, 4), (4, 5))
 
-    with pytest.raises(ValueError, match="SRC_EINSUM_OPTIMIZE"):
-        _path_optimizer()
+    assert peak_elements("ab,bc,cd->ad", shapes, FixedPath([(1, 2), (0, 1)])) == 47

@@ -151,11 +151,21 @@ these lines start with the device they refer to.
 
 ## Contraction paths
 
-Every kernel contracts its operands along the cheapest path that opt_einsum's
-`dp` optimizer finds, and the plan sizes batches for that same path. The
-environment variable `SRC_EINSUM_OPTIMIZE` selects another opt_einsum optimizer,
-such as `auto`. It is read once, when `src_method` is imported, and an unknown
-name raises `ValueError` at import. On an A100, `auto` took 1.9x as long over a
-full sweep, and at large bonds its projection path needs an intermediate too big
-for batches above 16 rows; see the
+Every kernel contracts its operands along the path that opt_einsum's `dp`
+optimizer finds, the cheapest one, and the plan sizes batches for that same path.
+The `optimize` argument of `src`, `apply` and `compress` takes any other path
+optimizer opt_einsum accepts: a name such as `"auto"` or `"greedy"`, a name added
+with `opt_einsum.paths.register_path_fn`, or an `opt_einsum.paths.PathOptimizer`
+instance. An unknown name raises `ValueError` at once.
+
+```python notest
+import opt_einsum as oe
+
+out = src(*stack, chi_out=2000, device="gpu", optimize="auto")
+out = src(*stack, chi_out=2000, optimize=oe.DynamicProgramming(minimize="size"))
+```
+
+On an A100, `auto` took 1.9x as long as `dp` over a full sweep, and at large bonds
+its projection path needs an intermediate too big for batches above 16 rows; see
+the
 [out-of-core benchmark](https://github.com/Algorithmiq/src-method/tree/main/benches/large).

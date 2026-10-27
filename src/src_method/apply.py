@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._kernels import DEFAULT_OPTIMIZE
 from ._tensor_train import infer_kind
 from .stack import src
 
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
     import numpy as np
     from numpy.typing import DTypeLike
+    from opt_einsum.paths import PathOptimizer
 
     from ._plan import Resources
     from ._tensor_train import Site
@@ -34,6 +36,7 @@ def apply(
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
+    optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
 ) -> list[np.ndarray]:
     """Applies the Successive Randomized Compression (SRC) algorithm.
 
@@ -62,6 +65,8 @@ def apply(
         device: ``"cpu"`` (default, numpy) or ``"gpu"`` (cupy).  Requires
             the optional ``cupy`` dependency for GPU execution.
         resources: Memory budgets and scratch space; see `src_method.stack.src`.
+        optimize: The opt_einsum path optimizer of the contractions, a name or a
+            ``PathOptimizer``; see `src_method.stack.src`. Defaults to ``"dp"``.
 
     Returns:
         The site arrays of the compressed tensor network (MPS or MPO), in
@@ -70,13 +75,14 @@ def apply(
 
     Raises:
         TypeError: If ``chi_out`` is not an integer or the combination of input
-            tensor types is unsupported.
+            tensor types is unsupported, or ``optimize`` is neither a name nor a
+            ``PathOptimizer``.
         ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not
             in ``[0.0, 1.0)``, if ``oversample`` is not finite and at least 1.0,
             if a train is not open-boundary, if the two trains
             differ in length or in the physical dimensions they join, if a
-            sub-three-site train is not exactly two sites, or if ``device`` is not
-            recognised.
+            sub-three-site train is not exactly two sites, if ``optimize`` names no
+            opt_einsum path optimizer, or if ``device`` is not recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     left_kind = infer_kind(left_tensor)
@@ -98,4 +104,5 @@ def apply(
         seed=seed,
         device=device,
         resources=resources,
+        optimize=optimize,
     )

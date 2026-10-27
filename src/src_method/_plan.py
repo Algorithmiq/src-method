@@ -22,12 +22,14 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
-from ._kernels import equations, peak_elements
+from ._kernels import DEFAULT_OPTIMIZE, equations, peak_elements
 from .utils import device_memory, host_memory_available, is_host, use_device
 
 if TYPE_CHECKING:
     import os
     from collections.abc import Callable
+
+    from opt_einsum.paths import PathOptimizer
 
     from ._group import DeviceGroup
 
@@ -294,6 +296,7 @@ class _Site:
         itemsize: int,
         n_sites: int,
         ranks: int = 1,
+        optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
     ) -> None:
         self.j, self.shapes, self.core_bytes, self.chi, self.e = (
             j,
@@ -302,7 +305,7 @@ class _Site:
             chi,
             itemsize,
         )
-        self.ranks = ranks
+        self.ranks, self.optimize = ranks, optimize
         self.cols = ceil(chi / ranks)
         # The slice of the cores a device uploads before gathering the rest.
         self.chunk = ceil(core_bytes / ranks) if ranks > 1 else 0
@@ -325,7 +328,9 @@ class _Site:
         fixed = self._cores(prefetch) + self.cols * self.p * e
         slices = (1 + staged_in) * b * self.a * e + staged_out * b * self.b * e
         peak = peak_elements(
-            self.eqs.ltr, ((b, *self.left), (b, self.up, self.down), *self.shapes)
+            self.eqs.ltr,
+            ((b, *self.left), (b, self.up, self.down), *self.shapes),
+            self.optimize,
         )
         return fixed + slices + peak * e
 
@@ -342,6 +347,7 @@ class _Site:
             peak_elements(
                 self.eqs.rtl_m,
                 ((b, *self.left), *self.shapes, (self.eta, *self.right)),
+                self.optimize,
             )
             * e
         )
@@ -387,6 +393,7 @@ class _Site:
                     *self.shapes,
                     (self.eta, *self.right),
                 ),
+                self.optimize,
             )
             * e
         )
@@ -398,7 +405,12 @@ class _Site:
         fixed = (
             self._cores(prefetch) + self.eta * self.b * e + self.a * chi * self.p * e
         )
-        peak = peak_elements(self.eqs.first, (*self.shapes, (b, *self.right))) * e
+        peak = (
+            peak_elements(
+                self.eqs.first, (*self.shapes, (b, *self.right)), self.optimize
+            )
+            * e
+        )
         return fixed + peak
 
 
@@ -589,6 +601,7 @@ def make_plan(
     budgets: Budgets,
     *,
     devices: int = 1,
+    optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
 ) -> Plan:
     """Plan the batches and the environment tiers of one sweep.
 
@@ -600,6 +613,8 @@ def make_plan(
         budgets: The resolved budgets.
         devices: The number of devices the sweep is split among; each runs the
             plan on its share of the sketch columns.
+        optimize: The opt_einsum path optimizer of the kernels, whose paths the
+            batches are sized for.
 
     Returns:
         The plan. Prefetching is dropped before giving up.
@@ -619,6 +634,7 @@ def make_plan(
             itemsize=itemsize,
             n_sites=n_sites,
             ranks=devices,
+            optimize=optimize,
         )
         for j, (shapes, core_bytes) in enumerate(zip(site_shapes, site_bytes))
     ]

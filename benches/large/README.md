@@ -119,9 +119,9 @@ Speed-up and efficiency are against the single-GPU run:
 
 ### Einsum paths: `auto` against `dp`
 
-`SRC_EINSUM_OPTIMIZE` selects the opt_einsum path optimizer of the kernels, and
-the planner sizes batches for the same path. It is read at import and defaults
-to `dp` since these measurements; the results above ran with `auto`.
+The `optimize` argument of `src`, `apply` and `compress` selects the opt_einsum
+path optimizer of the kernels, and the planner sizes batches for the same path.
+It defaults to `dp` since these measurements; the results above ran with `auto`.
 `bench_einsum_dp.py` compares the two: `kernels` times `SiteKernels.env`,
 `.sketch` and `.project` on random arrays of the reference shapes, and `sweep`
 with `distance` runs the `D_M = 1000` stack, `chi_out = 500`, under the 60 GB

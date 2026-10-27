@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ._kernels import DEFAULT_OPTIMIZE
 from ._sweep import sweep
 from ._tensor_train import (
     MIN_SRC_SITES,
@@ -17,7 +18,12 @@ from ._tensor_train import (
     exact_stack,
     normalize_stack,
 )
-from ._validation import sketch_size, validate_chi_out, validate_cutoff
+from ._validation import (
+    sketch_size,
+    validate_chi_out,
+    validate_cutoff,
+    validate_optimize,
+)
 from .utils import default_rng, get_xp, sketch_dtype
 
 if TYPE_CHECKING:
@@ -25,6 +31,7 @@ if TYPE_CHECKING:
 
     import numpy as np
     from numpy.typing import DTypeLike
+    from opt_einsum.paths import PathOptimizer
 
     from ._plan import Resources
     from ._tensor_train import Site
@@ -46,6 +53,7 @@ def src(
     seed: int | None = None,
     device: str = "cpu",
     resources: Resources | None = None,
+    optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
 ) -> list[np.ndarray]:
     """Contract a stack of tensor trains and compress the result with SRC.
 
@@ -98,6 +106,12 @@ def src(
         resources: Memory budgets and scratch space for the sweep (see
             `Resources`); every budget left unset is detected. Ignored for
             two-site stacks.
+        optimize: The opt_einsum path optimizer of the sweep's contractions: any
+            name opt_einsum knows (``"dp"``, ``"auto"``, ``"greedy"``, ... or one
+            added with ``opt_einsum.paths.register_path_fn``) or an
+            ``opt_einsum.paths.PathOptimizer`` instance. The memory plan sizes
+            batches for the same paths. Defaults to ``"dp"``, the cheapest paths.
+            Ignored for two-site stacks.
 
     Returns:
         The site arrays of the compressed train (MPS or MPO), as numpy arrays
@@ -106,17 +120,20 @@ def src(
 
     Raises:
         TypeError: If ``chi_out`` is not an integer, if a train has an unrecognised
-            layout or an MPS sits anywhere other than at one end of the stack.
+            layout or an MPS sits anywhere other than at one end of the stack,
+            or if ``optimize`` is neither a name nor a ``PathOptimizer``.
         ValueError: If ``chi_out`` is not positive, if ``cutoff`` is not in
             ``[0.0, 1.0)``, if ``oversample`` is not finite and at least 1.0,
             if a train is not open-boundary, if the stack is empty,
             if the trains differ in length or in the physical dimensions they join,
-            if a sub-three-site stack is not exactly two sites, or if ``device`` is
-            not recognised.
+            if a sub-three-site stack is not exactly two sites, if ``optimize``
+            names no opt_einsum path optimizer, or if ``device`` is not
+            recognised.
         ImportError: If ``device="gpu"`` but cupy is not installed.
     """
     chi_out = validate_chi_out(chi_out)
     validate_cutoff(cutoff)
+    validate_optimize(optimize)
     chi_sketch = sketch_size(chi_out, oversample)
     get_xp(device)  # Reject an unknown device, or a missing cupy, at once.
     prng = default_rng(seed)
@@ -145,6 +162,7 @@ def src(
         truncate_to=chi_out if chi_sketch > chi_out else None,
         dtype=sketch_dtype(dtype, *layers),
         resources=resources,
+        optimize=optimize,
     )
     logger.debug("SRC complete")
     return result

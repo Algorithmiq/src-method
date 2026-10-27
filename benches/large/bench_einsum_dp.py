@@ -6,8 +6,8 @@ Three commands:
   of the reference shapes, with both optimizers in one process, and check that
   their outputs agree;
 - ``sweep``: run the SRC of a ``generate``-d stack of `bench_large` a few times with
-  the optimizer that ``SRC_EINSUM_OPTIMIZE`` selects, logging the plan, the pass
-  times and the device peak, and save the last output;
+  one optimizer, logging the plan, the pass times and the device peak, and save the
+  last output;
 - ``distance``: the QR distance between the saved ``auto`` and ``dp`` outputs.
 
 Each command logs its rows and appends them as JSON lines under ``OUT``.
@@ -53,13 +53,12 @@ GB = 1e9
 COMPLEX_FLOPS = 4
 
 
-def provenance() -> dict[str, Any]:
+def provenance(optimize: str | None = None) -> dict[str, Any]:
     """Versions (``src_method`` carries the commit), job and GPU of this process."""
     import cupy  # noqa: PLC0415  (GPU only)
 
     return {
-        "optimize_env": os.environ.get("SRC_EINSUM_OPTIMIZE"),
-        "optimize_module": kernels_module.OPTIMIZE,
+        "optimize": optimize,
         "src_method": src_method.__version__,
         "numpy": np.__version__,
         "cupy": cupy.__version__,
@@ -132,9 +131,9 @@ def kernels(
 ) -> None:
     """Experiment A: each kernel, batch and optimizer on random reference arrays.
 
-    Both optimizers run in this process: `OPTIMIZE` is switched between them and
-    the `peak_elements` cache cleared, so each runs the path it would select from
-    ``SRC_EINSUM_OPTIMIZE``. A (kernel, optimizer, batch) whose planned peak exceeds
+    Both optimizers run in this process, each passed to `SiteKernels` and to
+    `peak_elements` as `src` passes it. A (kernel, optimizer, batch) whose planned
+    peak exceeds
     ``limit_gb`` is skipped and recorded as such.
 
     Args:
@@ -168,15 +167,13 @@ def kernels(
                 omega = _random(shapes[1]) if kernel == "env" else None
                 outputs, args = {}, None
                 for opt in OPTIMIZERS:
-                    kernels_module.OPTIMIZE = opt
-                    kernels_module.peak_elements.cache_clear()
                     start = perf_counter()
                     _, info = oe.contract_path(eq, *shapes, shapes=True, optimize=opt)
                     search = perf_counter() - start
                     start = perf_counter()
                     oe.contract_expression(eq, *shapes, optimize=opt)
                     build = perf_counter() - start
-                    peak = kernels_module.peak_elements(eq, shapes)
+                    peak = kernels_module.peak_elements(eq, shapes, opt)
                     row: dict[str, Any] = {
                         "kernel": kernel,
                         "optimizer": opt,
@@ -201,7 +198,7 @@ def kernels(
                             row["peak_gb"],
                         )
                         continue
-                    sk = kernels_module.SiteKernels(len(bonds))
+                    sk = kernels_module.SiteKernels(len(bonds), opt)
                     args = {
                         "env": (lead, omega, cores),
                         "sketch": (lead, cores, proj),
@@ -260,7 +257,6 @@ def kernels(
                 pool.free_all_blocks()
             del cores, proj
             pool.free_all_blocks()
-    kernels_module.OPTIMIZE = kernels_module._path_optimizer()  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------
@@ -296,9 +292,10 @@ def sweep(
     repeats: int = 3,
     seed: int = 0,
     save_dir: Path | None = None,
+    optimize: str = "dp",
     output: Path = OUT / "sweeps.jsonl",
 ) -> None:
-    """Experiments B and C: ``repeats`` sweeps with the optimizer of the process.
+    """Experiments B and C: ``repeats`` sweeps with one path optimizer.
 
     Times the expression builds (path search included) separately: `_Contractions`
     plans per `src` call, so every sweep pays them again.
@@ -311,6 +308,7 @@ def sweep(
         repeats: Sweeps to run.
         seed: Seed of the sketch, the same for every sweep.
         save_dir: Where to save the output of the last sweep, as ``<optimizer>.npz``.
+        optimize: The opt_einsum path optimizer, passed to `src`.
         output: JSON lines file, appended to.
     """
     import cupy  # noqa: PLC0415
@@ -318,7 +316,7 @@ def sweep(
     sys.path.insert(0, str(HERE))
     from bench_large import _load  # noqa: PLC0415
 
-    opt = kernels_module.OPTIMIZE
+    opt = optimize
     layers = _load(directory)
     capture = _Capture()
     logging.getLogger("src_method").addHandler(capture)
@@ -341,7 +339,7 @@ def sweep(
         return plans[-1]
 
     sweep_module.make_plan = spy
-    meta = provenance()
+    meta = provenance(opt)
     output.parent.mkdir(parents=True, exist_ok=True)
     out = None
     with output.open("a") as f:
@@ -360,6 +358,7 @@ def sweep(
                 seed=seed,
                 device="gpu",
                 resources=Resources(gpu_memory, None, None, devices=devices),
+                optimize=opt,
             )
             seconds = perf_counter() - start
             pools = []

@@ -36,7 +36,7 @@ import numpy as np
 from array_api_compat import array_namespace
 
 from ._group import DeviceGroup, blocks
-from ._kernels import SiteKernels
+from ._kernels import DEFAULT_OPTIMIZE, SiteKernels
 from ._plan import make_plan, resolve_budgets
 from ._sites import SiteSource, padded_shapes, site_bytes, sweep_order
 from ._store import EnvironmentStore
@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
     from numpy.typing import DTypeLike
+    from opt_einsum.paths import PathOptimizer
 
     from ._plan import Budgets, Plan, Resources
     from ._tensor_train import Site, TrainKind
@@ -168,6 +169,7 @@ def sweep(
     truncate_to: int | None = None,
     dtype: DTypeLike,
     resources: Resources | None = None,
+    optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
 ) -> list[np.ndarray]:
     """Contract and compress a stack in ket form with one SRC sweep.
 
@@ -188,6 +190,7 @@ def sweep(
         dtype: The data type of the sketches.
         resources: Memory budgets, scratch space and devices; detected when
             ``None``.
+        optimize: The opt_einsum path optimizer of the kernels and of the plan.
 
     Returns:
         The site arrays of the compressed train as numpy arrays, right-canonical
@@ -200,7 +203,13 @@ def sweep(
     group = DeviceGroup(device, resources.devices if resources else None)
     budgets = resolve_budgets(resources, group)
     plan = make_plan(
-        shapes, site_bytes(layers), chi_out, work, budgets, devices=group.size
+        shapes,
+        site_bytes(layers),
+        chi_out,
+        work,
+        budgets,
+        devices=group.size,
+        optimize=optimize,
     )
     # Guarded: the per-site lists walk the whole plan, wasted work unless logged.
     if logger.isEnabledFor(logging.DEBUG):
@@ -229,6 +238,7 @@ def sweep(
         sketches=_Sketches(prng, chi_out, dtype, group.size),
         work=work,
         depth=len(layers),
+        optimize=optimize,
     )
     with SiteSource(
         layers, sweep_order(len(shapes)), depth=plan.prefetch, group=group
@@ -316,10 +326,11 @@ class _Sweep:
         sketches: _Sketches,
         work: np.dtype,
         depth: int,
+        optimize: str | PathOptimizer,
     ) -> None:
         self.group, self.plan, self.budgets, self.shapes = group, plan, budgets, shapes
         self.chi_out, self.cutoff, self.sketches = chi_out, cutoff, sketches
-        self.work, self.depth = work, depth
+        self.work, self.depth, self.optimize = work, depth, optimize
         self.columns = blocks(chi_out, group.size)
 
     def _tag(self, rank: int) -> str:
@@ -332,7 +343,7 @@ class _Sweep:
         xp, tag = self.group.xp, self._tag(rank)
         lo, hi = self.columns[rank]
         env_shapes = [(hi - lo, *(s[0] for s in site)) for site in self.shapes]
-        kernels = _SplittingKernels(SiteKernels(self.depth), tag)
+        kernels = _SplittingKernels(SiteKernels(self.depth, self.optimize), tag)
         with (
             device_pool_limit(xp, self.budgets.device_cap),
             EnvironmentStore(
