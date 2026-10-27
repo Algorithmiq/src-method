@@ -7,6 +7,7 @@ import threading
 from functools import reduce
 
 import numpy as np
+import opt_einsum as oe
 import pytest
 
 import src_method._sweep as sweep_module
@@ -442,6 +443,58 @@ def test_src_single_site_raises_before_warning(caplog):
 def test_src_validates_the_stack(rng):
     with pytest.raises(TypeError, match="MPS may come first"):
         src(*make_stack("psi A psi", rng), chi_out=4)
+
+
+# -------------------------
+# --- Contraction paths ---
+# -------------------------
+
+
+@pytest.mark.parametrize(
+    "optimize", ["auto", "greedy", oe.DynamicProgramming(minimize="size")]
+)
+@pytest.mark.parametrize("spec", ["A B psi", "A B C", "phi A B"])
+def test_optimizer_does_not_change_the_result(spec, optimize, rng):
+    stack = make_stack(spec, rng)
+
+    default = src(*stack, chi_out=4, seed=7)
+    other = src(*stack, chi_out=4, seed=7, optimize=optimize)
+
+    assert rel_error(other, dense(default)) < 1e-10
+
+
+def test_registered_optimizer_is_used(rng, monkeypatch):
+    calls = []
+
+    def counting_greedy(*args, **kwargs):
+        calls.append(1)
+        return oe.paths.greedy(*args, **kwargs)
+
+    # What opt_einsum.paths.register_path_fn does, undone after the test.
+    monkeypatch.setitem(oe.paths._PATH_OPTIONS, "src-test-greedy", counting_greedy)
+    stack = make_stack("A B psi", rng)
+
+    out = src(*stack, chi_out=CHI_EXACT, optimize="src-test-greedy")
+
+    assert calls
+    assert rel_error(out, dense_stack(*stack)) < 1e-10
+
+
+@pytest.mark.parametrize(
+    ("optimize", "error"),
+    [("fastest", ValueError), (True, TypeError), ([(0, 1), (0, 1)], TypeError)],
+)
+@pytest.mark.parametrize("entry", ["src", "apply", "compress"])
+def test_invalid_optimizer_raises(entry, optimize, error, rng):
+    A, psi = make_stack("A psi", rng)
+    call = {
+        "src": lambda: src(A, psi, chi_out=4, optimize=optimize),
+        "apply": lambda: apply(A, psi, 4, optimize=optimize),
+        "compress": lambda: compress(psi, 4, optimize=optimize),
+    }[entry]
+
+    with pytest.raises(error, match="optimize"):
+        call()
 
 
 # ----------------

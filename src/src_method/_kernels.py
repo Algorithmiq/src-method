@@ -12,7 +12,7 @@ from __future__ import annotations
 from functools import cache
 from itertools import count
 from math import prod
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 import opt_einsum as oe
 from opt_einsum import contract_expression, get_symbol
@@ -21,10 +21,17 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from opt_einsum.contract import ContractExpression
+    from opt_einsum.paths import PathOptimizer
+    from opt_einsum.typing import OptimizeKind
 
     from .utils import Array
 
 Shape = tuple[int, ...]
+
+# The default path optimizer of the kernels. ``dp`` finds the cheapest path: on an
+# A100 it halved the projection time against ``auto``, which at large bonds also
+# plans an intermediate too big for any batch above 16 rows.
+DEFAULT_OPTIMIZE = "dp"
 
 
 class Equations(NamedTuple):
@@ -67,16 +74,22 @@ class _Contractions:
     Uniform bulk sites share one entry, so the path is planned once rather than at
     every site. Kept per call: jagged bonds and short last batches add entries that
     are not worth keeping.
+
+    Args:
+        optimize: The opt_einsum path optimizer.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, optimize: str | PathOptimizer) -> None:
+        self._optimize = cast("OptimizeKind", optimize)
         self._compiled: dict[tuple[str, tuple[Shape, ...]], ContractExpression] = {}
 
     def __call__(self, eq: str, *operands: Array) -> Array:
         shapes = tuple(op.shape for op in operands)
         expr = self._compiled.get((eq, shapes))
         if expr is None:
-            expr = self._compiled[eq, shapes] = contract_expression(eq, *shapes)
+            expr = self._compiled[eq, shapes] = contract_expression(
+                eq, *shapes, optimize=self._optimize
+            )
         return expr(*operands)
 
 
@@ -85,11 +98,14 @@ class SiteKernels:
 
     Args:
         depth: The number of layers of the stack.
+        optimize: The opt_einsum path optimizer, a name or a ``PathOptimizer``.
     """
 
-    def __init__(self, depth: int) -> None:
+    def __init__(
+        self, depth: int, optimize: str | PathOptimizer = DEFAULT_OPTIMIZE
+    ) -> None:
         self.eqs = equations(depth)
-        self._contract = _Contractions()
+        self._contract = _Contractions(optimize)
 
     def env(self, env: Array, omega: Array, cores: Sequence[Array]) -> Array:
         """Advance a batch of sketch columns of the environment by one site.
@@ -144,10 +160,15 @@ class SiteKernels:
 
 
 @cache
-def peak_elements(eq: str, shapes: tuple[Shape, ...]) -> int:
+def peak_elements(
+    eq: str,
+    shapes: tuple[Shape, ...],
+    optimize: str | PathOptimizer = DEFAULT_OPTIMIZE,
+) -> int:
     """Estimate the peak elements a contraction allocates beyond its inputs.
 
-    Walks the path `opt_einsum` picks for these shapes, the one `SiteKernels` runs.
+    Walks the path `opt_einsum` picks for these shapes with ``optimize``, the one
+    `SiteKernels` runs with it.
     Each pairwise step holds the intermediates still alive, its output and a
     possible contiguous copy of both operands (``tensordot`` transposes them), so
     the estimate errs on the high side. The final output is included, the inputs
@@ -156,11 +177,14 @@ def peak_elements(eq: str, shapes: tuple[Shape, ...]) -> int:
     Args:
         eq: The einsum equation.
         shapes: The operand shapes.
+        optimize: The opt_einsum path optimizer.
 
     Returns:
         The peak number of elements.
     """
-    _, info = oe.contract_path(eq, *shapes, shapes=True)
+    _, info = oe.contract_path(
+        eq, *shapes, shapes=True, optimize=cast("OptimizeKind", optimize)
+    )
     sizes = info.size_dict
     # (elements, is_intermediate) for every operand still to be contracted.
     operands = [(prod(shape), False) for shape in shapes]
