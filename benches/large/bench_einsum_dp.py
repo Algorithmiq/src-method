@@ -1,6 +1,6 @@
 """opt_einsum ``auto`` against ``dp`` paths for the SRC kernels, on the GPU.
 
-Four commands:
+Three commands:
 
 - ``kernels``: time `SiteKernels.env`, ``.sketch`` and ``.project`` on random arrays
   of the reference shapes, with both optimizers in one process, and check that
@@ -8,8 +8,9 @@ Four commands:
 - ``sweep``: run the SRC of a ``generate``-d stack of `bench_large` a few times with
   the optimizer that ``SRC_EINSUM_OPTIMIZE`` selects, logging the plan, the pass
   times and the device peak, and save the last output;
-- ``distance``: the QR distance between the saved ``auto`` and ``dp`` outputs;
-- ``report``: tables and plots from the JSON lines.
+- ``distance``: the QR distance between the saved ``auto`` and ``dp`` outputs.
+
+Each command logs its rows and appends them as JSON lines under ``OUT``.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 app = cyclopts.App(help="Measure opt_einsum auto against dp for the SRC kernels.")
 
 HERE = Path(__file__).parent
-OUT = HERE / "leonardo" / "einsum_dp"
+OUT = Path("einsum_dp")
 OPTIMIZERS = ("auto", "dp")
 GB = 1e9
 # opt_einsum counts a real multiply-add as 2 operations; a complex one is 8 real
@@ -450,216 +451,6 @@ def distance(
     logger.info("QR distance auto-dp on %d GPUs: %.3e", devices, d)
     with output.open("a") as f:
         f.write(json.dumps({"devices": devices, "qr_distance": d}) + "\n")
-
-
-# ---------------------------------------------------------------------------
-# Report
-# ---------------------------------------------------------------------------
-
-COLORS = {"auto": "#2a78d6", "dp": "#eb6834"}
-MARKERS = {"auto": "o", "dp": "s"}
-
-
-def _jsonl(path: Path) -> list[dict[str, Any]]:
-    return (
-        [json.loads(x) for x in path.read_text().splitlines()] if path.exists() else []
-    )
-
-
-@app.command
-def report(folder: Path = OUT) -> None:
-    """Write ``summary.md`` and the per-kernel plot from the JSON lines.
-
-    A hand-written ``conclusion.md`` in ``folder``, if present, is appended.
-
-    Args:
-        folder: Folder with ``kernels.jsonl``, ``sweeps.jsonl`` and ``distances.jsonl``.
-    """
-    import matplotlib as mpl  # noqa: PLC0415
-
-    mpl.use("Agg")
-    import matplotlib.pyplot as plt  # noqa: PLC0415
-
-    krows = _jsonl(folder / "kernels.jsonl")
-    kmeta = next((r["meta"] for r in krows if "meta" in r), None)
-    krows = [r for r in krows if "meta" not in r]
-    srows = _jsonl(folder / "sweeps.jsonl")
-    drows = _jsonl(folder / "distances.jsonl")
-
-    lines = ["# opt_einsum `auto` against `dp` for the SRC kernels", ""]
-    lines += [
-        "## Provenance",
-        "",
-        "| experiment | job | commit | cupy | numpy | opt_einsum | gpu |",
-        "|---|---|---|---|---|---|---|",
-    ]
-    metas = ([("A", kmeta)] if kmeta else []) + [
-        (f"{r['experiment']} {r['optimizer']}", r["meta"])
-        for r in srows
-        if r["repeat"] == 0
-    ]
-    for name, m in metas:
-        lines.append(
-            f"| {name} | {m['slurm_job']} | {m['commit'][:10]}"
-            f"{' (dirty src)' if m['src_dirty'] else ''} | {m['cupy']} | {m['numpy']}"
-            f" | {m['opt_einsum']} | {m['gpus']}x {m['gpu']} |"
-        )
-    lines.append("")
-
-    if krows:
-        lines += [
-            "## A: kernels at the reference shapes",
-            "",
-            "D = (4, 4, 4000, 4), physical legs 4, eta = 2000, complex128, one A100. "
-            "Median of 5 runs after 2 warm-ups, CUDA events. `flops` is opt_einsum's "
-            "count; TFLOP/s counts 4 real flops per opt_einsum op (complex128). "
-            "`pool +GB` is the pool growth beyond the inputs. `search` is "
-            "`contract_path` alone, paid once per shape and sweep.",
-            "",
-            "| kernel | batch | optimizer | flops | largest interm. | planned peak GB"
-            " | median s | s / unit | TFLOP/s | pool +GB | search ms | rel. diff |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|",
-        ]
-        for r in krows:
-            ok = r["status"] == "ok"
-            lines.append(
-                f"| {r['kernel']} | {r['batch']} | {r['optimizer']} | {r['flops']:.2e}"
-                f" | {r['largest_intermediate']:.2e} | {r['peak_gb']:.1f}"
-                + (
-                    f" | {r['median_s']:.4f} | {r['per_unit_s']:.2e} | {r['tflops']:.2f}"
-                    f" | {r['pool_beyond_inputs_gb']:.1f}"
-                    if ok
-                    else f" | {r['status']} | | | "
-                )
-                + f" | {1e3 * r['path_search_s']:.1f}"
-                + (
-                    f" | {r['rel_diff_vs_auto']:.1e} |"
-                    if "rel_diff_vs_auto" in r
-                    else " | |"
-                )
-            )
-        lines.append("")
-        fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained")
-        for ax, kernel in zip(axes, ("project", "sketch", "env"), strict=True):
-            notes, top = [], 0.0
-            for opt in OPTIMIZERS:
-                pts = [
-                    r
-                    for r in krows
-                    if r["kernel"] == kernel
-                    and r["optimizer"] == opt
-                    and r["status"] == "ok"
-                ]
-                top = max([top, *(r["per_unit_s"] * 1e3 for r in pts)])
-                # auto is drawn larger, underneath: the two often coincide.
-                ax.plot(
-                    [r["batch"] for r in pts],
-                    [r["per_unit_s"] * 1e3 for r in pts],
-                    color=COLORS[opt],
-                    marker=MARKERS[opt],
-                    markersize=10 if opt == "auto" else 6,
-                    markeredgecolor="white",
-                    linewidth=2,
-                    label=opt,
-                    zorder=2 if opt == "auto" else 3,
-                )
-                skipped = [
-                    r["batch"]
-                    for r in krows
-                    if r["kernel"] == kernel
-                    and r["optimizer"] == opt
-                    and r["status"] != "ok"
-                ]
-                if skipped:
-                    notes.append(f"{opt} skipped: {', '.join(map(str, skipped))}")
-            if notes:
-                ax.text(
-                    0.98,
-                    0.97,
-                    "\n".join([*notes, "(planned peak > 50 GB)"]),
-                    transform=ax.transAxes,
-                    ha="right",
-                    va="top",
-                    fontsize=8,
-                    color="#52514e",
-                )
-            batches = sorted({r["batch"] for r in krows if r["kernel"] == kernel})
-            unit = "row" if kernel == "project" else "column"
-            ax.set_xscale("log", base=2)
-            ax.set_xticks(batches, [str(x) for x in batches])
-            ax.minorticks_off()
-            ax.set_xlim(batches[0] / 1.5, batches[-1] * 1.5)
-            ax.set_xlabel(f"batch ({unit}s)")
-            ax.set_ylabel(f"ms per {unit}")
-            ax.set_title(kernel, fontsize=10)
-            ax.set_ylim(0, 1.45 * top)
-            ax.grid(True, color="#e6e5e0", linewidth=0.8)
-            for side in ("top", "right"):
-                ax.spines[side].set_visible(False)
-            ax.legend(frameon=False, loc="lower left")
-        fig.savefig(folder / "kernels_time_per_unit.png", dpi=150)
-        plt.close(fig)
-        lines += ["![kernels](kernels_time_per_unit.png)", ""]
-
-    for exp, title in (
-        ("B", "B: full sweep, one A100"),
-        ("C", "C: full sweep, 4 A100s"),
-    ):
-        rows = [r for r in srows if r["experiment"] == exp]
-        if not rows:
-            continue
-        lines += [
-            f"## {title}",
-            "",
-            "D_M = 1000, chi_out = 500, 50 sites, complex128, 60 GB GPU budget per "
-            "device. Per repeat: wall time, the passes (max over devices), expression "
-            "builds (path search included), out-of-memory splits.",
-            "",
-            "| optimizer | repeat | wall s | left-to-right s | right-to-left s | builds (s)"
-            " | batches (env, sketch, project) | pool GB | planned peak GB | tiers | OOM splits |",
-            "|---|---|---|---|---|---|---|---|---|---|---|",
-        ]
-        for r in rows:
-            lines.append(
-                f"| {r['optimizer']} | {r['repeat']} | {r['seconds']:.1f}"
-                f" | {max(r['left_to_right_s'], default=float('nan')):.1f}"
-                f" | {max(r['right_to_left_s'], default=float('nan')):.1f}"
-                f" | {r['expression_builds']} ({r['expression_build_s']:.2f})"
-                f" | {', '.join(str(tuple(b)) for b in r['batches'])}"
-                f" | {', '.join(f'{p:.1f}' for p in r['pool_gb'])}"
-                f" | {r['planned_device_peak_gb']:.1f}"
-                f" | {r['tiers']['device']}/{r['tiers']['host']}/{r['tiers']['disk']}"
-                f" | {r['oom_splits']} |"
-            )
-        lines += [
-            "",
-            "| optimizer | median s | range s | median L2R s | median R2L s |",
-            "|---|---|---|---|---|",
-        ]
-        for opt in OPTIMIZERS:
-            sub = [r for r in rows if r["optimizer"] == opt]
-            if not sub:
-                continue
-            secs = [r["seconds"] for r in sub]
-            lines.append(
-                f"| {opt} | {median(secs):.1f} | {min(secs):.1f}-{max(secs):.1f}"
-                f" | {median(max(r['left_to_right_s']) for r in sub):.1f}"
-                f" | {median(max(r['right_to_left_s']) for r in sub):.1f} |"
-            )
-        devices = rows[0]["devices"]
-        for d in drows:
-            if d["devices"] == devices:
-                lines += [
-                    "",
-                    f"QR distance between the `auto` and `dp` outputs: "
-                    f"{d['qr_distance']:.1e}.",
-                ]
-        lines.append("")
-
-    conclusion = folder / "conclusion.md"
-    if conclusion.exists():
-        lines += [conclusion.read_text().rstrip(), ""]
-    (folder / "summary.md").write_text("\n".join(lines))
 
 
 if __name__ == "__main__":
