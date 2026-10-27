@@ -1,6 +1,7 @@
 """Test the batched site kernels and the peak-memory walk."""
 
 import numpy as np
+import opt_einsum as oe
 import pytest
 
 from src_method._kernels import SiteKernels, equations, peak_elements
@@ -80,3 +81,21 @@ def test_peak_elements_of_a_matrix_chain():
     shapes = ((2, 3), (3, 4), (4, 5))
 
     assert peak_elements("ab,bc,cd->ad", shapes) == 46
+
+
+class FixedPath(oe.paths.PathOptimizer):
+    """Always return the same contraction path."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __call__(self, inputs, output, size_dict, memory_limit=None):  # noqa: ARG002
+        return self.path
+
+
+def test_peak_elements_follows_the_optimizer():
+    # Contracting (3x4)(4x5) first holds its operands (12 + 20) and a 3x5
+    # intermediate (15): 47, one more than the default path's 46.
+    shapes = ((2, 3), (3, 4), (4, 5))
+
+    assert peak_elements("ab,bc,cd->ad", shapes, FixedPath([(1, 2), (0, 1)])) == 47

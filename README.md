@@ -125,7 +125,9 @@ out = src(
 
 On a node with several GPUs, `Resources(devices=4)` splits the sweep among four of them, in the same process.
 
-See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory, several GPUs and how to read the logged plan.
+The contractions follow opt_einsum's cheapest (`dp`) paths. `optimize` selects any other opt_einsum path optimizer, by name or as a `PathOptimizer` instance.
+
+See [Large problems](https://algorithmiq.github.io/src-method/features/large-problems) for the budgets, the scratch directory, several GPUs, contraction paths and how to read the logged plan.
 
 ## Installation
 

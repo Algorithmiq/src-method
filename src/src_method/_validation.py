@@ -11,6 +11,7 @@ from math import ceil, isfinite
 from typing import TYPE_CHECKING
 
 import numpy as np
+from opt_einsum.paths import PathOptimizer, get_path_fn
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,6 +23,7 @@ __all__ = [
     "validate_chi_out",
     "validate_cutoff",
     "validate_open_boundary",
+    "validate_optimize",
 ]
 
 
@@ -91,6 +93,35 @@ def validate_cutoff(cutoff: float) -> None:
     if not isinstance(cutoff, numbers.Real) or not 0.0 <= cutoff < 1.0:
         msg = f"cutoff must be in [0.0, 1.0), got {cutoff!r}."
         raise ValueError(msg)
+
+
+def validate_optimize(optimize: object) -> None:
+    """Reject anything opt_einsum cannot plan every kernel with.
+
+    A name must resolve to an opt_einsum path optimizer, built in or added with
+    ``opt_einsum.paths.register_path_fn``. Explicit paths and booleans are refused:
+    the sweep contracts several equations, and no single path fits them all.
+
+    Args:
+        optimize: The path optimizer.
+
+    Raises:
+        TypeError: If `optimize` is neither a name nor a ``PathOptimizer``.
+        ValueError: If `optimize` names no opt_einsum path optimizer.
+    """
+    if isinstance(optimize, PathOptimizer):
+        return
+    if not isinstance(optimize, str):
+        msg = (
+            "optimize must be an opt_einsum path optimizer name or a "
+            f"PathOptimizer, got {optimize!r}."
+        )
+        raise TypeError(msg)
+    try:
+        get_path_fn(optimize)
+    except KeyError as err:
+        msg = f"optimize names no opt_einsum path optimizer: {optimize!r}."
+        raise ValueError(msg) from err
 
 
 def validate_open_boundary(
