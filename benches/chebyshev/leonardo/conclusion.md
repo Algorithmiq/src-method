@@ -13,6 +13,9 @@ at equal `chi` it is 35-430x more accurate. The SRC-versus-zip-up gap does not
 grow with the MPO bond: it is about 10x for D = 5 and for D = 14. On this
 evidence, Chebyshev spectral functions are not yet a clear flagship for SRC. The
 case rests on memory (below) and on the sum step, not on raw time to spectrum.
+The follow-up below qualifies this: src-method followed by a single fit sweep is
+2-3x faster than quimb fit at matched accuracy down to 1e-6. The application was
+dropped before that was explored further.
 
 ### Time to spectrum at matched accuracy
 
@@ -28,6 +31,34 @@ Chain L = 100, q = 0.990 pi, 200 moments (from the plot and table above):
 YC4 cylinder (D = 14), 50 moments: src-method `chi = 512` reaches 8.3e-5 in 63 s
 and quimb fit `chi = 256` 5.6e-5 in 79 s, a near tie. quimb fit `chi = 512`
 reaches 1.8e-6 in 189 s; src-method's `chi = 1024` reference takes 330 s.
+
+### Follow-up: oversampling and SRC + one fit sweep (chain, q = pi)
+
+Added after the conclusion above; it changes the matched-accuracy picture.
+`src-method+fit1` is src-method followed by one quimb `fit` sweep (warm start,
+`max_iterations=1`) on both the apply and the sum; `src-method-os` is
+src-method with `oversample=None`. One seed, 100 steps (200 moments).
+
+| method | chi | s / moment | 200 moments | S error |
+|---|---|---|---|---|
+| src-method+fit1 | 128 | 0.60 | 120 s | 3.6e-5 |
+| src-method+fit1 | 256 | 1.14 | 228 s | 1.1e-6 |
+| src-method+fit1 | 512 | 3.41 | 681 s | 1.5e-7 |
+| src-method-os | 128 | 1.20 | 239 s | 4.7e-5 |
+| src-method-os | 256 | 3.69 | 738 s | 1.3e-6 |
+| src-method-os | 512 | 16.5 | (4 steps, stopped) | - |
+| quimb fit | 128 | 1.76 | 351 s | 3.2e-5 |
+| quimb fit | 256 | 2.42 | 483 s | 1.2e-6 |
+
+- The hybrid is 2.1-2.9x faster than quimb fit at matched accuracy and beats
+  plain src-method at every accuracy measured; at L = 20 it matches fit's
+  accuracy per `chi`.
+- `oversample=None` buys the same accuracy per `chi` as the fit sweep but costs
+  2-3x more than the hybrid, and 5-10x more than plain src-method.
+- 1.5e-7 is below the reference's resolution (src-method `chi = 1024`); it shows
+  agreement, not a measured error.
+- The capacity probes (largest `chi` per method on one card; src-method on 4
+  GPUs) were cancelled before running when the application was dropped.
 
 ### Speed per moment and the D scaling
 

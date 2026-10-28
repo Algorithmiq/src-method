@@ -2,7 +2,7 @@
 
 ## Provenance
 
-src-method 0.5.2.dev3+gf8d0f6f76, quimb 1.15.0, CuPy 14.2.0, NumPy 2.4.4, CUDA runtime 13020, driver 13040, NVIDIA A100-SXM-64GB, TeNPy 1.1.1. `SRC_EINSUM_OPTIMIZE` unset (src-method's default `dp` paths). Jobs: 62438530, 62439612, 62442407, 62442408, 62444886, 62444887, 62447531, 62447668, 62449018, 62449594, 62450796, 62453288, 62453444, 62453583, 62453864, 62454348, 62454374, 62454828, 62456653.
+src-method 0.5.2.dev3+gf8d0f6f76, quimb 1.15.0, CuPy 14.2.0, NumPy 2.4.4, CUDA runtime 13020, driver 13040, NVIDIA A100-SXM-64GB, TeNPy 1.1.1. `SRC_EINSUM_OPTIMIZE` unset (src-method's default `dp` paths). Jobs: 62438530, 62439612, 62442407, 62442408, 62444886, 62444887, 62447531, 62447668, 62449018, 62449594, 62450796, 62453288, 62453444, 62453583, 62453864, 62454348, 62454374, 62454828, 62456653, 62531768, 62531769.
 
 ## Checks
 
@@ -69,6 +69,12 @@ DMRG E0 -8.682473334363; <psi0|H|psi0> with the sparse H -8.682473334363. Error 
 | pi | src-method | 64 | 200 | 5.63e-02 | 9.27e-03 |
 | pi | src-method | 128 | 200 | 4.71e-04 | 8.40e-05 |
 | pi | src-method | 256 | 200 | 4.91e-07 | 2.74e-07 |
+| pi | src-method+fit1 | 64 | 200 | 1.33e-03 | 2.29e-04 |
+| pi | src-method+fit1 | 128 | 200 | 4.49e-06 | 1.88e-06 |
+| pi | src-method+fit1 | 256 | 200 | 2.67e-09 | 1.16e-09 |
+| pi | src-method-os | 64 | 200 | 1.05e-03 | 6.92e-05 |
+| pi | src-method-os | 128 | 200 | 3.14e-06 | 1.33e-06 |
+| pi | src-method-os | 256 | 200 | 1.75e-09 | 1.07e-09 |
 
 ![phase1_L20_moment_error.png](phase1_L20_moment_error.png)
 
@@ -107,6 +113,12 @@ Runs shorter than the reference are timing-only (errors `-`).
 | src-method | 256 | 3 | 100 | 0.347 | 0.708 | 0.528 | 106 | 1.6 | 1.7e-01 | 5.1e-04 |
 | src-method | 512 | 3 | 100 | 0.915 | 2.539 | 1.733 | 347 | 5.2 | 1.2e-02 | 8.3e-06 |
 | src-method | 1024 | 1 | 100 | 5.040 | 13.669 | 9.355 | 1871 | 18.5 | ref | ref |
+| src-method-os | 128 | 1 | 100 | 1.182 | 1.210 | 1.196 | 239 | 0.8 | 8.1e-03 | 4.7e-05 |
+| src-method-os | 256 | 1 | 100 | 3.504 | 3.877 | 3.690 | 738 | 1.7 | 2.4e-04 | 1.3e-06 |
+| src-method-os | 512 | 1 | 7 | 15.238 | 17.756 | 16.497 | 3299 | 4.1 | - | - |
+| src-method+fit1 | 128 | 1 | 100 | 0.490 | 0.711 | 0.600 | 120 | 1.3 | 7.3e-03 | 3.6e-05 |
+| src-method+fit1 | 256 | 1 | 100 | 0.822 | 1.458 | 1.140 | 228 | 2.5 | 1.9e-04 | 1.1e-06 |
+| src-method+fit1 | 512 | 1 | 100 | 2.314 | 4.498 | 3.406 | 681 | 8.0 | 7.2e-05 | 1.5e-07 |
 | quimb-zipup | 128 | 1 | 100 | 2.261 | 2.311 | 2.286 | 457 | 3.8 | 2.8e+00 | 2.0e-02 |
 | quimb-zipup | 256 | 1 | 100 | 5.386 | 5.655 | 5.521 | 1104 | 7.6 | 1.4e-01 | 7.5e-04 |
 | quimb-zipup | 512 | 1 | 15 | 14.643 | 17.060 | 15.852 | 3170 | 29.4 | - | - |
@@ -174,6 +186,9 @@ at equal `chi` it is 35-430x more accurate. The SRC-versus-zip-up gap does not
 grow with the MPO bond: it is about 10x for D = 5 and for D = 14. On this
 evidence, Chebyshev spectral functions are not yet a clear flagship for SRC. The
 case rests on memory (below) and on the sum step, not on raw time to spectrum.
+The follow-up below qualifies this: src-method followed by a single fit sweep is
+2-3x faster than quimb fit at matched accuracy down to 1e-6. The application was
+dropped before that was explored further.
 
 ### Time to spectrum at matched accuracy
 
@@ -189,6 +204,34 @@ Chain L = 100, q = 0.990 pi, 200 moments (from the plot and table above):
 YC4 cylinder (D = 14), 50 moments: src-method `chi = 512` reaches 8.3e-5 in 63 s
 and quimb fit `chi = 256` 5.6e-5 in 79 s, a near tie. quimb fit `chi = 512`
 reaches 1.8e-6 in 189 s; src-method's `chi = 1024` reference takes 330 s.
+
+### Follow-up: oversampling and SRC + one fit sweep (chain, q = pi)
+
+Added after the conclusion above; it changes the matched-accuracy picture.
+`src-method+fit1` is src-method followed by one quimb `fit` sweep (warm start,
+`max_iterations=1`) on both the apply and the sum; `src-method-os` is
+src-method with `oversample=None`. One seed, 100 steps (200 moments).
+
+| method | chi | s / moment | 200 moments | S error |
+|---|---|---|---|---|
+| src-method+fit1 | 128 | 0.60 | 120 s | 3.6e-5 |
+| src-method+fit1 | 256 | 1.14 | 228 s | 1.1e-6 |
+| src-method+fit1 | 512 | 3.41 | 681 s | 1.5e-7 |
+| src-method-os | 128 | 1.20 | 239 s | 4.7e-5 |
+| src-method-os | 256 | 3.69 | 738 s | 1.3e-6 |
+| src-method-os | 512 | 16.5 | (4 steps, stopped) | - |
+| quimb fit | 128 | 1.76 | 351 s | 3.2e-5 |
+| quimb fit | 256 | 2.42 | 483 s | 1.2e-6 |
+
+- The hybrid is 2.1-2.9x faster than quimb fit at matched accuracy and beats
+  plain src-method at every accuracy measured; at L = 20 it matches fit's
+  accuracy per `chi`.
+- `oversample=None` buys the same accuracy per `chi` as the fit sweep but costs
+  2-3x more than the hybrid, and 5-10x more than plain src-method.
+- 1.5e-7 is below the reference's resolution (src-method `chi = 1024`); it shows
+  agreement, not a measured error.
+- The capacity probes (largest `chi` per method on one card; src-method on 4
+  GPUs) were cancelled before running when the application was dropped.
 
 ### Speed per moment and the D scaling
 

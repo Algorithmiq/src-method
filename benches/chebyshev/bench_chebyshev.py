@@ -39,7 +39,7 @@ import cyclopts
 import numpy as np
 
 import src_method
-from src_method import apply, compress
+from src_method import Resources, apply, compress
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -51,7 +51,16 @@ HERE = Path(__file__).parent
 OUT = HERE / "leonardo"
 SCRATCH = Path(os.environ.get("CINECA_SCRATCH", "/tmp")) / "chebyshev"
 W_PRIME = 0.9875
-METHODS = ("src-method", "quimb-zipup", "quimb-zipup-first", "quimb-src", "quimb-fit")
+METHODS = (
+    "src-method",
+    "src-method-os",
+    "src-method+fit1",
+    "src-method-g4",
+    "quimb-zipup",
+    "quimb-zipup-first",
+    "quimb-src",
+    "quimb-fit",
+)
 
 SX = np.array([[0, 0.5], [0.5, 0]], dtype=complex)
 SY = np.array([[0, -0.5j], [0.5j, 0]], dtype=complex)
@@ -292,6 +301,24 @@ def inner(a: Sequence[Any], b: Sequence[Any]) -> complex:
         return complex(env[0, 0])
 
 
+def pool_gb() -> float:
+    """The largest default-pool size over the visible GPUs, in GB."""
+    cp = _cupy()
+    sizes = []
+    for gpu in range(cp.cuda.runtime.getDeviceCount()):
+        with cp.cuda.Device(gpu):
+            sizes.append(cp.get_default_memory_pool().total_bytes())
+    return max(sizes) / 1e9
+
+
+def free_pools() -> None:
+    """Release the cached blocks of every GPU's default pool."""
+    cp = _cupy()
+    for gpu in range(cp.cuda.runtime.getDeviceCount()):
+        with cp.cuda.Device(gpu):
+            cp.get_default_memory_pool().free_all_blocks()
+
+
 def sync() -> None:
     _cupy().cuda.Device().synchronize()
 
@@ -335,18 +362,29 @@ class SrcMethod:
 
     name = "src-method"
 
-    def __init__(self, H: Train, chi: int, seed: int) -> None:
+    def __init__(
+        self,
+        H: Train,
+        chi: int,
+        seed: int,
+        *,
+        oversample: float | None = 1.0,
+        devices: int = 1,
+    ) -> None:
         self.H, self.chi, self.seed = H, chi, seed
+        self.opts: dict[str, Any] = {"device": "gpu", "oversample": oversample}
+        if devices > 1:
+            self.opts["resources"] = Resources(devices=devices)
 
     def state(self, arrays: Train) -> Train:
         return [np.asarray(a) for a in arrays]
 
     def apply(self, t: Train, n: int) -> Train:
-        return apply(self.H, t, self.chi, device="gpu", seed=self._seed(2 * n))
+        return apply(self.H, t, self.chi, seed=self._seed(2 * n), **self.opts)
 
     def combine(self, terms: Sequence[tuple[complex, Train]], n: int) -> Train:
         return compress(
-            direct_sum(terms), self.chi, device="gpu", seed=self._seed(2 * n + 1)
+            direct_sum(terms), self.chi, seed=self._seed(2 * n + 1), **self.opts
         )
 
     def arrays(self, t: Train) -> Train:
@@ -439,9 +477,66 @@ class Quimb:
         return list(t.arrays)
 
 
+class SrcFit(SrcMethod):
+    """src-method, then one quimb 1-site ``fit`` sweep started from its result.
+
+    The apply is refined against the lazy ``H|t>`` network and the sum against
+    its three terms directly (``fit`` takes a list of networks), so the ``3 chi``
+    direct sum is never formed for the sweep. States live on the host for
+    src-method and move to the GPU for the sweep; the copies are timed.
+    """
+
+    name = "src-method+fit1"
+
+    def __init__(self, H: Train, chi: int, seed: int) -> None:
+        import quimb.tensor as qtn  # noqa: PLC0415
+
+        super().__init__(H, chi, seed)
+        _quimb_on_device()
+        self.qtn = qtn
+        self.Hq = qtn.MatrixProductOperator([_cupy().asarray(w) for w in H])
+
+    def _mps(self, arrays: Train) -> Any:  # noqa: ANN401
+        cp = _cupy()
+        return self.qtn.MatrixProductState([cp.asarray(a) for a in arrays])
+
+    def _sweep(self, target: Any, guess: Train) -> Train:  # noqa: ANN401
+        from quimb.tensor.tn1d.compress import (  # noqa: PLC0415
+            tensor_network_1d_compress_fit,
+        )
+
+        out = tensor_network_1d_compress_fit(
+            target,
+            max_bond=self.chi,
+            cutoff=0.0,
+            tn_fit=self._mps(guess),
+            max_iterations=1,
+        )
+        out.permute_arrays("lrp")
+        cp = _cupy()
+        return [cp.asnumpy(a) for a in out.arrays]
+
+    def apply(self, t: Train, n: int) -> Train:
+        guess = super().apply(t, n)
+        lazy = self.qtn.tensor_network_apply_op_vec(
+            self.Hq, self._mps(t), contract=False
+        )
+        return self._sweep(lazy, guess)
+
+    def combine(self, terms: Sequence[tuple[complex, Train]], n: int) -> Train:
+        guess = super().combine(terms, n)
+        return self._sweep([c * self._mps(x) for c, x in terms], guess)
+
+
 def pipeline(method: str, H: Train, chi: int, seed: int) -> SrcMethod | Quimb:
     if method == "src-method":
         return SrcMethod(H, chi, seed)
+    if method == "src-method-os":
+        return SrcMethod(H, chi, seed, oversample=None)
+    if method == "src-method-g4":
+        return SrcMethod(H, chi, seed, devices=4)
+    if method == "src-method+fit1":
+        return SrcFit(H, chi, seed)
     return Quimb(method.removeprefix("quimb-"), H, chi, seed)
 
 
@@ -799,7 +894,6 @@ def run(
     """
     start_job = perf_counter()
     cp = _cupy()
-    pool = cp.get_default_memory_pool()
     _warmup(sorted({c.split(":")[3] for c in configs}))
     meta = provenance()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -829,92 +923,110 @@ def run(
         if done and done["n"] >= steps:
             logger.info("%s: complete", name)
             continue
-        # Drop the previous configuration's states before resetting the pool.
-        p = t0 = prev = cur = nxt = None
-        pool.free_all_blocks()
-        H = _load_train(folder / "H.npz")
-        p = pipeline(method, H, chi, seed)
-        t0 = p.state(_load_train(folder / f"t0_{target}.npz"))
-        if done:
-            rows = [r for r in rows if r["n"] <= done["n"]]
-            prev = p.state(_load_train(ckpt / "prev.npz"))
-            cur = p.state(_load_train(ckpt / "cur.npz"))
-            mu0, mu1, n0 = done["mu0"], done["mu1"], done["n"]
-            logger.info("%s: resuming after step %d", name, n0)
-        else:
-            mu0 = float(np.real(inner(p.arrays(t0), p.arrays(t0))))
-            t_start = perf_counter()
-            y = p.apply(t0, 0)
-            t_apply = perf_counter() - t_start
-            t_start = perf_counter()
-            cur = p.combine([(1 / a, y), (-shift, t0)], 0)
-            t_comb = perf_counter() - t_start
-            del y
-            mu1 = float(np.real(inner(p.arrays(cur), p.arrays(t0))))
-            prev, n0 = t0, 1
-            rows = [
-                {
-                    "n": 1,
-                    "apply_s": t_apply,
-                    "compress_s": t_comb,
-                    "moments": {"0": mu0, "1": mu1},
-                    "bond": bond(p.arrays(cur)),
-                    "pool_gb": pool.total_bytes() / 1e9,
-                }
-            ]
-        with path.open("w") as f:
-            f.write(
-                json.dumps({"meta": meta | {"config": config, "a": a, "E0": e0}}) + "\n"
-            )
-            for r in rows:
-                f.write(json.dumps(r) + "\n")
-            slowest = max((r["apply_s"] + r["compress_s"] for r in rows), default=0.0)
-            stopped = False
-            for k in range(n0, steps):
-                elapsed = perf_counter() - start_job
-                if elapsed + 1.5 * slowest + 60 > 60 * budget_minutes:
-                    stopped = True
-                    break
-                # cur = t_k, prev = t_k-1; make t_k+1.
+        try:
+            # Drop the previous configuration's states before resetting the pool.
+            p = t0 = prev = cur = nxt = y = None
+            free_pools()
+            H = _load_train(folder / "H.npz")
+            p = pipeline(method, H, chi, seed)
+            t0 = p.state(_load_train(folder / f"t0_{target}.npz"))
+            if done:
+                rows = [r for r in rows if r["n"] <= done["n"]]
+                prev = p.state(_load_train(ckpt / "prev.npz"))
+                cur = p.state(_load_train(ckpt / "cur.npz"))
+                mu0, mu1, n0 = done["mu0"], done["mu1"], done["n"]
+                logger.info("%s: resuming after step %d", name, n0)
+            else:
+                mu0 = float(np.real(inner(p.arrays(t0), p.arrays(t0))))
                 t_start = perf_counter()
-                y = p.apply(cur, k)
+                y = p.apply(t0, 0)
                 t_apply = perf_counter() - t_start
                 t_start = perf_counter()
-                nxt = p.combine([(2 / a, y), (-2 * shift, cur), (-1.0, prev)], k)
+                cur = p.combine([(1 / a, y), (-shift, t0)], 0)
                 t_comb = perf_counter() - t_start
                 del y
-                ca = p.arrays(cur)
-                mus = {
-                    str(2 * k): 2 * float(np.real(inner(ca, ca))) - mu0,
-                    str(2 * k + 1): 2 * float(np.real(inner(p.arrays(nxt), ca))) - mu1,
-                }
-                row = {
-                    "n": k + 1,
-                    "apply_s": t_apply,
-                    "compress_s": t_comb,
-                    "moments": mus,
-                    "bond": bond(p.arrays(nxt)),
-                    "pool_gb": pool.total_bytes() / 1e9,
-                }
-                f.write(json.dumps(row) + "\n")
-                f.flush()
-                rows.append(row)
-                slowest = max(slowest, t_apply + t_comb)
-                prev, cur = cur, nxt
-                if (k + 1) % checkpoint_every == 0 or k + 1 == steps:
-                    _checkpoint(ckpt, p, prev, cur, k + 1, mu0, mu1)
-            else:
-                k = steps
-            if stopped:
-                _checkpoint(ckpt, p, prev, cur, k, mu0, mu1)
-                logger.info("%s: budget reached at step %d; rerun to resume", name, k)
-                return
-        logger.info(
-            "%s: done, median apply %.3f s, compress %.3f s",
-            name,
-            median(r["apply_s"] for r in rows[1:] or rows),
-            median(r["compress_s"] for r in rows[1:] or rows),
-        )
+                mu1 = float(np.real(inner(p.arrays(cur), p.arrays(t0))))
+                prev, n0 = t0, 1
+                rows = [
+                    {
+                        "n": 1,
+                        "apply_s": t_apply,
+                        "compress_s": t_comb,
+                        "moments": {"0": mu0, "1": mu1},
+                        "bond": bond(p.arrays(cur)),
+                        "pool_gb": pool_gb(),
+                    }
+                ]
+            with path.open("w") as f:
+                f.write(
+                    json.dumps({"meta": meta | {"config": config, "a": a, "E0": e0}})
+                    + "\n"
+                )
+                for r in rows:
+                    f.write(json.dumps(r) + "\n")
+                slowest = max(
+                    (r["apply_s"] + r["compress_s"] for r in rows), default=0.0
+                )
+                stopped = False
+                for k in range(n0, steps):
+                    elapsed = perf_counter() - start_job
+                    if elapsed + 1.5 * slowest + 60 > 60 * budget_minutes:
+                        stopped = True
+                        break
+                    # cur = t_k, prev = t_k-1; make t_k+1.
+                    t_start = perf_counter()
+                    y = p.apply(cur, k)
+                    t_apply = perf_counter() - t_start
+                    t_start = perf_counter()
+                    nxt = p.combine([(2 / a, y), (-2 * shift, cur), (-1.0, prev)], k)
+                    t_comb = perf_counter() - t_start
+                    del y
+                    ca = p.arrays(cur)
+                    mus = {
+                        str(2 * k): 2 * float(np.real(inner(ca, ca))) - mu0,
+                        str(2 * k + 1): 2 * float(np.real(inner(p.arrays(nxt), ca)))
+                        - mu1,
+                    }
+                    row = {
+                        "n": k + 1,
+                        "apply_s": t_apply,
+                        "compress_s": t_comb,
+                        "moments": mus,
+                        "bond": bond(p.arrays(nxt)),
+                        "pool_gb": pool_gb(),
+                    }
+                    f.write(json.dumps(row) + "\n")
+                    f.flush()
+                    rows.append(row)
+                    slowest = max(slowest, t_apply + t_comb)
+                    prev, cur = cur, nxt
+                    if (k + 1) % checkpoint_every == 0 or k + 1 == steps:
+                        _checkpoint(ckpt, p, prev, cur, k + 1, mu0, mu1)
+                else:
+                    k = steps
+                if stopped:
+                    _checkpoint(ckpt, p, prev, cur, k, mu0, mu1)
+                    logger.info(
+                        "%s: budget reached at step %d; rerun to resume", name, k
+                    )
+                    return
+            logger.info(
+                "%s: done, median apply %.3f s, compress %.3f s",
+                name,
+                median(r["apply_s"] for r in rows[1:] or rows),
+                median(r["compress_s"] for r in rows[1:] or rows),
+            )
+        except (cp.cuda.memory.OutOfMemoryError, MemoryError) as err:
+            # Out of memory is a result here (capacity probes), not a failure.
+            last = rows[-1]["n"] if rows else 0
+            with path.open("a") as f:
+                f.write(
+                    json.dumps({"oom": True, "n": last + 1, "error": str(err)[:300]})
+                    + "\n"
+                )
+            logger.info("%s: out of memory at step %d", name, last + 1)
+            p = t0 = prev = cur = nxt = None
+            free_pools()
 
 
 def _checkpoint(
@@ -932,6 +1044,9 @@ def _checkpoint(
 # Categorical slots 1-4 of the reference palette, fixed per method.
 COLORS = {
     "src-method": "#2a78d6",
+    "src-method-os": "#6250d6",
+    "src-method+fit1": "#008300",
+    "src-method-g4": "#e34948",
     "quimb-zipup": "#eb6834",
     "quimb-zipup-first": "#e87ba4",
     "quimb-src": "#1baf7a",
@@ -939,6 +1054,9 @@ COLORS = {
 }
 MARKERS = {
     "src-method": "o",
+    "src-method-os": "P",
+    "src-method+fit1": "X",
+    "src-method-g4": "h",
     "quimb-zipup": "s",
     "quimb-zipup-first": "v",
     "quimb-src": "^",
@@ -958,7 +1076,8 @@ def _runs(folder: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:  # a line still being written
                 continue
         head = next((r["meta"] for r in lines if "meta" in r), None)
-        rows = [r for r in lines if "meta" not in r]
+        rows = [r for r in lines if "meta" not in r and "oom" not in r]
+        oom = next((r["n"] for r in lines if r.get("oom")), None)
         if head is None or not rows:
             continue
         model, n, target, method, chi, seed = head["config"].split(":")
@@ -980,6 +1099,7 @@ def _runs(folder: Path) -> list[dict[str, Any]]:
                 "mu": np.array([moments[i] for i in range(count)]),
                 "a": head["a"],
                 "meta": head,
+                "oom": oom,
             }
         )
     return runs
@@ -1238,9 +1358,10 @@ def report(
                     s_cell = (
                         f"{max(errs_s):.1e}" if errs_s else ("ref" if is_ref else "-")
                     )
+                    oom_cell = " (OOM)" if any(r["oom"] for r in sub) else ""
                     lines.append(
                         f"| {method} | {chi} | {len(sub)} | {min(t['steps'] for t in tim)}"
-                        f" | {median(t['apply_s'] for t in tim):.3f}"
+                        f"{oom_cell} | {median(t['apply_s'] for t in tim):.3f}"
                         f" | {median(t['compress_s'] for t in tim):.3f} | {per:.3f}"
                         f" | {per * nm:.0f} | {max(t['pool_gb'] for t in tim):.1f}"
                         f" | {mu_cell} | {s_cell} |"
