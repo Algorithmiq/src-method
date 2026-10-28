@@ -1,0 +1,4 @@
+{"a": "c128-s0-r1.npz", "b": "c64-s0-r1.npz", "qr_distance": 6.400182138342326e-05, "bit_identical": false, "dtypes": ["complex128", "complex64"]}
+{"a": "c128-s0-r1.npz", "b": "c128-s1.npz", "qr_distance": 1.4260648998734016, "bit_identical": false, "dtypes": ["complex128", "complex128"]}
+{"a": "c128-s0-r1.npz", "b": "c128-s0-r2.npz", "qr_distance": 4.561518057970195e-15, "bit_identical": true, "dtypes": ["complex128", "complex128"]}
+{"a": "c64-s0-r1.npz", "b": "c64-s0-r2.npz", "qr_distance": 4.5711424967110755e-15, "bit_identical": true, "dtypes": ["complex64", "complex64"]}
