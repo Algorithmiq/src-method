@@ -403,21 +403,24 @@ def install_flop_counters() -> None:
 
 
 def diagnostics(mpo: Sequence[Any]) -> tuple[complex, float]:
-    """``<0|O|0>`` and ``2^-n Tr(O^dag O)``, on the GPU's analysis pool."""
+    """``<0|O|0>`` and ``2^-n Tr(O^dag O)``, on the GPU's analysis pool.
+
+    Streams one site at a time, so the operator never has to fit on the device.
+    """
     cp = _cupy()
     saved = dict(FLOPS)
     with analysis_pool():
-        sites = full([cp.asarray(t) for t in mpo])
         env = cp.ones(1, dtype=complex)
-        for w in sites:
-            env = env @ w[:, :, 0, 0]
-        value = complex(env[0])
         norm = cp.ones((1, 1), dtype=complex)
-        for w in sites:
+        for w in full(list(mpo)):
+            w = cp.asarray(w)
+            env = env @ w[:, :, 0, 0]
             tmp = cp.tensordot(norm, w.conj(), axes=(0, 0))  # (a', r, u, d)
             norm = cp.tensordot(tmp, w, axes=([0, 2, 3], [0, 2, 3])) / 2  # (r, r')
+            del w, tmp
+        value = complex(env[0])
         frob = float(norm[0, 0].real)
-        del sites, env, norm, tmp
+        del env, norm
     _analysis_pool().free_all_blocks()
     FLOPS.update(saved)
     return value, frob
