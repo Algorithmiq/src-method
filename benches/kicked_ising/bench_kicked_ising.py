@@ -358,7 +358,9 @@ def install_flop_counters() -> None:
     def counted_einsum(eq: str, *ops: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         if len(ops) >= 2 and "..." not in eq:
             sizes: dict[str, int] = {}
-            for term, op in zip(eq.split("->", maxsplit=1)[0].split(","), ops, strict=True):
+            for term, op in zip(
+                eq.split("->", maxsplit=1)[0].split(","), ops, strict=True
+            ):
                 sizes.update(zip(term.strip(), op.shape, strict=True))
             FLOPS["contract"] += _real_factor(*ops) * math.prod(sizes.values())
         return einsum(eq, *ops, **kwargs)
@@ -755,14 +757,9 @@ def _qiskit_expectation(
     return float(Statevector(qc).expectation_value(Pauli(pauli[::-1])).real)
 
 
-@app.command
-def check(output: Path = OUT / "checks.json", seed: int = 7) -> None:
-    """Dense fragments, stack order, Clifford points and the paper's strings."""
-    _setup_logging()
-    install_flop_counters()
+def _check_dense(seed: int) -> dict[str, Any]:
+    """Dense U^dag O U on the 12-qubit heavy hexagon, every method, full bond."""
     rng = np.random.default_rng(seed)
-    results: dict[str, Any] = {"provenance": provenance()}
-
     # 1. Dense operator check: the 12-qubit heavy hexagon, all methods, full bond.
     ring = (0, 1, 2, 3, 4, 14, 15, 18, 19, 20, 21, 22)
     n, edges = _fragment(ring)
@@ -828,8 +825,13 @@ def check(output: Path = OUT / "checks.json", seed: int = 7) -> None:
         ),
     }
     logger.info("stack order: %s", dense["stack_order"])
-    results["dense_12q"] = dense
 
+    return dense
+
+
+def _check_fragment(seed: int) -> dict[str, Any]:
+    """``<0|O|0>`` on a 16-qubit fragment against qiskit, every method."""
+    rng = np.random.default_rng(seed + 1)
     # 2. <0|O|0> on a 16-qubit fragment against qiskit, every method, full bond.
     frag = (0, 1, 2, 3, 4, 5, 6, 14, 15, 18, 19, 20, 21, 22, 23, 24)
     n16, edges16 = _fragment(frag)
@@ -855,12 +857,43 @@ def check(output: Path = OUT / "checks.json", seed: int = 7) -> None:
         frag16["abs_error"][method] = abs(zero_expectation(arrays) - want16)
         frag16["max_bond"][method] = max(bonds(arrays))
         logger.info("16q %s: error %.2e", method, frag16["abs_error"][method])
-    results["fragment_16q"] = frag16
 
-    # 3. The paper's strings are U(pi/2)^5 Z_q U(pi/2)^5^dag, and Clifford values.
-    results["clifford"] = clifford_checks(seed)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(results, indent=1, default=str))
+    return frag16
+
+
+@app.command
+def check(
+    *sections: str,
+    cases: str = "",
+    output: Path = OUT / "checks.json",
+    seed: int = 7,
+) -> None:
+    """Dense fragments, stack order, Clifford points and the paper's strings.
+
+    ``sections`` is any of ``dense``, ``fragment`` and ``clifford`` (all by
+    default); ``cases`` restricts the Clifford cases, e.g. ``w10:5:16,w17:5:16``.
+    Each section is merged into ``output`` as soon as it finishes.
+    """
+    _setup_logging()
+    install_flop_counters()
+    sections = sections or ("dense", "fragment", "clifford")
+    results: dict[str, Any] = json.loads(output.read_text()) if output.exists() else {}
+    results["provenance"] = provenance()
+
+    def save() -> None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(results, indent=1, default=str))
+
+    if "dense" in sections:
+        results["dense_12q"] = _check_dense(seed)
+        save()
+    if "fragment" in sections:
+        results["fragment_16q"] = _check_fragment(seed)
+        save()
+    if "clifford" in sections:
+        wanted = [tuple(c.split(":")) for c in cases.split(",") if c]
+        results.setdefault("clifford", {}).update(clifford_checks(seed, wanted))
+        save()
 
 
 def _stim_step(n: int, edges: Sequence[tuple[int, int]]) -> Any:  # noqa: ANN401
@@ -884,7 +917,9 @@ def _pauli_text(string: dict[str, Sequence[int]], n: int) -> str:
     return "".join(chars)
 
 
-def clifford_checks(seed: int) -> dict[str, Any]:
+def clifford_checks(
+    seed: int, wanted: Sequence[tuple[str, ...]] = ()
+) -> dict[str, Any]:
     """Stim against the MPO pipelines at theta_h = 0 and pi/2."""
     import stim  # noqa: PLC0415
 
@@ -921,6 +956,8 @@ def clifford_checks(seed: int) -> dict[str, Any]:
         return 0.0 if xs.any() else float(p.sign.real)
 
     cases = [("z62", 20, 0), ("z62", 20, 16), ("w10", 5, 16), ("w17", 5, 16)]
+    if wanted:
+        cases = [c for c in cases if tuple(str(x) for x in c) in wanted]
     for obs, steps, theta_k in cases:
         theta = theta_k * np.pi / 32
         layers = step_layers(N_QUBITS, edges, theta)
@@ -966,8 +1003,38 @@ def _done(path: Path) -> bool:
         return False
     lines = path.read_text().splitlines()
     return bool(lines) and (
-        '"done"' in lines[-1] or '"oom"' in lines[-1] or '"fresh": true' in lines[-1]
+        '"done"' in lines[-1]
+        or '"oom"' in lines[-1]
+        or '"failed"' in lines[-1]
+        or '"fresh": true' in lines[-1]
     )
+
+
+SVD_FALLBACKS = {"count": 0}
+
+
+def install_svd_fallback() -> None:
+    """Retry a non-converging host SVD with LAPACK gesvd (bench-side patch).
+
+    src-method's ``truncated_qr`` and its oversampled truncation call
+    ``np.linalg.svd`` (gesdd) on the host; on the ill-conditioned R factors of
+    this problem it can fail to converge. The fallback only acts where the
+    released code raises, and every use is counted.
+    """
+    import scipy.linalg  # noqa: PLC0415
+
+    svd = np.linalg.svd
+
+    def svd_with_fallback(a: Any, full_matrices: bool = True, **kwargs: Any) -> Any:  # noqa: ANN401, FBT001, FBT002
+        try:
+            return svd(a, full_matrices=full_matrices, **kwargs)
+        except np.linalg.LinAlgError:
+            SVD_FALLBACKS["count"] += 1
+            return scipy.linalg.svd(
+                a, full_matrices=full_matrices, lapack_driver="gesvd", **kwargs
+            )
+
+    np.linalg.svd = svd_with_fallback
 
 
 def _warmup(methods: set[str], cutoff: float) -> None:
@@ -989,7 +1056,12 @@ def _warmup(methods: set[str], cutoff: float) -> None:
 
 
 @app.command
-def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> None:
+def run(
+    *configs: str,
+    budget_minutes: float = 27.0,
+    cutoff: float = 0.0,
+    svd_fallback: bool = False,
+) -> None:
     """Run ``obs:steps:theta_k:method:chi:seed`` configurations.
 
     ``theta_h = theta_k pi / 32``. One JSON line per Trotter step; a finished run
@@ -998,15 +1070,23 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
     """
     _setup_logging()
     install_flop_counters()
+    if svd_fallback:
+        install_svd_fallback()
     t_start = perf_counter()
     meta = provenance()
     edges = eagle_edges()
-    _warmup({c.split(":")[3] for c in configs if not _done(_run_path(c, cutoff))}, cutoff)
+    _warmup(
+        {c.split(":")[3] for c in configs if not _done(_run_path(c, cutoff))}, cutoff
+    )
     started = 0
     for cfg in configs:
         path = _run_path(cfg, cutoff)
         if _done(path):
             logger.info("%s: done already", cfg)
+            continue
+        siblings = path.parent.glob(path.name.rsplit("_s", 1)[0] + "_s*.jsonl")
+        if any(_done(q) and '"fresh": true' in q.read_text() for q in siblings):
+            logger.info("%s: another seed overran a whole job, skipped", cfg)
             continue
         if (perf_counter() - t_start) / 60 > budget_minutes:
             logger.info("budget reached before %s", cfg)
@@ -1037,6 +1117,7 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
             "k": pipe.k,
             "n_sublayers": len(layers),
             "cutoff": cutoff,
+            "svd_fallback": svd_fallback,
             "reference": None if ref is None else {"value": ref[0], "source": ref[1]},
             "provenance": meta,
         }
@@ -1044,6 +1125,7 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
         with path.open("w") as fh:
             fh.write(json.dumps({"meta": head}) + "\n")
             FLOPS.update(contract=0.0, decomp=0.0)
+            SVD_FALLBACKS["count"] = 0
             t_run = perf_counter()
             fresh = started == 0  # the first run of the job had the whole budget
             started += 1
@@ -1069,6 +1151,7 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
                         "pool_gb": pool_gb(),
                         "flops_contract": flops["contract"],
                         "flops_decomp": flops["decomp"],
+                        "svd_fallbacks": SVD_FALLBACKS["count"],
                     }
                     rows.append(row)
                     fh.write(json.dumps(row) + "\n")
@@ -1085,6 +1168,21 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
                     + "\n"
                 )
                 logger.info("%s: out of memory at step %d", cfg, len(rows) + 1)
+                del pipe
+                free_pools()
+                continue
+            except Exception as exc:  # noqa: BLE001  (record, keep the job going)
+                fh.write(
+                    json.dumps(
+                        {
+                            "failed": True,
+                            "step": len(rows) + 1,
+                            "error": f"{type(exc).__name__}: {exc}"[:300],
+                        }
+                    )
+                    + "\n"
+                )
+                logger.info("%s: failed at step %d: %r", cfg, len(rows) + 1, exc)
                 del pipe
                 free_pools()
                 continue
@@ -1118,6 +1216,395 @@ def run(*configs: str, budget_minutes: float = 27.0, cutoff: float = 0.0) -> Non
         )
 
 
+@app.command
+def debug_svd(cfg: str, cutoff: float = 1e-12) -> None:
+    """Rerun one configuration and dissect a failing host SVD of src-method.
+
+    src-method's ``truncated_qr`` takes ``np.linalg.svd`` (LAPACK gesdd) of the
+    sketch's R factor on the host. On failure the matrix is saved to
+    ``leonardo/svd_failure.npy`` and checked for finiteness, conditioning and
+    whether gesvd converges on it.
+    """
+    import scipy.linalg  # noqa: PLC0415
+
+    _setup_logging()
+    svd = np.linalg.svd
+    report: dict[str, Any] = {"config": cfg, "cutoff": cutoff, "calls": 0}
+
+    def guarded(a: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        report["calls"] += 1
+        try:
+            return svd(a, *args, **kwargs)
+        except np.linalg.LinAlgError:
+            np.save(OUT / "svd_failure.npy", a)
+            s = scipy.linalg.svd(a, compute_uv=False, lapack_driver="gesvd")
+            report.update(
+                failed_call=report["calls"],
+                shape=a.shape,
+                dtype=str(a.dtype),
+                finite=bool(np.isfinite(a).all()),
+                max_abs=float(np.abs(a).max()),
+                gesvd_converged=True,
+                s_max=float(s[0]),
+                s_min=float(s[-1]),
+                n_below_cutoff=int((s < cutoff * s[0]).sum()),
+            )
+            logger.info("gesdd failed: %s", report)
+            raise
+
+    np.linalg.svd = guarded
+    obs, steps, theta_k, method, chi, seed = cfg.split(":")
+    layers = step_layers(N_QUBITS, eagle_edges(), float(theta_k) * np.pi / 32)
+    pipe = pipeline(method, int(chi), int(seed), cutoff)
+    try:
+        for n, _ in enumerate(
+            evolve(pipe, pauli_mpo(N_QUBITS, OBSERVABLES[obs]), layers, int(steps)), 1
+        ):
+            logger.info("step %d ok", n)
+    except np.linalg.LinAlgError as exc:
+        report["error"] = str(exc)
+    (OUT / "svd_failure.json").write_text(json.dumps(report, indent=1, default=str))
+
+
+def exact_sandwich(O: Train, u: Train, ud: Train) -> Train:
+    """``U^dag O U`` exactly, bonds multiplied, as host arrays."""
+    out = []
+    for a, o, b in zip(full(ud), full(host(O)), full(u), strict=True):
+        t = np.einsum("abuc,lrce,xyed->alxbryud", a, o, b)
+        s_ = t.shape
+        out.append(t.reshape(s_[0] * s_[1] * s_[2], s_[3] * s_[4] * s_[5], 2, 2))
+    return trim(out)
+
+
+def mpo_inner(a: Sequence[Any], b: Sequence[Any]) -> complex:
+    """Hilbert-Schmidt ``Tr(A^dag B)``, on the GPU's analysis pool."""
+    cp = _cupy()
+    with analysis_pool():
+        env = cp.ones((1, 1), dtype=complex)
+        for x, y in zip(full(list(a)), full(list(b)), strict=True):
+            x, y = cp.asarray(x), cp.asarray(y)
+            tmp = cp.tensordot(env, x.conj(), axes=(0, 0))  # (b, a', u, d)
+            env = cp.tensordot(tmp, y, axes=([0, 2, 3], [0, 2, 3]))  # (a', b')
+        value = complex(env[0, 0])
+        del env, tmp
+    _analysis_pool().free_all_blocks()
+    return value
+
+
+def svd_truncate(train: Sequence[Any], chi: int) -> Train:
+    """Optimal (canonical SVD) truncation of an MPO to bond ``chi``, on the GPU."""
+    cp = _cupy()
+    with analysis_pool():
+        sites = [cp.asarray(t) for t in full(list(train))]
+        for j in range(len(sites) - 1):  # left-canonical by QR
+            l_, r_, u_, d_ = sites[j].shape
+            Q, R = cp.linalg.qr(sites[j].transpose(0, 2, 3, 1).reshape(-1, r_))
+            sites[j] = Q.reshape(l_, u_, d_, -1).transpose(0, 3, 1, 2)
+            sites[j + 1] = cp.tensordot(R, sites[j + 1], axes=(1, 0))
+        for j in range(len(sites) - 1, 0, -1):  # truncate right to left
+            l_, r_, u_, d_ = sites[j].shape
+            U, S, Vh = cp.linalg.svd(sites[j].reshape(l_, -1), full_matrices=False)
+            k = min(chi, S.size)
+            sites[j] = Vh[:k].reshape(k, r_, u_, d_)
+            sites[j - 1] = cp.tensordot(sites[j - 1], U[:, :k] * S[:k], axes=(1, 0))
+            sites[j - 1] = sites[j - 1].transpose(0, 3, 1, 2)
+        out = [t.get() for t in sites]
+    _analysis_pool().free_all_blocks()
+    return trim(out)
+
+
+@app.command
+def sandwich_test(
+    problem: str = "z62:8:6",
+    chi: int = 256,
+    seeds: int = 5,
+    sublayer: int = 0,
+    cutoff: float = 1e-12,
+    output: Path = OUT / "sandwich_test.json",
+) -> None:
+    """Truncation error of one compression of ``U^dag O U``, method by method.
+
+    ``O`` is the observable of ``problem`` (``obs:steps:theta_k``) evolved by
+    src-k1 at bond ``chi``; ``U`` is sub-layer ``sublayer`` of the next step. The
+    exact sandwich (bond up to ``4 chi``) is compressed back to ``chi`` by each
+    method, and the relative Frobenius error and the change of ``<0|.|0>`` are
+    compared with the optimal SVD truncation.
+    """
+    _setup_logging()
+    install_flop_counters()
+    install_svd_fallback()
+    obs, steps, theta_k = problem.split(":")
+    layers = step_layers(N_QUBITS, eagle_edges(), float(theta_k) * np.pi / 32)
+    pipe = pipeline("src-k1", chi, 0, cutoff)
+    *_, O = evolve(pipe, pauli_mpo(N_QUBITS, OBSERVABLES[obs]), layers, int(steps))
+    u, ud = layers[sublayer]
+    exact = exact_sandwich(O, u, ud)
+    norm2 = mpo_inner(exact, exact).real
+    value = zero_expectation(exact)
+    result: dict[str, Any] = {
+        "problem": problem,
+        "chi": chi,
+        "sublayer": sublayer,
+        "cutoff": cutoff,
+        "input_bond": max(bonds(host(O))),
+        "exact_bond": max(bonds(exact)),
+        "exact_value": value.real,
+        "methods": {},
+    }
+
+    def score(t: Train, seconds: float) -> dict[str, float]:
+        t = host(t)
+        err2 = norm2 + mpo_inner(t, t).real - 2 * mpo_inner(exact, t).real
+        return {
+            "rel_frob_error": float(np.sqrt(max(err2, 0.0) / norm2)),
+            "value_error": abs(zero_expectation(t) - value),
+            "bond": max(bonds(t)),
+            "seconds": seconds,
+        }
+
+    t0 = perf_counter()
+    result["methods"]["svd-optimal"] = [
+        score(svd_truncate(exact, chi), perf_counter() - t0)
+    ]
+    logger.info("svd-optimal: %s", result["methods"]["svd-optimal"])
+    for method in (
+        "src-k1",
+        "src-k1-os",
+        "quimb-src",
+        "quimb-src-os",
+        "quimb-fit",
+        "quimb-zipup",
+    ):
+        rows = []
+        for seed in range(1 if method == "quimb-zipup" else seeds):
+            p_ = pipeline(method, chi, 100 + seed, cutoff)
+            sync()
+            t0 = perf_counter()
+            out = p_.group(p_.state(O), [(u, ud)])
+            sync()
+            rows.append(score(out, perf_counter() - t0))
+        result["methods"][method] = rows
+        logger.info(
+            "%s: rel error %s, value error %s",
+            method,
+            [f"{r['rel_frob_error']:.3e}" for r in rows],
+            [f"{r['value_error']:.1e}" for r in rows],
+        )
+    output.write_text(json.dumps(result, indent=1))
+
+
+def random_operator(n: int, chi: int, seed: int) -> Train:
+    """A random MPO with the saturated bond profile ``min(chi, 4^(distance to edge))``.
+
+    Entries are complex Gaussian, scaled so each site has unit Frobenius norm per
+    bond row; it stands in for a late-time operator, whose cost per step depends
+    only on the bonds.
+    """
+    rng = np.random.default_rng(seed)
+    cuts = [min(chi, 4 ** (c + 1), 4 ** (n - 1 - c)) for c in range(n - 1)]
+    sites = []
+    for j in range(n):
+        left = 1 if j == 0 else cuts[j - 1]
+        right = 1 if j == n - 1 else cuts[j]
+        shape = (left, right, 2, 2)
+        w = rng.standard_normal(shape) + 1j * rng.standard_normal(shape)
+        w *= 1 / np.sqrt(2 * 4 * left)
+        sites.append(w)
+    return trim(sites)
+
+
+class _Records(logging.Handler):
+    """Keep src-method's DEBUG messages (plan, tiers, sweep times)."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.DEBUG)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
+@app.command
+def step_probe(
+    chi: int,
+    method: str = "src-k1",
+    theta_k: float = 8,
+    cutoff: float = 1e-12,
+    budget_minutes: float = 26.0,
+    seed: int = 0,
+) -> None:
+    """Time one Trotter step of a saturated operator at bond ``chi``.
+
+    The compressions of the step's sub-layer groups run in order on a random
+    operator of bond ``chi`` (see `random_operator`), with src-method's DEBUG
+    plan recorded (devices, memory tiers, batches, sweep times). Writes
+    ``leonardo/probe/{method}_chi{chi}_cut{cutoff}.json``.
+    """
+    import resource  # noqa: PLC0415
+
+    _setup_logging()
+    install_flop_counters()
+    install_svd_fallback()
+    records = _Records()
+    src_logger = logging.getLogger("src_method")
+    src_logger.setLevel(logging.DEBUG)
+    src_logger.addHandler(records)
+    t_start = perf_counter()
+    _warmup({method}, cutoff)
+    layers = step_layers(N_QUBITS, eagle_edges(), theta_k * np.pi / 32)
+    pipe = pipeline(method, chi, seed, cutoff)
+    t0 = perf_counter()
+    O = pipe.state(random_operator(N_QUBITS, chi, seed))
+    build = perf_counter() - t0
+    out_path = OUT / "probe" / f"{method}_chi{chi}_cut{cutoff:g}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    result: dict[str, Any] = {
+        "chi": chi,
+        "method": method,
+        "k": pipe.k,
+        "theta_k": theta_k,
+        "cutoff": cutoff,
+        "input_bond": max(bonds(O)),
+        "input_gb": sum(t.nbytes for t in O) / 1e9,
+        "build_seconds": build,
+        "provenance": provenance(),
+        "groups": [],
+        "complete": False,
+    }
+
+    def save() -> None:
+        result["host_peak_gb"] = (
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+        )
+        out_path.write_text(json.dumps(result, indent=1, default=str))
+
+    groups = chunks(layers, pipe.k)
+    for g, group in enumerate(groups):
+        if (perf_counter() - t_start) / 60 > budget_minutes:
+            break
+        free_pools()
+        FLOPS.update(contract=0.0, decomp=0.0)
+        records.messages.clear()
+        sync()
+        t0 = perf_counter()
+        try:
+            O = pipe.group(O, group)
+        except (MemoryError, _cupy().cuda.memory.OutOfMemoryError) as exc:
+            result["oom"] = {"group": g, "error": str(exc)[:300]}
+            save()
+            logger.info("chi %d %s: out of memory in group %d", chi, method, g)
+            return
+        sync()
+        dt = perf_counter() - t0
+        flops = FLOPS["contract"] + FLOPS["decomp"]
+        result["groups"].append(
+            {
+                "group": g,
+                "seconds": dt,
+                "tflop": flops / 1e12,
+                "tflops_rate": flops / dt / 1e12,
+                "pool_gb": pool_gb(),
+                "out_bond": max(bonds(O)),
+                "svd_fallbacks": SVD_FALLBACKS["count"],
+                "src_debug": [
+                    m
+                    for m in records.messages
+                    if "plan" in m or "sweep" in m or "stalls" in m
+                ],
+            }
+        )
+        logger.info(
+            "chi %d %s group %d/%d: %.1f s, %.1f TFLOP, %.2f TFLOP/s, %.1f GB pool",
+            chi,
+            method,
+            g + 1,
+            len(groups),
+            dt,
+            flops / 1e12,
+            flops / dt / 1e12,
+            pool_gb(),
+        )
+        save()
+    result["complete"] = len(result["groups"]) == len(groups)
+    result["step_seconds"] = sum(r["seconds"] for r in result["groups"])
+    save()
+
+
+@app.command
+def svd_bench(
+    sizes: tuple[int, ...] = (256, 512, 1024, 2048, 4096),
+    repeats: int = 3,
+    output: Path = OUT / "svd_bench.json",
+) -> None:
+    """Time one square complex SVD on the host against the GPU.
+
+    The matrix stands in for src-method's R factor: complex Gaussian factors
+    around singular values decaying geometrically from 1 to 1e-14. Host: numpy
+    (gesdd) and scipy gesvd at 8 threads and at every core; GPU: CuPy's svd
+    (cuSOLVER gesvd), Jacobi gesvdj, and eigh of R^dag R (whose squared
+    condition number loses the small singular values). GPU times include the
+    transfers a host-resident R would need.
+    """
+    import scipy.linalg  # noqa: PLC0415
+    from cupyx import cusolver  # noqa: PLC0415
+    from threadpoolctl import threadpool_limits  # noqa: PLC0415
+
+    _setup_logging()
+    cp = _cupy()
+    rng = np.random.default_rng(0)
+    cores = len(os.sched_getaffinity(0))
+    result: dict[str, Any] = {"cores": cores, "provenance": provenance(), "sizes": {}}
+
+    def timed(fn: Any) -> float:  # noqa: ANN401
+        times = []
+        for _ in range(repeats):
+            sync()
+            t0 = perf_counter()
+            fn()
+            sync()
+            times.append(perf_counter() - t0)
+        return float(median(times))
+
+    for n in sizes:
+
+        def unitary() -> np.ndarray:
+            z = rng.standard_normal((n, n)) + 1j * rng.standard_normal((n, n))
+            return np.linalg.qr(z)[0]
+
+        s_ = np.logspace(0, -14, n)
+        R = (unitary() * s_) @ unitary()
+        row: dict[str, float] = {}
+        for threads in sorted({8, cores}):
+            with threadpool_limits(threads):
+                row[f"numpy gesdd, {threads} threads"] = timed(
+                    lambda: np.linalg.svd(R, full_matrices=False)
+                )
+                row[f"scipy gesvd, {threads} threads"] = timed(
+                    lambda: scipy.linalg.svd(
+                        R, full_matrices=False, lapack_driver="gesvd"
+                    )
+                )
+        row["cupy svd (gesvd)"] = timed(
+            lambda: [x.get() for x in cp.linalg.svd(cp.asarray(R), full_matrices=False)]
+        )
+        row["cupyx gesvdj"] = timed(
+            lambda: [
+                x.get() for x in cusolver.gesvdj(cp.asarray(R), full_matrices=False)
+            ]
+        )
+
+        def eigh_route() -> None:
+            r = cp.asarray(R)
+            w, v = cp.linalg.eigh(r.conj().T @ r)
+            (r @ v).get()
+            w.get()
+
+        row["cupy eigh(R^dag R)"] = timed(eigh_route)
+        result["sizes"][n] = row
+        logger.info("n=%d: %s", n, {k: round(v, 3) for k, v in row.items()})
+        output.write_text(json.dumps(result, indent=1, default=str))
+
+
 def load_runs(folder: Path = OUT / "runs") -> list[dict[str, Any]]:
     """Every run file: its meta, step rows and ending (done, OOM or stopped)."""
     runs = []
@@ -1136,6 +1623,8 @@ def load_runs(folder: Path = OUT / "runs") -> list[dict[str, Any]]:
                 )
             elif "oom" in d:
                 run_.update(status="oom", oom_step=d["step"])
+            elif "failed" in d:
+                run_.update(status="failed", fail_step=d["step"], fail=d["error"])
             elif "stopped" in d:
                 run_["status"] = "stopped"
             else:
@@ -1143,6 +1632,8 @@ def load_runs(folder: Path = OUT / "runs") -> list[dict[str, Any]]:
         if "config" in run_:
             if run_.get("cutoff"):
                 run_["method"] += f" cut {run_['cutoff']:g}"
+            if run_.get("svd_fallback"):
+                run_["method"] += " +gesvd"
             runs.append(run_)
     return runs
 
@@ -1207,6 +1698,8 @@ def _summary(runs: Sequence[dict[str, Any]]) -> dict[str, Any]:
         cell["frob"] = float(np.mean([r["rows"][-1]["frob"] for r in done]))
         cell["value"] = float(np.mean([r["rows"][-1]["value"] for r in done]))
         cell["bond"] = max(r["rows"][-1]["max_bond"] for r in done)
+    if any(r["status"] == "failed" for r in runs):
+        cell["failed"] = sum(r["status"] == "failed" for r in runs)
     if any(r["status"] == "oom" for r in runs):
         cell["oom"] = min(r["oom_step"] for r in runs if r["status"] == "oom")
     return cell
@@ -1257,8 +1750,15 @@ def report(folder: Path = OUT) -> None:
         c = json.loads(chk.read_text())
         lines += _check_lines(c)
 
-    # One section per problem: (obs, steps, theta_k).
-    problems = sorted({(r["obs"], r["steps"], r["theta_k"]) for r in runs})
+    lines += _failure_lines(runs, load_runs(folder / "runs_failed"))
+    lines += _stage1_lines(runs)
+    lines += _sandwich_lines(folder)
+    lines += _probe_lines(folder)
+
+    # One section per stage-2 problem: (obs, steps, theta_k).
+    problems = sorted(
+        {(r["obs"], r["steps"], r["theta_k"]) for r in runs} - _stage1_only(runs)
+    )
     for obs, steps, theta_k in problems:
         sel = [
             r
@@ -1288,6 +1788,8 @@ def report(folder: Path = OUT) -> None:
                 )
                 if "oom" in cell:
                     err += f" (OOM at step {cell['oom']})"
+                if "failed" in cell:
+                    err += f" ({cell['failed']} failed)"
                 lines.append(
                     f"| {method} | {chi} | {cell['n']}/{cell['n_runs']} "
                     f"| {_fmt(cell.get('step_time'), '.3f')} | {_fmt(cell.get('total'), '.1f')} "
@@ -1374,6 +1876,168 @@ def report(folder: Path = OUT) -> None:
     if conclusion.exists():
         lines += [conclusion.read_text().rstrip(), ""]
     (folder / "summary.md").write_text("\n".join(lines))
+
+
+STAGE2_THETAS = (6.0, 8.0, 10.0)
+
+
+def _stage1_only(runs: Sequence[dict[str, Any]]) -> set[tuple[str, int, float]]:
+    """Problems run only for stage 1: weight-10, and weight-17 off the stage-2 angles."""
+    return {
+        (r["obs"], r["steps"], r["theta_k"])
+        for r in runs
+        if r["obs"] == "w10"
+        or (r["obs"] == "w17" and r["theta_k"] not in STAGE2_THETAS)
+    }
+
+
+def _failure_lines(
+    runs: Sequence[dict[str, Any]], failed: Sequence[dict[str, Any]]
+) -> list[str]:
+    """Runs of the released src-method that stopped on a host SVD failure."""
+    failed = [*failed, *(r for r in runs if r["status"] == "failed")]
+    if not failed:
+        return []
+    released = [
+        r
+        for r in runs
+        if r["method"].startswith("src-") and "+gesvd" not in r["method"]
+    ]
+    lines = [
+        "## Host SVD failures of the released src-method",
+        "",
+        f"{len(failed)} of {len(released) + len(failed)} src-method runs without the "
+        "fallback stopped with `LinAlgError: SVD did not converge` (numpy gesdd on the "
+        "host, in `truncated_qr` or the oversampled truncation). Rerun with a gesvd "
+        "fallback, they appear as `+gesvd` in the tables.",
+        "",
+        "| run | step | error |",
+        "|---|---|---|",
+    ]
+    lines += [
+        f"| {r['config']} | {r.get('fail_step', '-')} | {r.get('fail', '')[:60]} |"
+        for r in sorted(failed, key=lambda r: r["config"])
+    ]
+    lines.append("")
+    return lines
+
+
+def _stage1_lines(runs: Sequence[dict[str, Any]]) -> list[str]:
+    """Stage 1: 5-step weight-10 and weight-17 over the theta grid, src-k1 seed 0."""
+    lines = ["## Stage 1: exactly verifiable regime (5 steps, src-k1, seed 0)", ""]
+    for obs in ("w10", "w17"):
+        sel = [
+            r
+            for r in runs
+            if r["obs"] == obs
+            and r["steps"] == 5
+            and r["method"].split()[0] == "src-k1"  # noqa: PLR2004
+            and r["seed"] == 0
+        ]
+        chis = sorted({r["chi"] for r in sel})
+        if not sel:
+            continue
+        lines += [
+            f"{obs}: absolute error against BGC exact; `F` marks a failed run "
+            "(host SVD did not converge), `*` a run with the gesvd fallback.",
+            "",
+            "| theta_h / (pi/32) | exact | "
+            + " | ".join(f"chi {c}" for c in chis)
+            + " |",
+            "|---" * (len(chis) + 2) + "|",
+        ]
+        for k in range(17):
+            cells = []
+            ref = None
+            for c in chis:
+                rr = [r for r in sel if r["theta_k"] == k and r["chi"] == c]
+                if not rr:
+                    cells.append("-")
+                    continue
+                r = rr[0]
+                ref = ref or r["reference"]
+                if r["status"] == "failed":
+                    cells.append("F")
+                elif r["status"] == "done" and r.get("error") is not None:
+                    star = "*" if r.get("svd_fallback") else ""
+                    cells.append(f"{r['error']:.1e}{star}")
+                else:
+                    cells.append(r["status"])
+            exact = "-" if ref is None else f"{ref['value']:.6g}"
+            lines.append(f"| {k} | {exact} | " + " | ".join(cells) + " |")
+        lines.append("")
+    return lines
+
+
+def _sandwich_lines(folder: Path) -> list[str]:
+    """One compression of an exact sandwich, method by method (sandwich_test)."""
+    lines: list[str] = []
+    for path in sorted(folder.glob("sandwich_test*.json")):
+        d = json.loads(path.read_text())
+        lines += [
+            f"## One compression of U^dag O U ({d['problem']}, sub-layer {d['sublayer']}, "
+            f"chi {d['chi']})",
+            "",
+            f"O is the observable evolved by src-k1 at bond {d['chi']} (input bond "
+            f"{d['input_bond']}); the exact sandwich has bond {d['exact_bond']}. "
+            "Relative Frobenius error of the compressed operator and change of "
+            "<0|.|0>, mean (min-max) over seeds.",
+            "",
+            "| method | seeds | rel. Frobenius error | value error | seconds |",
+            "|---|---|---|---|---|",
+        ]
+        for m, rows in d["methods"].items():
+            e = [r["rel_frob_error"] for r in rows]
+            v = [r["value_error"] for r in rows]
+            t = [r["seconds"] for r in rows]
+            lines.append(
+                f"| {m} | {len(rows)} | {np.mean(e):.3f} ({min(e):.3f}-{max(e):.3f}) "
+                f"| {np.mean(v):.1e} | {np.median(t):.1f} |"
+            )
+        lines.append("")
+    return lines
+
+
+def _probe_lines(folder: Path) -> list[str]:
+    """One Trotter step of a saturated operator (step_probe)."""
+    probes = [
+        json.loads(p.read_text()) for p in sorted((folder / "probe").glob("*.json"))
+    ]
+    if not probes:
+        return []
+    lines = [
+        "## Cost of one Trotter step at large chi (random saturated operator)",
+        "",
+        "| method | chi | cutoff | groups done | step s (or partial) | TFLOP | TFLOP/s | "
+        "GPU pool GB | host peak GB | input GB | tiers (first group) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for d in sorted(probes, key=lambda d: (d["chi"], d["cutoff"], d["method"])):
+        g = d["groups"]
+        secs = sum(x["seconds"] for x in g)
+        tflop = sum(x["tflop"] for x in g)
+        tiers = "-"
+        if g:
+            plan = next((m for m in g[0]["src_debug"] if "tiers=" in m), "")
+            if plan:
+                raw = plan.split("tiers=")[1].split(", batches")[0]
+                tiers = ", ".join(
+                    f"{t}: {raw.count(t)}"
+                    for t in ("device", "host", "disk")
+                    if t in raw
+                )
+        status = (
+            f"{len(g)}"
+            + (" (OOM)" if "oom" in d else "")
+            + ("" if d["complete"] else " partial")
+        )
+        lines.append(
+            f"| {d['method']} | {d['chi']} | {d['cutoff']:g} | {status} | {secs:.1f} | {tflop:.1f} "
+            f"| {tflop / secs if secs else 0:.2f} | {max((x['pool_gb'] for x in g), default=0):.1f} "
+            f"| {d.get('host_peak_gb', 0):.0f} | {d['input_gb']:.1f} | {tiers} |"
+        )
+    lines.append("")
+    return lines
 
 
 def _check_lines(c: dict[str, Any]) -> list[str]:

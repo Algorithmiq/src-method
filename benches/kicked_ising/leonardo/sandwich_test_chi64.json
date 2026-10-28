@@ -1,0 +1,97 @@
+{
+ "problem": "z62:8:6",
+ "chi": 64,
+ "sublayer": 0,
+ "cutoff": 1e-12,
+ "input_bond": 64,
+ "exact_bond": 256,
+ "exact_value": 0.7681527771008604,
+ "methods": {
+  "svd-optimal": [
+   {
+    "rel_frob_error": 0.04778789732015237,
+    "value_error": 0.001632272378911106,
+    "bond": 64,
+    "seconds": 1.2918309392407537
+   }
+  ],
+  "src-k1": [
+   {
+    "rel_frob_error": 0.11722151300748306,
+    "value_error": 0.01073904897049603,
+    "bond": 63,
+    "seconds": 0.4792472589761019
+   },
+   {
+    "rel_frob_error": 0.1208049260622256,
+    "value_error": 0.00446120655616759,
+    "bond": 64,
+    "seconds": 0.4473673850297928
+   }
+  ],
+  "src-k1-os": [
+   {
+    "rel_frob_error": 0.07475973283812128,
+    "value_error": 0.0037134105071960576,
+    "bond": 64,
+    "seconds": 1.1549561712890863
+   },
+   {
+    "rel_frob_error": 0.07456400691248923,
+    "value_error": 0.005194444752013925,
+    "bond": 64,
+    "seconds": 0.6893394300714135
+   }
+  ],
+  "quimb-src": [
+   {
+    "rel_frob_error": 0.24602475173658572,
+    "value_error": 0.0612001575317068,
+    "bond": 59,
+    "seconds": 0.6781941056251526
+   },
+   {
+    "rel_frob_error": 0.22147896060252942,
+    "value_error": 0.03854696300325501,
+    "bond": 59,
+    "seconds": 0.5144836902618408
+   }
+  ],
+  "quimb-src-os": [
+   {
+    "rel_frob_error": 0.11752389904800338,
+    "value_error": 0.01520335176536685,
+    "bond": 64,
+    "seconds": 1.2915692990645766
+   },
+   {
+    "rel_frob_error": 0.13696186801517019,
+    "value_error": 0.02166130309535902,
+    "bond": 64,
+    "seconds": 1.1573348501697183
+   }
+  ],
+  "quimb-fit": [
+   {
+    "rel_frob_error": 0.06560110242649114,
+    "value_error": 0.005301684093431346,
+    "bond": 64,
+    "seconds": 8.802580486051738
+   },
+   {
+    "rel_frob_error": 0.06556779153597957,
+    "value_error": 0.005077018497707631,
+    "bond": 64,
+    "seconds": 7.933768843300641
+   }
+  ],
+  "quimb-zipup": [
+   {
+    "rel_frob_error": 0.08045415754182454,
+    "value_error": 0.001864898554223354,
+    "bond": 64,
+    "seconds": 1.476509409956634
+   }
+  ]
+ }
+}

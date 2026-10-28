@@ -1,0 +1,346 @@
+{
+ "provenance": {
+  "src_method": "0.5.2.dev2+gdc6ecf6df",
+  "quimb": "1.15.0",
+  "autoray": "0.11.0",
+  "opt_einsum": "3.4.0",
+  "numpy": "2.4.4",
+  "cupy": "14.2.0",
+  "cuda_runtime": 13020,
+  "cuda_driver": 13040,
+  "gpu": "NVIDIA A100-SXM-64GB",
+  "gpus_visible": 1,
+  "qiskit": "2.6.1",
+  "qiskit_ibm_runtime": "0.51.0",
+  "stim": "1.16.0",
+  "python": "3.14.2",
+  "host": "lrdn0079.leonardo.local",
+  "slurm_job": "62548123"
+ },
+ "dense_12q": {
+  "qubits": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   14,
+   15,
+   18,
+   19,
+   20,
+   21,
+   22
+  ],
+  "edges": [
+   [
+    0,
+    1
+   ],
+   [
+    0,
+    5
+   ],
+   [
+    1,
+    2
+   ],
+   [
+    2,
+    3
+   ],
+   [
+    3,
+    4
+   ],
+   [
+    4,
+    6
+   ],
+   [
+    5,
+    7
+   ],
+   [
+    6,
+    11
+   ],
+   [
+    7,
+    8
+   ],
+   [
+    8,
+    9
+   ],
+   [
+    9,
+    10
+   ],
+   [
+    10,
+    11
+   ]
+  ],
+  "n_sublayers": 2,
+  "theta_h": 0.8876050132651336,
+  "steps": 2,
+  "pauli": "YZYZZIIXXZZI",
+  "qiskit_vs_dense": 6.938893903907228e-17,
+  "rel_error": {
+   "src-k1": 2.8372070262283144e-15,
+   "src-k1-os": 6.883962150168348e-15,
+   "src-k2": 2.1216013288288285e-15,
+   "src-k2-os": 8.431722053589192e-15,
+   "src-k3": 2.1216013288288285e-15,
+   "src-k3-os": 8.431722053589192e-15,
+   "quimb-fit": 4.102748223555425e-15,
+   "quimb-zipup": 1.1155142316269482e-14,
+   "quimb-src": 4.782384787690647e-15,
+   "quimb-src-os": 7.59805759190246e-15,
+   "quimb-src-default": 4.782384787690647e-15,
+   "quimb-src-os-default": 7.59805759190246e-15
+  },
+  "stack_order": {
+   "src(Bd, Ad, O, A, B) vs Bd Ad O A B": 1.8657938505327682e-15,
+   "reversed stack vs Bd Ad O A B": 1.3962671465295482
+  }
+ },
+ "fragment_16q": {
+  "qubits": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   14,
+   15,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24
+  ],
+  "theta_h": 0.5596695042661168,
+  "steps": 3,
+  "pauli": "IZIIZZZZIIZIIIXY",
+  "qiskit": -0.05763265011363671,
+  "chi": 4096,
+  "abs_error": {
+   "src-k1": 1.4105659283851926e-16,
+   "src-k1-os": 2.6984023750743653e-15,
+   "src-k2": 1.2077599296080992e-15,
+   "src-k2-os": 7.996680103938912e-16,
+   "src-k3": 2.0813432875191543e-16,
+   "src-k3-os": 4.9096045625102536e-17,
+   "quimb-fit": 8.466724631638754e-16,
+   "quimb-zipup": 5.720380534663265e-16,
+   "quimb-src": 6.227038940621262e-16,
+   "quimb-src-os": 4.902374274283908e-16,
+   "quimb-src-default": 6.227038940621262e-16,
+   "quimb-src-os-default": 4.902374274283908e-16
+  },
+  "max_bond": {
+   "src-k1": 256,
+   "src-k1-os": 256,
+   "src-k2": 256,
+   "src-k2-os": 256,
+   "src-k3": 256,
+   "src-k3-os": 256,
+   "quimb-fit": 256,
+   "quimb-zipup": 256,
+   "quimb-src": 256,
+   "quimb-src-os": 256,
+   "quimb-src-default": 256,
+   "quimb-src-os-default": 256
+  }
+ },
+ "clifford": {
+  "w10_is_U5_Z13_U5dag": {
+   "stim": "+________ZY__ZX___Z__________ZXYXZ______________________________________________________________________________________________",
+   "paper": "+________ZY__ZX___Z__________ZXYXZ______________________________________________________________________________________________",
+   "matches_up_to_sign": true
+  },
+  "w17_is_U5_Z58_U5dag": {
+   "stim": "-_____________________________________XZ_ZXZ_________X___XXX___XZ________Z__Y___XZ_________ZZ___________________________________",
+   "paper": "+_____________________________________XZ_ZXZ_________X___XXX___XZ________Z__Y___XZ_________ZZ___________________________________",
+   "matches_up_to_sign": true
+  },
+  "z62_20steps_k0": {
+   "stim": 1.0,
+   "src-k1": {
+    "error": 3.4716673980028645e-13,
+    "max_step_error_theta0": 3.4716673980028645e-13,
+    "max_bond": 1
+   },
+   "src-k1-os": {
+    "error": 2.4980018054066022e-14,
+    "max_step_error_theta0": 4.8627768478581856e-14,
+    "max_bond": 1
+   },
+   "src-k2": {
+    "error": 2.580158309228864e-13,
+    "max_step_error_theta0": 2.580158309228864e-13,
+    "max_bond": 1
+   },
+   "src-k3": {
+    "error": 1.9018120411828932e-13,
+    "max_step_error_theta0": 1.9018120411828932e-13,
+    "max_bond": 1
+   },
+   "quimb-fit": {
+    "error": 4.7839510131098e-13,
+    "max_step_error_theta0": 4.7839510131098e-13,
+    "max_bond": 1
+   },
+   "quimb-zipup": {
+    "error": 3.375077994860476e-13,
+    "max_step_error_theta0": 3.375077994860476e-13,
+    "max_bond": 2
+   },
+   "quimb-src": {
+    "error": 1.0987877274715174e-12,
+    "max_step_error_theta0": 1.0987877274715174e-12,
+    "max_bond": 1
+   },
+   "quimb-src-os": {
+    "error": 9.131584377541913e-13,
+    "max_step_error_theta0": 9.131584377541913e-13,
+    "max_bond": 1
+   }
+  },
+  "z62_20steps_k16": {
+   "stim": 0.0,
+   "src-k1": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k1-os": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k2": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k3": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 2
+   },
+   "quimb-fit": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-zipup": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 2
+   },
+   "quimb-src": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-src-os": {
+    "error": 0.0,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   }
+  },
+  "w10_5steps_k16": {
+   "stim": 1.0,
+   "src-k1": {
+    "error": 9.703349235223868e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k1-os": {
+    "error": 3.83026943495679e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k2": {
+    "error": 7.416289804496046e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k3": {
+    "error": 9.00390872971002e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-fit": {
+    "error": 6.52811138479592e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-zipup": {
+    "error": 2.3314683517128287e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 2
+   },
+   "quimb-src": {
+    "error": 2.405853294362714e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-src-os": {
+    "error": 1.156852391659413e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   }
+  },
+  "w17_5steps_k16": {
+   "stim": -1.0,
+   "src-k1": {
+    "error": 1.163513729807164e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k1-os": {
+    "error": 9.392486788328824e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k2": {
+    "error": 1.0036416142611415e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "src-k3": {
+    "error": 7.194245199571014e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-fit": {
+    "error": 8.359979375427429e-14,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-zipup": {
+    "error": 9.325873406851315e-15,
+    "max_step_error_theta0": null,
+    "max_bond": 2
+   },
+   "quimb-src": {
+    "error": 1.9051427102567686e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   },
+   "quimb-src-os": {
+    "error": 2.3925306180672123e-13,
+    "max_step_error_theta0": null,
+    "max_bond": 1
+   }
+  }
+ }
+}

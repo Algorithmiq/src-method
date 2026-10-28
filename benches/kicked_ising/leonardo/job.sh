@@ -26,6 +26,10 @@ export LD_LIBRARY_PATH=$PWD/.cuda-compat/usr/local/cuda-13.4/compat${LD_LIBRARY_
 # The venv carries qiskit, stim and autoray 0.11 beyond the lock; `uv run` would
 # sync them away, so the job activates it directly.
 source .venv/bin/activate
+# quimb 1.15 on CuPy 14 needs autoray >= 0.11; `uv sync` (and prek's uv hooks)
+# put the locked 0.8.10 back.
+python -c "import autoray, sys; sys.exit(tuple(map(int, autoray.__version__.split('.')[:2])) < (0, 11))" \
+  || { echo "autoray < 0.11 in .venv: uv pip install autoray==0.11.0" >&2; exit 1; }
 
 for cmd in "$@"; do
   echo "=== $cmd (job $SLURM_JOB_ID, $(hostname))"

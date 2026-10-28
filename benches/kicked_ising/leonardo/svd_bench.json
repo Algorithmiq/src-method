@@ -1,0 +1,59 @@
+{
+ "cores": 32,
+ "provenance": {
+  "src_method": "0.5.2.dev2+gdc6ecf6df",
+  "quimb": "1.15.0",
+  "autoray": "0.11.0",
+  "opt_einsum": "3.4.0",
+  "numpy": "2.4.4",
+  "cupy": "14.2.0",
+  "cuda_runtime": 13020,
+  "cuda_driver": 13040,
+  "gpu": "NVIDIA A100-SXM-64GB",
+  "gpus_visible": 1,
+  "qiskit": "2.6.1",
+  "qiskit_ibm_runtime": "0.51.0",
+  "stim": "1.16.0",
+  "python": "3.14.2",
+  "host": "lrdn2723.leonardo.local",
+  "slurm_job": "62570874"
+ },
+ "sizes": {
+  "256": {
+   "numpy gesdd, 8 threads": 0.015131263993680477,
+   "scipy gesvd, 8 threads": 0.08458322426304221,
+   "numpy gesdd, 32 threads": 0.015247894916683435,
+   "scipy gesvd, 32 threads": 0.0874971579760313,
+   "cupy svd (gesvd)": 0.022785598877817392,
+   "cupyx gesvdj": 0.10922376904636621,
+   "cupy eigh(R^dag R)": 0.003975020255893469
+  },
+  "512": {
+   "numpy gesdd, 8 threads": 0.07068510167300701,
+   "scipy gesvd, 8 threads": 0.7845733510330319,
+   "numpy gesdd, 32 threads": 0.07177069690078497,
+   "scipy gesvd, 32 threads": 0.7738023619167507,
+   "cupy svd (gesvd)": 0.0584834823384881,
+   "cupyx gesvdj": 0.34252623841166496,
+   "cupy eigh(R^dag R)": 0.008336144033819437
+  },
+  "1024": {
+   "numpy gesdd, 8 threads": 0.3557372149080038,
+   "scipy gesvd, 8 threads": 7.69388004206121,
+   "numpy gesdd, 32 threads": 0.3124351562000811,
+   "scipy gesvd, 32 threads": 7.739517060108483,
+   "cupy svd (gesvd)": 0.17077971389517188,
+   "cupyx gesvdj": 1.183460436295718,
+   "cupy eigh(R^dag R)": 0.02202904922887683
+  },
+  "2048": {
+   "numpy gesdd, 8 threads": 2.4857222228311002,
+   "scipy gesvd, 8 threads": 105.5064218910411,
+   "numpy gesdd, 32 threads": 2.1806521136313677,
+   "scipy gesvd, 32 threads": 104.69148248294368,
+   "cupy svd (gesvd)": 0.6336574149318039,
+   "cupyx gesvdj": 5.235430442728102,
+   "cupy eigh(R^dag R)": 0.11722518783062696
+  }
+ }
+}
