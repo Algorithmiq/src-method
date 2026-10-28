@@ -22,6 +22,10 @@ uv run python benches/large/bench_large.py scaling /local/stack --chi-out 2000 \
     --devices 1 2 4 8 --scratch-dir /local/scratch --results scaling.jsonl
 ```
 
+`generate --dtype` writes `float32`, `float64`, `complex64` or `complex128`; the
+draws are made in double precision and rounded, so a seed gives the same stack in
+every precision.
+
 `run` logs the wall time, the size of CuPy's pool on each GPU at the end (its high-water mark,
 since the pool keeps its blocks), the host peak (`ru_maxrss`), the planned peaks,
 the bytes spilled and the tiers. With `--debug` before the command, `src_method` also
@@ -37,6 +41,9 @@ memory and node-local NVMe:
 3. The stall time is below 10% of the wall time.
 4. `compare` at `D_M = 1000`, `chi_out = 500` reports a distance below `1e-10`.
 
+`run --results` appends the run record (wall time, pools, peaks, tiers) as a JSON
+line, and `run --save` writes the output sites to an `.npz` file.
+
 `scaling` logs, for each GPU count, the wall time, the speed-up and the parallel
 efficiency `T_1 / (G T_G)` against the first count, and the relative distance to
 its output; `--results` appends the same as JSON lines. `--devices` with
@@ -49,7 +56,9 @@ size on 8xH100 or 8xH200 (and 4xA100 on Leonardo):
 `scaling` reports two distances. `distance` comes from inner products and cancels
 down to about `sqrt(eps)`, near `1.5e-8` in complex128, so it cannot show `1e-10`.
 `QR distance` sweeps a QR over the MPO `a - b` (the direct sum of the two outputs)
-and resolves differences down to rounding; the acceptance applies to it.
+and resolves differences down to rounding; the acceptance applies to it. Both are
+logged next to the `eps` of the output dtype: the `1e-10` acceptance is for
+complex128, and in complex64 (`eps` = 1.2e-7) agreement means about `1e-5`.
 
 ## Leonardo
 
