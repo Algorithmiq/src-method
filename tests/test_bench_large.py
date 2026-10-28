@@ -10,7 +10,7 @@ import pytest
 
 pytest.importorskip("cyclopts")
 
-from benches.large import bench_large  # noqa: E402  (needs cyclopts)
+from benches.large import bench_large
 
 if TYPE_CHECKING:
     from pathlib import Path

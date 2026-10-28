@@ -74,8 +74,11 @@ def generate(
     for name in LAYERS:
         chi = bond_m if name == "M" else bond
         (directory / name).mkdir(parents=True, exist_ok=True)
-        # Scaled so that products of the layers stay of order one.
-        scale = 1 / np.sqrt(chi * PHYS)
+        # Every layer, real or complex, draws entries of variance 1 / (chi * PHYS).
+        # A sketched environment then grows by 2 per site in norm and the projected
+        # one shrinks by about as much, so both stay within single precision for
+        # over a hundred sites.
+        scale = 1 / np.sqrt(chi * PHYS * (2 if kind.kind == "c" else 1))
         for j in range(n_sites):
             shape = _site_shape(j, n_sites, chi)
             site = np.lib.format.open_memmap(

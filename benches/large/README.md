@@ -24,7 +24,12 @@ uv run python benches/large/bench_large.py scaling /local/stack --chi-out 2000 \
 
 `generate --dtype` writes `float32`, `float64`, `complex64` or `complex128`; the
 draws are made in double precision and rounded, so a seed gives the same stack in
-every precision.
+every precision. Entries have variance `1 / (chi * 4)`, real or complex: the
+sketched environments then grow by about 2 per site in norm and the projected ones
+shrink by about as much, which keeps a 50-site sweep within complex64 range. Stacks
+written before this rule drew complex entries with twice that variance; their
+environments grow by 8 per site and overflow complex64 near site 43. The scale
+does not change the plan or the flops, so complex128 timings are comparable.
 
 `run` logs the wall time, the size of CuPy's pool on each GPU at the end (its high-water mark,
 since the pool keeps its blocks), the host peak (`ru_maxrss`), the planned peaks,
