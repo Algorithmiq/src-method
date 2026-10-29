@@ -28,6 +28,7 @@ from .utils import (
     enable_peer_access,
     get_xp,
     use_device,
+    use_stream,
 )
 
 if TYPE_CHECKING:
@@ -125,14 +126,14 @@ class DeviceGroup:
             Exception: The first error raised by a rank, after every rank stopped.
         """
         if self.size == 1:
-            with use_device(self.xp, self.devices[0]):
+            with use_device(self.xp, self.devices[0]), use_stream(self.xp):
                 return [fn(0)]
         first: list[BaseException] = []
         lock = threading.Lock()
 
         def worker(rank: int) -> T:
             try:
-                with use_device(self.xp, self.devices[rank]):
+                with use_device(self.xp, self.devices[rank]), use_stream(self.xp):
                     return fn(rank)
             except BaseException as err:
                 secondary = isinstance(
