@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 import numpy as np
 from array_api_compat import numpy as np_compat
 
+import psutil
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
     from types import ModuleType
@@ -414,7 +416,12 @@ def host_memory_available(meminfo: str = "/proc/meminfo") -> int:
         for line in path.read_text().splitlines():
             if line.startswith("MemAvailable:"):
                 return int(line.split()[1]) * 1024
-    return os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+                
+    try:
+        return os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+    except (ValueError, OSError):
+        return psutil.virtual_memory().available
+    
 
 
 def sketch_dtype(dtype: DTypeLike | None, *inputs: Sequence[Site]) -> np.dtype:
