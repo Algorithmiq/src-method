@@ -13,6 +13,7 @@ import quimb.tensor as qtn
 
 import src_method._sweep as sweep_module
 from src_method import Resources, apply, compress, src
+from src_method._group import DeviceGroup
 from src_method._kernels import SiteKernels
 from src_method._plan import (
     GPU_MARGIN_FRACTION,
@@ -475,3 +476,35 @@ def test_too_many_devices_raise() -> None:
 
     with pytest.raises(ValueError, match="visible"):
         src(*stack, chi_out=4, device="gpu", resources=Resources(devices=count + 1))
+
+
+def test_group_runs_on_a_non_blocking_stream() -> None:
+    """Ranks leave the null stream, keep one stream per device, and see prior work."""
+    group = DeviceGroup("gpu", [0])
+    data = cupy.zeros(1 << 24, dtype=cupy.float32)
+    data += 1  # queued on the null stream before the run
+
+    def fn(_rank: int) -> tuple[int, float]:
+        stream = cupy.cuda.get_current_stream()
+        assert stream != cupy.cuda.Stream.null
+        return stream.ptr, float((data * 2).sum())
+
+    ((first, total),) = group.run(fn)
+    ((second, _),) = group.run(fn)
+
+    assert total == 2 * data.size
+    assert first == second
+    assert cupy.cuda.get_current_stream() == cupy.cuda.Stream.null
+
+
+@pytest.mark.usefixtures("two_gpus")
+def test_two_gpus_run_on_their_own_streams() -> None:
+    """Each rank of a group runs on a non-blocking stream of its own device."""
+    group = DeviceGroup("gpu", 2)
+
+    def fn(rank: int) -> tuple[int, int]:
+        stream = cupy.cuda.get_current_stream()
+        assert stream != cupy.cuda.Stream.null
+        return rank, stream.device_id
+
+    assert group.run(fn) == [(0, 0), (1, 1)]

@@ -97,7 +97,11 @@ out = src(
 the first one gathers the sketches and runs the QR. Everything runs in the calling
 process, one thread per GPU, so nothing changes for the caller: the call returns
 the output cores as with one GPU, errors are raised as usual, and the inputs are
-read once and shared.
+read once and shared. Each thread runs on a non-blocking CUDA stream of its own GPU,
+not on CuPy's legacy default stream, where a copy between two GPUs waits for the
+copy in the other direction and the exchanges between GPUs would get half the
+bandwidth. The stream first waits for the work already queued on the caller's
+current stream, so inputs given as CuPy arrays may still be in flight.
 
 The sketch index is split: each GPU owns a contiguous block of the `chi_out`
 sketch columns and computes only those columns of every environment and of every

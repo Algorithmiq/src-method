@@ -27,6 +27,7 @@ from ._backend import (
     to_host_async,
     to_numpy,
     use_device,
+    use_stream,
 )
 from .linalg import truncated_qr
 
@@ -56,4 +57,5 @@ __all__ = [
     "to_numpy",
     "truncated_qr",
     "use_device",
+    "use_stream",
 ]
