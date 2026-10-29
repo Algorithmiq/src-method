@@ -63,7 +63,16 @@ down to about `sqrt(eps)`, near `1.5e-8` in complex128, so it cannot show `1e-10
 `QR distance` sweeps a QR over the MPO `a - b` (the direct sum of the two outputs)
 and resolves differences down to rounding; the acceptance applies to it. Both are
 logged next to the `eps` of the output dtype: the `1e-10` acceptance is for
-complex128, and in complex64 (`eps` = 1.2e-7) agreement means about `1e-5`.
+complex128, and in complex64 (`eps` = 1.2e-7) agreement means about `1e-5`. On
+the random stacks of `generate`, whose spectrum has no gap at `chi_out`, any change
+of summation order (a different sketch batch on one GPU as much as another GPU
+count) moves a complex64 output by about `2e-4` at the reference size.
+
+## Nebius, 8x RTX PRO 6000 over PCIe
+
+Strong scaling and out-of-core tiers in complex64, with the prediction committed
+before the runs, the traces and the raw records: see
+[`nebius/summary.md`](nebius/summary.md).
 
 ## Leonardo
 

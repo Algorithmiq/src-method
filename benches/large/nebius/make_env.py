@@ -15,7 +15,7 @@ import opt_einsum
 import src_method
 
 HERE = Path(__file__).parent
-ENV = HERE / "env"
+ENV = HERE / "node"
 
 
 def _dd(name: str) -> dict[str, object]:

@@ -1,0 +1,31 @@
+# 2026-10-29T05:27:19+00:00 env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/nebius/allgather_check.py
+# git e9ab83c849d0b432a554f812bfcd966284f04753
+{"total_bytes": 4096000000.0, "gpus": 2, "seconds": 0.058885188002022915, "per_receiver_gbs": 34.77954421967107}
+{"total_bytes": 4096000000.0, "gpus": 4, "seconds": 0.20138858100108337, "per_receiver_gbs": 15.254092286312273}
+{"total_bytes": 4096000000.0, "gpus": 8, "seconds": 0.31771129700064193, "per_receiver_gbs": 11.280681656065754}
+{"total_bytes": 2048000000.0, "gpus": 2, "seconds": 0.02945926599932136, "per_receiver_gbs": 34.75986129537611}
+{"total_bytes": 2048000000.0, "gpus": 4, "seconds": 0.10193050400266657, "per_receiver_gbs": 15.069090602748489}
+{"total_bytes": 2048000000.0, "gpus": 8, "seconds": 0.15935000599711202, "per_receiver_gbs": 11.245685174511243}
+	Command being timed: "env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/nebius/allgather_check.py"
+	User time (seconds): 36.45
+	System time (seconds): 3.67
+	Percent of CPU this job got: 425%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:09.43
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1008052
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 111226
+	Voluntary context switches: 6310
+	Involuntary context switches: 138
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

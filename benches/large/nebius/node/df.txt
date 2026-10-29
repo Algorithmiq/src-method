@@ -1,0 +1,8 @@
+Filesystem     Type     1B-blocks        Used    Available Use% Mounted on
+tmpfs          tmpfs 184315392000     3166208 184312225792   1% /run
+/dev/vda1      ext4  310911414272 42264727552 268629909504  14% /
+tmpfs          tmpfs 921576960000           0 921576960000   0% /dev/shm
+tmpfs          tmpfs      5242880           0      5242880   0% /run/lock
+/dev/vda16     ext4     923156480   270196736    588316672  32% /boot
+/dev/vda15     vfat     109395456     6399488    102995968   6% /boot/efi
+tmpfs          tmpfs 184315392000       16384 184315375616   1% /run/user/1002

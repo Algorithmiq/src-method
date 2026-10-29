@@ -1,0 +1,6 @@
+{"total_bytes": 4096000000.0, "gpus": 2, "seconds": 0.058885188002022915, "per_receiver_gbs": 34.77954421967107}
+{"total_bytes": 4096000000.0, "gpus": 4, "seconds": 0.20138858100108337, "per_receiver_gbs": 15.254092286312273}
+{"total_bytes": 4096000000.0, "gpus": 8, "seconds": 0.31771129700064193, "per_receiver_gbs": 11.280681656065754}
+{"total_bytes": 2048000000.0, "gpus": 2, "seconds": 0.02945926599932136, "per_receiver_gbs": 34.75986129537611}
+{"total_bytes": 2048000000.0, "gpus": 4, "seconds": 0.10193050400266657, "per_receiver_gbs": 15.069090602748489}
+{"total_bytes": 2048000000.0, "gpus": 8, "seconds": 0.15935000599711202, "per_receiver_gbs": 11.245685174511243}

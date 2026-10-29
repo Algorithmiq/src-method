@@ -1,0 +1,3 @@
+{"a": "step5-a.npz", "b": "step5-b.npz", "qr_distance": 0.00019939779557767107, "bit_identical": false, "dtypes": ["complex64", "complex64"]}
+{"a": "step5-a.npz", "b": "step5-c1.npz", "qr_distance": 6.914091563869479e-15, "bit_identical": true, "dtypes": ["complex64", "complex64"]}
+{"a": "step5-a.npz", "b": "step5-c2.npz", "qr_distance": 6.914091563869479e-15, "bit_identical": true, "dtypes": ["complex64", "complex64"]}

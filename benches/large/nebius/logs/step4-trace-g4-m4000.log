@@ -1,0 +1,45 @@
+# 2026-10-29T01:55:36+00:00 uv run python /home/ramon/src-method/benches/large/nebius/trace.py /dev/shm/nebius/m4000-c64 --chi-out 2000 --devices 4 --scratch-dir /home/ramon/nebius-data/scratch --out /home/ramon/src-method/benches/large/nebius/raw/trace_g4_m4000.json
+# git e9ab83c849d0b432a554f812bfcd966284f04753
+Starting SRC: n_sites=50, depth=4, output=mpo, device=gpu
+SRC plan: devices=[0, 1, 2, 3], prefetch=1, device peak=90752015872 B, host peak=116592914432 B, disk=0 B, scratch=None, tiers=['device', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 1984), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Device 3: Left-to-right sweep: 70.573 s
+Device 2: Left-to-right sweep: 70.577 s
+Device 0: Left-to-right sweep: 70.581 s
+Device 1: Left-to-right sweep: 70.582 s
+Device 2: Right-to-left sweep: 184.510 s
+Device 2: SRC stalls: sites 38.096 s, environments 19.750 s
+Device 2: Device pool: 99416634368 B
+Device 3: Right-to-left sweep: 184.524 s
+Device 3: SRC stalls: sites 38.108 s, environments 19.838 s
+Device 3: Device pool: 99416634368 B
+Device 1: Right-to-left sweep: 186.390 s
+Device 1: SRC stalls: sites 38.086 s, environments 22.830 s
+Device 1: Device pool: 99928635904 B
+Device 0: Right-to-left sweep: 186.392 s
+Device 0: SRC stalls: sites 38.102 s, environments 31.766 s
+Device 0: Device pool: 99928635904 B
+SRC complete
+Run complete: 260.6 s, pools [99928635904, 99928635904, 99416634368, 99416634368] B, host peak 205167398912 B, planned device peak 90752015872 B, planned host peak 116592914432 B, disk 0 B, tiers {'device': 33, 'host': 17, 'disk': 0}, sketch batches [480]
+	Command being timed: "uv run python /home/ramon/src-method/benches/large/nebius/trace.py /dev/shm/nebius/m4000-c64 --chi-out 2000 --devices 4 --scratch-dir /home/ramon/nebius-data/scratch --out /home/ramon/src-method/benches/large/nebius/raw/trace_g4_m4000.json"
+	User time (seconds): 427.11
+	System time (seconds): 52.76
+	Percent of CPU this job got: 179%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:27.35
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 200358788
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 7411118
+	Voluntary context switches: 47621
+	Involuntary context switches: 2542
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 200
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

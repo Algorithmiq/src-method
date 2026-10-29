@@ -1,0 +1,7 @@
+NAME            SIZE TYPE MOUNTPOINT ROTA MODEL FSTYPE
+vda     322122547200 disk               1
+├─vda1  321047739904 part /             1       ext4
+├─vda14      4194304 part               1
+├─vda15    111149056 part /boot/efi     1       vfat
+└─vda16    957350400 part /boot         1       ext4
+vdb          1048576 disk               1       iso9660

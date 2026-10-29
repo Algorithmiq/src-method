@@ -1,0 +1,26 @@
+# 2026-10-28T19:52:23+00:00 uv run --project /home/ramon/src-method python /home/ramon/src-method/benches/large/nebius/probe_env.py
+# git dc6ecf6df9d63dc053d8f913396a45cdd19328c0
+{"block_bytes": 1000000000, "reps": 5, "peer": [[true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true], [true, true, true, true, true, true, true, true]], "pair_gbs": [[null, 41.18625644238059, 41.38413716508212, 40.86609810065084, 38.45525398437416, 38.31909606410342, 38.37702340106083, 33.633296371115925], [41.33643847229834, null, 41.43554266302223, 40.791024441969036, 39.01656561443296, 38.50242210923267, 38.836767356923346, 33.71075671689057], [41.1703173226647, 41.40062624228646, null, 40.82873179909532, 39.43141788133744, 39.200714676112604, 39.330718600344916, 33.27458483516669], [40.716411781529835, 40.723372522915994, 40.96846837337705, null, 35.04755480143946, 34.14096168149791, 35.80695795863792, 39.558216997021354], [38.820859861653986, 39.22899336260708, 39.07302071527396, 34.307973691057555, null, 41.28725230018684, 41.45917214707493, 40.997653295129815], [38.93574286557577, 38.75983715042661, 38.940335346190246, 34.19671723097697, 41.32515387370884, null, 41.5250041130261, 41.01674775334789], [39.19557971050663, 39.0720696033806, 39.820057936610404, 34.049245971111404, 41.210757210064315, 41.361258580438715, null, 40.98502087798199], [34.34990385312724, 34.614754227616196, 33.98331983200669, 39.51956226002974, 40.8046580653805, 40.896878359766475, 40.909910036047506, null]], "allgather_gbs": {"2": 37.18429510839257, "4": 21.317657483966233, "8": 15.664105228911799}, "gather_gbs": {"2": 41.208744793401365, "4": 41.109897623539375, "8": 39.090925778315295}, "scatter_gbs": {"2": 41.44743563712657, "4": 13.739085155409285, "8": 5.576583737552476}, "h2d_gbs": {"alone": [56.40931524236988, 56.48867949941871, 56.485308438486335, 56.43990617421323, 56.513683842704346, 56.58506741559466, 56.518124367000986, 56.56949780601016], "together": {"2": {"per_gpu": 56.4569503608671, "aggregate": 112.9139007217342}, "4": {"per_gpu": 46.67038264064235, "aggregate": 186.6815305625694}, "8": {"per_gpu": 32.40574376240559, "aggregate": 259.24595009924474}}}, "d2h_gbs": {"alone": [57.25449113159768, 57.22130591720466, 57.24539263596782, 57.25432313206096, 57.31902799397962, 57.320551671592035, 57.32180024437629, 57.3258781985561], "together": {"2": {"per_gpu": 57.30040378477783, "aggregate": 114.60080756955566}, "4": {"per_gpu": 41.13618175139947, "aggregate": 164.54472700559788}, "8": {"per_gpu": 28.758648192658796, "aggregate": 230.06918554127037}}}, "matmul": {"relative_error_complex64": 8.112008320112444e-07, "eps_complex64": 1.1920928955078125e-07, "tflops": {"complex64": 84.0451586981576, "complex128": 1.5306735504881062}, "CUPY_TF32": "0", "NVIDIA_TF32_OVERRIDE": "0"}}
+	Command being timed: "uv run --project /home/ramon/src-method python /home/ramon/src-method/benches/large/nebius/probe_env.py"
+	User time (seconds): 50.71
+	System time (seconds): 22.05
+	Percent of CPU this job got: 111%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:05.27
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 35673024
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 8676442
+	Voluntary context switches: 5159
+	Involuntary context switches: 646
+	Swaps: 0
+	File system inputs: 8
+	File system outputs: 1360
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

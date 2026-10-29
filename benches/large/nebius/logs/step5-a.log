@@ -1,0 +1,34 @@
+# 2026-10-29T02:02:53+00:00 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m4000-c64 --chi-out 2000 --scratch-dir /home/ramon/nebius-data/scratch --results /home/ramon/src-method/benches/large/nebius/raw/step5_tiers.jsonl --save /dev/shm/nebius/out/step5-a.npz
+# git e9ab83c849d0b432a554f812bfcd966284f04753
+Starting SRC: n_sites=50, depth=4, output=mpo, device=gpu
+SRC plan: devices=[0], prefetch=1, device peak=91082766336 B, host peak=223613202432 B, disk=0 B, scratch=None, tiers=['device', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'host', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(1984, 0, 1984), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (576, 544, 544), (608, 544, 544), (608, 576, 544), (608, 576, 544), (608, 576, 544), (608, 576, 544), (608, 576, 544), (0, 1984, 1984)]
+Out of memory in a env batch of 608 rows; 2 pieces from now on
+Left-to-right sweep: 238.594 s
+Right-to-left sweep: 601.185 s
+SRC stalls: sites 4.990 s, environments 280.094 s
+Device pool: 81742608384 B
+SRC complete
+Run complete: 842.3 s, pools [81742608384] B, host peak 298093932544 B, planned device peak 91082766336 B, planned host peak 223613202432 B, disk 0 B, tiers {'device': 7, 'host': 43, 'disk': 0}, sketch batches [544, 576, 1984]
+	Command being timed: "uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m4000-c64 --chi-out 2000 --scratch-dir /home/ramon/nebius-data/scratch --results /home/ramon/src-method/benches/large/nebius/raw/step5_tiers.jsonl --save /dev/shm/nebius/out/step5-a.npz"
+	User time (seconds): 1019.55
+	System time (seconds): 309.83
+	Percent of CPU this job got: 153%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 14:26.71
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 291107356
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 7852458
+	Voluntary context switches: 16193
+	Involuntary context switches: 7051
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

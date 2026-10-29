@@ -1,0 +1,33 @@
+# 2026-10-28T21:51:19+00:00 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m1000-c128 --chi-out 500 --scratch-dir /home/ramon/nebius-data/scratch --results /home/ramon/src-method/benches/large/nebius/raw/step2_precision.jsonl --seed 1 --save /dev/shm/nebius/out/c128-s1.npz
+# git a49b19d699615c9c2fdd570f390fef32d4b450e9
+Starting SRC: n_sites=50, depth=4, output=mpo, device=gpu
+SRC plan: devices=[0], prefetch=1, device peak=50342428672 B, host peak=3904164864 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(480, 0, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (480, 480, 480), (0, 480, 480)]
+Left-to-right sweep: 129.739 s
+Right-to-left sweep: 409.829 s
+SRC stalls: sites 129.513 s, environments 0.000 s
+Device pool: 56551783424 B
+SRC complete
+Run complete: 541.6 s, pools [56551783424] B, host peak 16747372544 B, planned device peak 50342428672 B, planned host peak 3904164864 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [480]
+	Command being timed: "uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m1000-c128 --chi-out 500 --scratch-dir /home/ramon/nebius-data/scratch --results /home/ramon/src-method/benches/large/nebius/raw/step2_precision.jsonl --seed 1 --save /dev/shm/nebius/out/c128-s1.npz"
+	User time (seconds): 739.66
+	System time (seconds): 5.51
+	Percent of CPU this job got: 136%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 9:05.45
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 16354856
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 668912
+	Voluntary context switches: 7446
+	Involuntary context switches: 4242
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -1,0 +1,45 @@
+# 2026-10-29T05:35:23+00:00 env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m1000-c64 --chi-out 500 --devices 4 --results /home/ramon/src-method/benches/large/nebius/raw/step6_ptds_m1000.jsonl
+# git e9ab83c849d0b432a554f812bfcd966284f04753
+Starting SRC: n_sites=50, depth=4, output=mpo, device=gpu
+SRC plan: devices=[0, 1, 2, 3], prefetch=1, device peak=6117455872 B, host peak=1952082432 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(96, 0, 480), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (96, 96, 96), (0, 96, 96)]
+Device 1: Left-to-right sweep: 1.579 s
+Device 3: Left-to-right sweep: 1.578 s
+Device 2: Left-to-right sweep: 1.582 s
+Device 0: Left-to-right sweep: 1.588 s
+Device 3: Right-to-left sweep: 5.033 s
+Device 3: SRC stalls: sites 0.772 s, environments 0.000 s
+Device 3: Device pool: 6534194688 B
+Device 1: Right-to-left sweep: 5.035 s
+Device 1: SRC stalls: sites 0.740 s, environments 0.000 s
+Device 1: Device pool: 6534211584 B
+Device 2: Right-to-left sweep: 5.033 s
+Device 2: SRC stalls: sites 0.708 s, environments 0.000 s
+Device 2: Device pool: 6534211584 B
+Device 0: Right-to-left sweep: 5.065 s
+Device 0: SRC stalls: sites 0.754 s, environments 0.000 s
+Device 0: Device pool: 6534211072 B
+SRC complete
+Run complete: 8.4 s, pools [6534211072, 6534211584, 6534211584, 6534194688] B, host peak 8750170112 B, planned device peak 6117455872 B, planned host peak 1952082432 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [96]
+	Command being timed: "env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m1000-c64 --chi-out 500 --devices 4 --results /home/ramon/src-method/benches/large/nebius/raw/step6_ptds_m1000.jsonl"
+	User time (seconds): 16.93
+	System time (seconds): 3.48
+	Percent of CPU this job got: 210%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:09.68
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8545088
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 321616
+	Voluntary context switches: 46039
+	Involuntary context switches: 144
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 16
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

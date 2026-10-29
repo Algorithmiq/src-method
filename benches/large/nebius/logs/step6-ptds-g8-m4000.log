@@ -1,0 +1,61 @@
+# 2026-10-29T05:27:50+00:00 env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m4000-c64 --chi-out 2000 --devices 8 --results /home/ramon/src-method/benches/large/nebius/raw/step6_ptds_m4000.jsonl --save /dev/shm/nebius/out/step6-ptds-g8.npz
+# git e9ab83c849d0b432a554f812bfcd966284f04753
+Starting SRC: n_sites=50, depth=4, output=mpo, device=gpu
+SRC plan: devices=[0, 1, 2, 3, 4, 5, 6, 7], prefetch=1, device peak=56189455104 B, host peak=31232274432 B, disk=0 B, scratch=None, tiers=['device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device', 'device'], batches (env, sketch, project)=[(224, 0, 1984), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (224, 224, 224), (0, 224, 224)]
+Device 3: Left-to-right sweep: 32.855 s
+Device 2: Left-to-right sweep: 32.864 s
+Device 7: Left-to-right sweep: 32.868 s
+Device 4: Left-to-right sweep: 32.876 s
+Device 0: Left-to-right sweep: 32.886 s
+Device 1: Left-to-right sweep: 32.888 s
+Device 5: Left-to-right sweep: 32.887 s
+Device 6: Left-to-right sweep: 32.889 s
+Device 2: Right-to-left sweep: 107.233 s
+Device 2: SRC stalls: sites 29.229 s, environments 0.000 s
+Device 2: Device pool: 61744040448 B
+Device 7: Right-to-left sweep: 107.229 s
+Device 7: SRC stalls: sites 29.086 s, environments 0.000 s
+Device 7: Device pool: 61744037888 B
+Device 3: Right-to-left sweep: 107.248 s
+Device 3: SRC stalls: sites 29.245 s, environments 0.000 s
+Device 3: Device pool: 61744037888 B
+Device 5: Right-to-left sweep: 107.217 s
+Device 5: SRC stalls: sites 29.206 s, environments 0.000 s
+Device 5: Device pool: 61744037888 B
+Device 1: Right-to-left sweep: 107.220 s
+Device 1: SRC stalls: sites 29.019 s, environments 0.000 s
+Device 1: Device pool: 61744037888 B
+Device 6: Right-to-left sweep: 107.218 s
+Device 6: SRC stalls: sites 29.137 s, environments 0.000 s
+Device 6: Device pool: 61744005632 B
+Device 4: Right-to-left sweep: 108.312 s
+Device 4: SRC stalls: sites 29.161 s, environments 0.000 s
+Device 4: Device pool: 61744038400 B
+Device 0: Right-to-left sweep: 108.309 s
+Device 0: SRC stalls: sites 29.263 s, environments 0.000 s
+Device 0: Device pool: 61744037888 B
+SRC complete
+Run complete: 145.6 s, pools [61744037888, 61744037888, 61744040448, 61744037888, 61744038400, 61744037888, 61744005632, 61744037888] B, host peak 127434498048 B, planned device peak 56189455104 B, planned host peak 31232274432 B, disk 0 B, tiers {'device': 50, 'host': 0, 'disk': 0}, sketch batches [224]
+	Command being timed: "env CUPY_CUDA_PER_THREAD_DEFAULT_STREAM=1 uv run python /home/ramon/src-method/benches/large/bench_large.py --debug run /dev/shm/nebius/m4000-c64 --chi-out 2000 --devices 8 --results /home/ramon/src-method/benches/large/nebius/raw/step6_ptds_m4000.jsonl --save /dev/shm/nebius/out/step6-ptds-g8.npz"
+	User time (seconds): 215.03
+	System time (seconds): 26.34
+	Percent of CPU this job got: 142%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:49.19
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 124447752
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 3034964
+	Voluntary context switches: 146524
+	Involuntary context switches: 1443
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
